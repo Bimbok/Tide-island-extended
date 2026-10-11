@@ -2277,3 +2277,64 @@ void SystemServices::handleCavaLine(const QString &line) {
     m_cavaLevels = nextLevels;
     emit cavaLevelsChanged();
 }
+
+QString SystemServices::defaultTerminalEmulator() const {
+    const UserConfigBackend config;
+    const QString configured = config.terminalEmulator().trimmed();
+    if (!configured.isEmpty())
+        return configured;
+
+    const QString envTerm = qEnvironmentVariable("TERMINAL").trimmed();
+    if (!envTerm.isEmpty())
+        return envTerm;
+
+    static const QStringList candidates = {
+        QStringLiteral("xdg-terminal-exec"),
+        QStringLiteral("kitty"),
+        QStringLiteral("ghostty"),
+        QStringLiteral("foot"),
+        QStringLiteral("alacritty"),
+        QStringLiteral("wezterm"),
+        QStringLiteral("konsole"),
+        QStringLiteral("gnome-terminal"),
+        QStringLiteral("xfce4-terminal"),
+        QStringLiteral("xterm")
+    };
+
+    for (const QString &candidate : candidates) {
+        if (!findExecutable(candidate).isEmpty())
+            return candidate;
+    }
+
+    return QStringLiteral("xterm");
+}
+
+QStringList SystemServices::wrapTerminalCommand(const QStringList &command) const {
+    if (command.isEmpty())
+        return {};
+
+    const QString terminal = defaultTerminalEmulator();
+    const QStringList parts = QProcess::splitCommand(terminal);
+    if (parts.isEmpty())
+        return QStringList{QStringLiteral("xterm"), QStringLiteral("-e")} + command;
+
+    if (parts.size() > 1) {
+        QStringList wrapped = parts;
+        wrapped.append(command);
+        return wrapped;
+    }
+
+    const QString binName = QFileInfo(parts.first()).fileName().toLower();
+    if (binName == QLatin1String("wezterm")) {
+        return QStringList{parts.first(), QStringLiteral("start"), QStringLiteral("--")} + command;
+    }
+    if (binName == QLatin1String("gnome-terminal")) {
+        return QStringList{parts.first(), QStringLiteral("--")} + command;
+    }
+    if (binName == QLatin1String("xdg-terminal-exec")) {
+        return QStringList{parts.first()} + command;
+    }
+
+    return QStringList{parts.first(), QStringLiteral("-e")} + command;
+}
+

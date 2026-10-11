@@ -104,6 +104,8 @@ public:
     Q_INVOKABLE void requestBatteryThresholdState();
     Q_INVOKABLE void setBatteryConservationMode(bool enabled);
     Q_INVOKABLE void setBatteryThreshold(int threshold);
+    Q_INVOKABLE QString defaultTerminalEmulator() const;
+    Q_INVOKABLE QStringList wrapTerminalCommand(const QStringList &command) const;
 
 signals:
     void notificationReceived(uint id,

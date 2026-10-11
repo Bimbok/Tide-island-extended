@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
+import IslandBackend
 import "../common/ApplicationSearch.js" as ApplicationSearch
 
 FocusScope {
@@ -354,13 +355,22 @@ FocusScope {
         if (!entry)
             return;
 
-        const desktopCommand = [];
+        let desktopCommand = [];
         for (let index = 0; index < entry.command.length; ++index)
             desktopCommand.push(String(entry.command[index]));
 
         if (desktopCommand.length === 0) {
             entry.execute();
         } else {
+            if (entry.runInTerminal) {
+                if (typeof SystemServices !== "undefined" && SystemServices && SystemServices.wrapTerminalCommand) {
+                    desktopCommand = SystemServices.wrapTerminalCommand(desktopCommand);
+                } else {
+                    const terminal = Quickshell.env("TERMINAL") || "kitty";
+                    desktopCommand = [terminal, "-e"].concat(desktopCommand);
+                }
+            }
+
             const scopedCommand = [
                 "systemd-run",
                 "--user",

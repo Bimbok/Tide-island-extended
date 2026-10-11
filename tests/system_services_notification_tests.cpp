@@ -134,6 +134,28 @@ private slots:
         QVERIFY(services.batteryHealthPercent() >= 0 && services.batteryHealthPercent() <= 100);
         QVERIFY(services.batteryCycleCount() >= 0);
     }
+
+    void testTerminalResolutionAndWrapping()
+    {
+        SystemServices services;
+        const QString term = services.defaultTerminalEmulator();
+        QVERIFY(!term.trimmed().isEmpty());
+
+        // Empty command returns empty
+        QVERIFY(services.wrapTerminalCommand({}).isEmpty());
+
+        // Normal command wrapping
+        const QStringList wrapped = services.wrapTerminalCommand({QStringLiteral("btop")});
+        QVERIFY(wrapped.size() >= 2);
+        QCOMPARE(wrapped.last(), QStringLiteral("btop"));
+        QVERIFY(wrapped.first().contains(term) || term.contains(wrapped.first()));
+
+        // Multi-arg command wrapping
+        const QStringList wrappedMulti = services.wrapTerminalCommand({QStringLiteral("nvim"), QStringLiteral("file.txt")});
+        QVERIFY(wrappedMulti.size() >= 3);
+        QCOMPARE(wrappedMulti.at(wrappedMulti.size() - 2), QStringLiteral("nvim"));
+        QCOMPARE(wrappedMulti.last(), QStringLiteral("file.txt"));
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)
