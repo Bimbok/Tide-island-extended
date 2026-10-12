@@ -53,6 +53,18 @@ PanelWindow {
         && shellRootController.screenRecordingActive !== undefined
         ? !!shellRootController.screenRecordingActive
         : false
+    readonly property bool micActive: shellRootController
+        && shellRootController.micActive !== undefined
+        ? !!shellRootController.micActive
+        : SystemServices.micActive
+    readonly property bool cameraActive: shellRootController
+        && shellRootController.cameraActive !== undefined
+        ? !!shellRootController.cameraActive
+        : SystemServices.cameraActive
+    readonly property bool privacyActive: shellRootController
+        && shellRootController.privacyActive !== undefined
+        ? !!shellRootController.privacyActive
+        : SystemServices.privacyActive
     property bool autoHideVisible: false
     property bool autoHidePointerInside: false
     property bool autoHideForcedHidden: false
@@ -808,6 +820,25 @@ PanelWindow {
             islandContainer.smartRestoreState();
     }
 
+    function togglePrivacyHudWindow() {
+        if (islandContainer.islandState === "privacy_hud")
+            islandContainer.smartRestoreState();
+        else {
+            islandContainer.showPrivacyHud();
+            showIslandWindow();
+        }
+    }
+
+    function showPrivacyHudWindow() {
+        islandContainer.showPrivacyHud();
+        showIslandWindow();
+    }
+
+    function closePrivacyHudWindow() {
+        if (islandContainer.islandState === "privacy_hud")
+            islandContainer.smartRestoreState();
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)
@@ -1172,6 +1203,7 @@ PanelWindow {
         readonly property bool clipboardLayerVisible: !root.overviewVisible && islandState === "clipboard"
         readonly property bool weatherLayerVisible: !root.overviewVisible && islandState === "weather"
         readonly property bool calendarLayerVisible: !root.overviewVisible && islandState === "calendar"
+        readonly property bool privacyHudLayerVisible: !root.overviewVisible && islandState === "privacy_hud"
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
         readonly property string currentTrack: mediaController.currentTrack
@@ -1181,6 +1213,9 @@ PanelWindow {
         readonly property string timePlayed: mediaController.timePlayed
         readonly property string timeTotal: mediaController.timeTotal
         readonly property bool screenRecordingActive: root.screenRecordingActive
+        readonly property bool micActive: root.micActive
+        readonly property bool cameraActive: root.cameraActive
+        readonly property bool privacyActive: root.privacyActive
         readonly property var bluetoothDevices: bluetoothConnectionTracker.devices
         readonly property var overviewView: overviewLoader.item && overviewLoader.item.overviewView
             ? overviewLoader.item.overviewView
@@ -1474,6 +1509,20 @@ PanelWindow {
                 return;
             case "closeCalendar":
                 if (islandState === "calendar")
+                    smartRestoreState();
+                return;
+            case "togglePrivacyHud":
+                if (islandState === "privacy_hud")
+                    smartRestoreState();
+                else
+                    showPrivacyHud();
+                return;
+            case "openPrivacyHud":
+            case "showPrivacyHud":
+                showPrivacyHud();
+                return;
+            case "closePrivacyHud":
+                if (islandState === "privacy_hud")
                     smartRestoreState();
                 return;
             default:
@@ -2054,6 +2103,15 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showPrivacyHud() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "privacy_hud";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            stopAutoHideTimer();
+        }
+
         function showCustomCapsule() {
             if (!hasCustomLeftItems) {
                 showTimeCapsule();
@@ -2236,6 +2294,8 @@ PanelWindow {
                     return 460;
                 case "calendar":
                     return 420;
+                case "privacy_hud":
+                    return 380;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 410;
@@ -2246,7 +2306,7 @@ PanelWindow {
                         Math.min(root.width - 48, notificationLoader.item.maximumWidth, notificationLoader.item.preferredWidth)
                     );
                 default:
-                    return userConfig.islandWidth;
+                    return userConfig.islandWidth + (islandContainer.privacyActive ? 28 : 0);
                 }
             }
             readonly property real targetHeight: {
@@ -2268,6 +2328,10 @@ PanelWindow {
                 case "weather":
                 case "calendar":
                     return 340;
+                case "privacy_hud": {
+                    const privacyCount = SystemServices.activePrivacyApps ? SystemServices.activePrivacyApps.length : 0;
+                    return 84 + Math.max(1, privacyCount) * 62;
+                }
                 case "expanded":
                 case "bluetooth_expanded":
                     return 165;
@@ -2294,6 +2358,8 @@ PanelWindow {
                 case "weather":
                 case "calendar":
                     return 34;
+                case "privacy_hud":
+                    return 28;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 40;
@@ -2304,13 +2370,14 @@ PanelWindow {
                 }
             }
             function sideSwipeWidthForProgress(progressValue) {
+                const restingW = userConfig.islandWidth + (islandContainer.privacyActive ? 28 : 0);
                 if (progressValue < 0)
-                    return userConfig.islandWidth + (islandContainer.customCapsuleWidth - userConfig.islandWidth)
+                    return restingW + (islandContainer.customCapsuleWidth - restingW)
                         * islandContainer.clamp01(-progressValue);
                 if (progressValue > 0)
-                    return userConfig.islandWidth + (islandContainer.lyricsCapsuleWidth - userConfig.islandWidth)
+                    return restingW + (islandContainer.lyricsCapsuleWidth - restingW)
                         * islandContainer.clamp01(progressValue);
-                return userConfig.islandWidth;
+                return restingW;
             }
             readonly property real sideSwipePreviewWidth: mainCapsule.sideSwipeWidthForProgress(
                 islandContainer.swipeTransitionProgress
@@ -2535,6 +2602,14 @@ PanelWindow {
                         swipeSuppressReset.stop();
                         suppressNextClick = false;
                         preparedOverviewOnPress = false;
+                        return;
+                    }
+
+                    if (islandContainer.islandState === "privacy_hud") {
+                        if (preparedOverviewOnPress)
+                            root.cancelPreparedOverviewEverywhere();
+                        preparedOverviewOnPress = false;
+                        islandContainer.smartRestoreState();
                         return;
                     }
 
@@ -3069,6 +3144,47 @@ PanelWindow {
                         showCondition: islandContainer.calendarLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
                     }
+                }
+            }
+
+            Loader {
+                id: privacyHudLoader
+                anchors.fill: parent
+                active: islandContainer.privacyHudLayerVisible
+                asynchronous: false
+                visible: islandContainer.privacyHudLayerVisible
+                onLoaded: islandContainer.forceActiveFocus()
+
+                sourceComponent: Component {
+                    PrivacyHudLayer {
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        heroFontFamily: root.heroFontFamily
+                        isMicMuted: islandContainer.isMicMuted
+                        showCondition: islandContainer.privacyHudLayerVisible
+                        onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            PrivacyIndicatorCluster {
+                id: privacyIndicatorCluster
+                z: 50
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.top
+                anchors.verticalCenterOffset: userConfig.islandHeight / 2
+                micActive: islandContainer.micActive
+                cameraActive: islandContainer.cameraActive
+                screenRecordingActive: islandContainer.screenRecordingActive
+                contentOpacity: (islandContainer.islandState === "normal"
+                    || islandContainer.islandState === "custom"
+                    || islandContainer.islandState === "lyrics"
+                    || islandContainer.islandState === "split"
+                    || islandContainer.islandState === "long_capsule") ? 1.0 : 0.0
+                onClicked: {
+                    islandContainer.suppressCapsuleClick(true);
+                    islandContainer.showPrivacyHud();
                 }
             }
 

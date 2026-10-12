@@ -219,7 +219,8 @@ SystemServices::SystemServices(QObject *parent)
 
     m_recordingSnapshotDebounceTimer.setSingleShot(true);
     m_recordingSnapshotDebounceTimer.setInterval(250);
-    connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestScreenRecordingSnapshot);
+    connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
+    QTimer::singleShot(200, this, &SystemServices::requestPrivacySnapshot);
 
     m_cavaRestartTimer.setSingleShot(true);
     m_cavaRestartTimer.setInterval(1200);
@@ -833,12 +834,14 @@ void SystemServices::handlePipeWireLine(const QString &line) {
     const QString lowerLine = line.toLower();
     const bool relevantVideoLine = lowerLine.contains(QStringLiteral("media.class = \"video/source\""))
         || lowerLine.contains(QStringLiteral("media.class = \"stream/input/video\""))
+        || lowerLine.contains(QStringLiteral("media.class = \"stream/input/audio\""))
+        || lowerLine.contains(QStringLiteral("source-output"))
         || lowerLine.contains(QStringLiteral("xdg-desktop-portal"))
         || lowerLine.contains(QStringLiteral("screencast"))
         || lowerLine.contains(QStringLiteral("screen-cast"))
         || lowerLine.contains(QStringLiteral("screen_cast"))
         || lowerLine.contains(QStringLiteral("xdpw"));
-    const bool removalMayAffectActiveCapture = m_portalPipeWireActive
+    const bool removalMayAffectActiveCapture = (m_portalPipeWireActive || m_micActive || m_cameraActive)
         && (lowerLine.contains(QStringLiteral("removed:")) || lowerLine.contains(QStringLiteral("destroyed:")));
 
     if (relevantVideoLine || removalMayAffectActiveCapture)
@@ -863,29 +866,169 @@ bool SystemServices::pipeWireBlockLooksLikeScreenCast(const QString &blockText) 
 }
 
 void SystemServices::requestScreenRecordingSnapshot() {
+    requestPrivacySnapshot();
+}
+
+void SystemServices::requestPrivacySnapshot() {
     if (m_recordingSnapshot) return;
 
-    m_recordingSnapshot = startCommand(QStringLiteral("pw-cli"), {QStringLiteral("ls"), QStringLiteral("Node")}, 1500,
+    m_recordingSnapshot = startCommand(
+        QStringLiteral("sh"),
+        {
+            QStringLiteral("-c"),
+            QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null")
+        },
+        1500,
         [this](const CommandResult &result) {
             m_recordingSnapshot = nullptr;
             if (result.exitCode == 0 && result.exitStatus == QProcess::NormalExit) {
-                applyPipeWireSnapshot(QString::fromUtf8(result.stdoutData));
+                handlePrivacySnapshotOutput(QString::fromUtf8(result.stdoutData));
             } else {
                 setPortalPipeWireActive(false);
             }
         });
 }
 
-void SystemServices::applyPipeWireSnapshot(const QString &text) {
-    const QStringList blocks = text.split(QRegularExpression(QStringLiteral("\\n(?=\\s*id\\s+\\d+,)")));
-    for (const QString &block : blocks) {
-        if (pipeWireBlockLooksLikeScreenCast(block)) {
-            setPortalPipeWireActive(true);
-            return;
+void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
+    const QString separator = QStringLiteral("---TIDE-PRIVACY-SEP---");
+    const int sepIndex = output.indexOf(separator);
+    const QString jsonPart = sepIndex >= 0 ? output.left(sepIndex).trimmed() : output.trimmed();
+    const QString pwPart = sepIndex >= 0 ? output.mid(sepIndex + separator.length()).trimmed() : QString();
+
+    // 1. Microphone sources
+    bool micActive = false;
+    QVariantList micApps;
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonPart.toUtf8(), &parseError);
+    if (parseError.error == QJsonParseError::NoError && doc.isArray()) {
+        const QJsonArray arr = doc.array();
+        for (const QJsonValue &val : arr) {
+            const QJsonObject obj = val.toObject();
+            if (obj.value(QLatin1String("corked")).toBool(false))
+                continue;
+
+            const QJsonObject props = obj.value(QLatin1String("properties")).toObject();
+            QString appName = props.value(QLatin1String("application.name")).toString().trimmed();
+            QString binary = props.value(QLatin1String("application.process.binary")).toString().trimmed();
+            if (appName.isEmpty())
+                appName = props.value(QLatin1String("node.name")).toString().trimmed();
+            if (appName.isEmpty())
+                appName = binary;
+            if (appName.isEmpty() || appName.compare(QLatin1String("cava"), Qt::CaseInsensitive) == 0
+                || binary.compare(QLatin1String("cava"), Qt::CaseInsensitive) == 0)
+                continue;
+
+            const QString mediaName = props.value(QLatin1String("media.name")).toString();
+            if (mediaName.contains(QLatin1String("monitor"), Qt::CaseInsensitive))
+                continue;
+
+            int pid = props.value(QLatin1String("application.process.id")).toString().toInt();
+
+            QVariantMap app;
+            app.insert(QStringLiteral("type"), QStringLiteral("mic"));
+            app.insert(QStringLiteral("name"), appName);
+            app.insert(QStringLiteral("binary"), binary);
+            app.insert(QStringLiteral("pid"), pid);
+            app.insert(QStringLiteral("icon"), QStringLiteral("audio-input-microphone"));
+            app.insert(QStringLiteral("color"), QStringLiteral("#ff9f0a"));
+            micApps.append(app);
+            micActive = true;
         }
     }
 
-    setPortalPipeWireActive(false);
+    // 2. Camera streams and screen cast from PipeWire
+    bool cameraActive = false;
+    bool screencastActive = false;
+    QVariantList cameraApps;
+    if (!pwPart.isEmpty()) {
+        const QStringList blocks = pwPart.split(QRegularExpression(QStringLiteral("\\n(?=\\s*id\\s+\\d+,)")));
+        for (const QString &block : blocks) {
+            if (pipeWireBlockLooksLikeScreenCast(block)) {
+                screencastActive = true;
+            }
+
+            if (block.contains(QStringLiteral("media.class = \"Stream/Input/Video\""))
+                || (block.contains(QStringLiteral("media.role = \"Camera\"")) && block.contains(QStringLiteral("Stream/Input")))) {
+                cameraActive = true;
+                static const QRegularExpression appNameRe(QStringLiteral("application\\.name\\s*=\\s*\"([^\"]+)\""));
+                static const QRegularExpression binRe(QStringLiteral("application\\.process\\.binary\\s*=\\s*\"([^\"]+)\""));
+                static const QRegularExpression pidRe(QStringLiteral("application\\.process\\.id\\s*=\\s*\"([^\"]+)\""));
+                static const QRegularExpression nodeRe(QStringLiteral("node\\.name\\s*=\\s*\"([^\"]+)\""));
+
+                QString appName;
+                const auto appMatch = appNameRe.match(block);
+                if (appMatch.hasMatch()) {
+                    appName = appMatch.captured(1);
+                } else {
+                    const auto nodeMatch = nodeRe.match(block);
+                    if (nodeMatch.hasMatch()) appName = nodeMatch.captured(1);
+                }
+                if (appName.isEmpty()) appName = QStringLiteral("Camera");
+
+                QString binary;
+                const auto binMatch = binRe.match(block);
+                if (binMatch.hasMatch()) binary = binMatch.captured(1);
+
+                int pid = 0;
+                const auto pidMatch = pidRe.match(block);
+                if (pidMatch.hasMatch()) pid = pidMatch.captured(1).toInt();
+
+                QVariantMap app;
+                app.insert(QStringLiteral("type"), QStringLiteral("camera"));
+                app.insert(QStringLiteral("name"), appName);
+                app.insert(QStringLiteral("binary"), binary);
+                app.insert(QStringLiteral("pid"), pid);
+                app.insert(QStringLiteral("icon"), QStringLiteral("camera-web"));
+                app.insert(QStringLiteral("color"), QStringLiteral("#30d158"));
+                cameraApps.append(app);
+            }
+        }
+    }
+
+    // 3. Screen recording
+    QVariantList screenApps;
+    const bool recorderActive = ScreenRecorderController::instance()
+        && ScreenRecorderController::instance()->isRecording();
+    if (recorderActive) {
+        QVariantMap app;
+        app.insert(QStringLiteral("type"), QStringLiteral("screen"));
+        app.insert(QStringLiteral("name"), QStringLiteral("Screen Recorder"));
+        app.insert(QStringLiteral("binary"), QStringLiteral("wf-recorder"));
+        app.insert(QStringLiteral("pid"), 0);
+        app.insert(QStringLiteral("icon"), QStringLiteral("video-display"));
+        app.insert(QStringLiteral("color"), QStringLiteral("#ff453a"));
+        screenApps.append(app);
+    } else if (screencastActive || !m_activeScreenCastSessions.isEmpty()) {
+        QVariantMap app;
+        app.insert(QStringLiteral("type"), QStringLiteral("screen"));
+        app.insert(QStringLiteral("name"), QStringLiteral("Screen Sharing / Portal"));
+        app.insert(QStringLiteral("binary"), QStringLiteral("xdg-desktop-portal"));
+        app.insert(QStringLiteral("pid"), 0);
+        app.insert(QStringLiteral("icon"), QStringLiteral("video-display"));
+        app.insert(QStringLiteral("color"), QStringLiteral("#ff453a"));
+        screenApps.append(app);
+    }
+
+    QVariantList allApps = micApps;
+    allApps.append(cameraApps);
+    allApps.append(screenApps);
+
+    const bool micChanged = (m_micActive != micActive);
+    const bool cameraChanged = (m_cameraActive != cameraActive);
+    const bool appsChanged = (m_activePrivacyApps != allApps);
+
+    m_micActive = micActive;
+    m_cameraActive = cameraActive;
+    m_activePrivacyApps = allApps;
+    setPortalPipeWireActive(screencastActive);
+
+    if (micChanged || cameraChanged || appsChanged) {
+        emit privacyIndicatorsChanged();
+    }
+}
+
+void SystemServices::applyPipeWireSnapshot(const QString &text) {
+    handlePrivacySnapshotOutput(text);
 }
 
 void SystemServices::setPortalPipeWireActive(bool active) {
@@ -901,6 +1044,7 @@ void SystemServices::updateScreenRecordingActive() {
     if (m_screenRecordingActive == active) return;
     m_screenRecordingActive = active;
     emit screenRecordingActiveChanged();
+    emit privacyIndicatorsChanged();
 }
 
 void SystemServices::requestHyprlandSnapshot(const QString &requestId, const QString &subject) {
@@ -1250,6 +1394,7 @@ void SystemServices::refreshAudioIfActive() {
         requestAudioInputs();
         requestAppStreams();
     }
+    m_recordingSnapshotDebounceTimer.start();
 }
 
 void SystemServices::requestAudioOutputs() {

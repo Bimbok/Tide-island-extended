@@ -156,6 +156,47 @@ private slots:
         QCOMPARE(wrappedMulti.at(wrappedMulti.size() - 2), QStringLiteral("nvim"));
         QCOMPARE(wrappedMulti.last(), QStringLiteral("file.txt"));
     }
+
+    void testPrivacyIndicators()
+    {
+        SystemServices services;
+        QSignalSpy privacySpy(&services, &SystemServices::privacyIndicatorsChanged);
+        QVERIFY(privacySpy.isValid());
+
+        // Check property getters
+        QCOMPARE(services.privacyActive(), services.micActive() || services.cameraActive() || services.screenRecordingActive());
+
+        // Simulate privacy snapshot output parsing
+        const QString sampleOutput = QStringLiteral(
+            "[{\"index\":10,\"source\":1,\"corked\":false,\"properties\":{\"application.name\":\"TestMicApp\",\"application.process.id\":\"1234\",\"application.process.binary\":\"testapp\"}}]"
+            "\n---TIDE-PRIVACY-SEP---\n"
+            "id 88, type PipeWire:Interface:Node/3\n"
+            "media.class = \"Stream/Input/Video\"\n"
+            "application.name = \"TestCamApp\"\n"
+            "application.process.id = \"5678\"\n"
+        );
+
+        QMetaObject::invokeMethod(&services, "handlePrivacySnapshotOutput",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, sampleOutput));
+
+        QVERIFY(services.micActive());
+        QVERIFY(services.cameraActive());
+        QVERIFY(services.privacyActive());
+        QCOMPARE(services.activePrivacyApps().size(), 2);
+
+        const QVariantMap app1 = services.activePrivacyApps().at(0).toMap();
+        QCOMPARE(app1.value(QStringLiteral("name")).toString(), QStringLiteral("TestMicApp"));
+        QCOMPARE(app1.value(QStringLiteral("type")).toString(), QStringLiteral("mic"));
+        QCOMPARE(app1.value(QStringLiteral("pid")).toInt(), 1234);
+
+        const QVariantMap app2 = services.activePrivacyApps().at(1).toMap();
+        QCOMPARE(app2.value(QStringLiteral("name")).toString(), QStringLiteral("TestCamApp"));
+        QCOMPARE(app2.value(QStringLiteral("type")).toString(), QStringLiteral("camera"));
+        QCOMPARE(app2.value(QStringLiteral("pid")).toInt(), 5678);
+
+        QVERIFY(privacySpy.count() >= 1);
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

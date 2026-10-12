@@ -18,6 +18,10 @@ class SystemServices final : public QObject {
     QML_ELEMENT
     QML_SINGLETON
     Q_PROPERTY(bool screenRecordingActive READ screenRecordingActive NOTIFY screenRecordingActiveChanged FINAL)
+    Q_PROPERTY(bool micActive READ micActive NOTIFY privacyIndicatorsChanged FINAL)
+    Q_PROPERTY(bool cameraActive READ cameraActive NOTIFY privacyIndicatorsChanged FINAL)
+    Q_PROPERTY(bool privacyActive READ privacyActive NOTIFY privacyIndicatorsChanged FINAL)
+    Q_PROPERTY(QVariantList activePrivacyApps READ activePrivacyApps NOTIFY privacyIndicatorsChanged FINAL)
     Q_PROPERTY(QVariantList cavaLevels READ cavaLevels NOTIFY cavaLevelsChanged FINAL)
     Q_PROPERTY(QVariantList audioOutputs READ audioOutputs NOTIFY audioOutputsChanged FINAL)
     Q_PROPERTY(QVariantList audioInputs READ audioInputs NOTIFY audioInputsChanged FINAL)
@@ -42,6 +46,10 @@ public:
     static SystemServices *instance();
 
     bool screenRecordingActive() const;
+    bool micActive() const { return m_micActive; }
+    bool cameraActive() const { return m_cameraActive; }
+    bool privacyActive() const { return m_micActive || m_cameraActive || m_screenRecordingActive; }
+    QVariantList activePrivacyApps() const { return m_activePrivacyApps; }
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
     QVariantList audioInputs() const { return m_audioInputs; }
@@ -61,6 +69,7 @@ public:
     void updateScreenRecordingActive();
 
     Q_INVOKABLE void requestScreenRecordingSnapshot();
+    Q_INVOKABLE void requestPrivacySnapshot();
     Q_INVOKABLE void requestHyprlandSnapshot(const QString &requestId, const QString &subject);
     Q_INVOKABLE void generateWallpaperThumbnail(const QString &sourcePath,
                                                 const QString &cachePath,
@@ -117,6 +126,7 @@ signals:
                               const QString &imagePath,
                               int urgency);
     void screenRecordingActiveChanged();
+    void privacyIndicatorsChanged();
     void hyprlandSnapshotReady(const QString &requestId,
                                const QString &subject,
                                const QString &payloadJson,
@@ -185,6 +195,7 @@ private:
     void handlePipeWireLine(const QString &line);
     void handleRecordingPortalLine(const QString &line);
     void applyPipeWireSnapshot(const QString &text);
+    Q_INVOKABLE void handlePrivacySnapshotOutput(const QString &output);
 
     bool extractDbusString(const QString &line, QString &result);
     QString decodeEscapedString(const QString &escaped) const;
@@ -230,6 +241,9 @@ private:
 
     bool m_screenRecordingActive = false;
     bool m_portalPipeWireActive = false;
+    bool m_micActive = false;
+    bool m_cameraActive = false;
+    QVariantList m_activePrivacyApps;
     QSet<QString> m_activeScreenCastSessions;
     QString m_pendingScreenCastMember;
     QString m_pendingSessionCandidate;

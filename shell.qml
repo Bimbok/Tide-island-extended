@@ -8,6 +8,10 @@ Scope {
     id: shellRoot
 
     readonly property bool screenRecordingActive: SystemServices.screenRecordingActive
+    readonly property bool micActive: SystemServices.micActive
+    readonly property bool cameraActive: SystemServices.cameraActive
+    readonly property bool privacyActive: SystemServices.privacyActive
+    readonly property var activePrivacyApps: SystemServices.activePrivacyApps
     property bool focusEnabled: false
     property bool nightLightEnabled: false
     property bool shuttingDown: false
@@ -282,6 +286,14 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
         }
 
+        function togglePrivacyHud() {
+            shellRoot.forFocusedWindow((window) => window.togglePrivacyHudWindow());
+        }
+
+        function showPrivacyHud() {
+            shellRoot.forFocusedWindow((window) => window.showPrivacyHudWindow());
+        }
+
         function toggleRecording() {
             ScreenRecorder.toggleRecording();
         }
@@ -429,6 +441,26 @@ Scope {
     }
 
     IpcHandler {
+        target: "privacy"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.togglePrivacyHudWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showPrivacyHudWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showPrivacyHudWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closePrivacyHudWindow ? window.closePrivacyHudWindow() : window.togglePrivacyHudWindow());
+        }
+    }
+
+    IpcHandler {
         target: "recorder"
 
         function toggle() {
@@ -455,8 +487,8 @@ Scope {
             ScreenRecorder.toggleReplay();
         }
 
-        function saveReplay(seconds) {
-            ScreenRecorder.saveReplay(seconds ? parseInt(seconds) : 0);
+        function saveReplay(seconds: int) {
+            ScreenRecorder.saveReplay(seconds);
         }
 
         function openRecordings() {
