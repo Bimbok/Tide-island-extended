@@ -232,6 +232,7 @@ private:
     QTimer m_pipeWireRestartTimer;
     QTimer m_recordingPortalRestartTimer;
     QTimer m_recordingSnapshotDebounceTimer;
+    QTimer m_privacyPollTimer;
     QTimer m_cavaRestartTimer;
 
     QByteArray m_notificationBuffer;

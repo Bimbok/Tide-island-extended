@@ -196,6 +196,17 @@ private slots:
         QCOMPARE(app2.value(QStringLiteral("pid")).toInt(), 5678);
 
         QVERIFY(privacySpy.count() >= 1);
+
+        // Test 3-part format with fuser PID detection
+        const QString sampleOutput3Part = QStringLiteral(
+            "[]\n---TIDE-PRIVACY-SEP---\n99999\n---TIDE-PRIVACY-SEP---\n"
+        );
+        QMetaObject::invokeMethod(&services, "handlePrivacySnapshotOutput",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, sampleOutput3Part));
+        QVERIFY(services.cameraActive());
+        QVERIFY(!services.micActive());
+        QVERIFY(services.privacyActive());
     }
 };
 

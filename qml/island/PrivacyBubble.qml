@@ -11,18 +11,19 @@ Item {
     property string iconText: ""
     property string iconFontFamily: ""
     property real iconFontSize: 13
-    property int bubbleSize: 34
+    property int bubbleSize: 36
     property real shownX: 0
+    property real hiddenX: 0
+    property real centerY: 0
+    property real autoHideProgress: 1.0
+    property bool autoHideEnabled: false
+
     Behavior on shownX {
         NumberAnimation {
             duration: 320
             easing.type: Easing.OutQuint
         }
     }
-    property real hiddenX: 0
-    property real centerY: 0
-    property real autoHideProgress: 1.0
-    property bool autoHideEnabled: false
 
     property bool mounted: active
     property real reveal: active ? 1 : 0
@@ -83,46 +84,51 @@ Item {
         }
     }
 
-    // Outer subtle pulsating glow ring
-    Rectangle {
-        id: pulseGlow
-        anchors.fill: parent
-        anchors.margins: -2
-        radius: width / 2
-        color: "transparent"
-        border.width: 1.5
-        border.color: root.accentColor
-        opacity: 0.35
-        visible: root.active && root.mounted
-
-        SequentialAnimation on opacity {
-            running: root.active && root.mounted
-            loops: Animation.Infinite
-            NumberAnimation { to: 0.12; duration: 1100; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 0.65; duration: 1100; easing.type: Easing.InOutSine }
-        }
-    }
-
-    // Main dark circular body with colored accent ring matching timer bubble aesthetic
+    // Main dark circular body matching fileShelfBubble aesthetic
     Rectangle {
         id: bubbleBody
         anchors.fill: parent
-        anchors.margins: 1
         radius: width / 2
         color: StyleTokens.black
-        border.width: 2.5
-        border.color: root.accentColor
+        border.width: 1
+        border.color: mouseArea.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.28) : StyleTokens.inputBorder
         antialiasing: true
+
+        Behavior on border.color {
+            ColorAnimation { duration: 150 }
+        }
 
         Text {
             anchors.centerIn: parent
             text: root.iconText
-            color: "white"
+            color: StyleTokens.textPrimary
             font.family: root.iconFontFamily
             font.pixelSize: root.iconFontSize
-            font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+        }
+
+        // Corner indicator dot badge matching fileShelfBubble badge structure
+        Rectangle {
+            id: badgeDot
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.rightMargin: -1
+            anchors.bottomMargin: -1
+            width: 11
+            height: 11
+            radius: width / 2
+            color: root.accentColor
+            border.width: 2
+            border.color: StyleTokens.black
+            antialiasing: true
+
+            SequentialAnimation on opacity {
+                running: root.active && root.mounted
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.45; duration: 900; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+            }
         }
     }
 

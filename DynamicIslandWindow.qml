@@ -1168,7 +1168,7 @@ PanelWindow {
         readonly property bool fileShelfBubbleWanted: FileShelf.count > 0
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
-        readonly property int privacyBubbleSize: 34
+        readonly property int privacyBubbleSize: 36
         readonly property int privacyBubbleGap: 8
         readonly property int privacyBubbleStep: privacyBubbleSize + privacyBubbleGap
         readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap
@@ -2330,7 +2330,7 @@ PanelWindow {
                 case "calendar":
                     return 420;
                 case "privacy_hud":
-                    return 380;
+                    return 420;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 410;
@@ -2363,10 +2363,8 @@ PanelWindow {
                 case "weather":
                 case "calendar":
                     return 340;
-                case "privacy_hud": {
-                    const privacyCount = SystemServices.activePrivacyApps ? SystemServices.activePrivacyApps.length : 0;
-                    return 84 + Math.max(1, privacyCount) * 62;
-                }
+                case "privacy_hud":
+                    return privacyHudLoader.item ? privacyHudLoader.item.contentHeight : 200;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 165;
@@ -2394,7 +2392,7 @@ PanelWindow {
                 case "calendar":
                     return 34;
                 case "privacy_hud":
-                    return 28;
+                    return 34;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 40;

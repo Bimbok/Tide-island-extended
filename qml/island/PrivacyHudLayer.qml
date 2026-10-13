@@ -14,6 +14,7 @@ Item {
 
     readonly property var activeApps: SystemServices.activePrivacyApps || []
     readonly property int appCount: activeApps.length
+    readonly property real contentHeight: mainCol.implicitHeight + 32
 
     signal closeRequested
 
@@ -30,7 +31,10 @@ Item {
     }
 
     Column {
-        anchors.fill: parent
+        id: mainCol
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         spacing: 12
 
         // Header
@@ -159,7 +163,7 @@ Item {
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                     elide: Text.ElideRight
-                                    width: 180
+                                    width: 220
                                 }
 
                                 Text {

@@ -222,6 +222,10 @@ SystemServices::SystemServices(QObject *parent)
     connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     QTimer::singleShot(200, this, &SystemServices::requestPrivacySnapshot);
 
+    m_privacyPollTimer.setInterval(2000);
+    connect(&m_privacyPollTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
+    m_privacyPollTimer.start();
+
     m_cavaRestartTimer.setSingleShot(true);
     m_cavaRestartTimer.setInterval(1200);
     connect(&m_cavaRestartTimer, &QTimer::timeout, this, &SystemServices::startCava);
@@ -876,7 +880,7 @@ void SystemServices::requestPrivacySnapshot() {
         QStringLiteral("sh"),
         {
             QStringLiteral("-c"),
-            QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null")
+            QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; fuser /dev/video* 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null; true")
         },
         1500,
         [this](const CommandResult &result) {
@@ -891,9 +895,16 @@ void SystemServices::requestPrivacySnapshot() {
 
 void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
     const QString separator = QStringLiteral("---TIDE-PRIVACY-SEP---");
-    const int sepIndex = output.indexOf(separator);
-    const QString jsonPart = sepIndex >= 0 ? output.left(sepIndex).trimmed() : output.trimmed();
-    const QString pwPart = sepIndex >= 0 ? output.mid(sepIndex + separator.length()).trimmed() : QString();
+    const QStringList parts = output.split(separator);
+    const QString jsonPart = parts.value(0).trimmed();
+    QString fuserPart;
+    QString pwPart;
+    if (parts.size() >= 3) {
+        fuserPart = parts.value(1).trimmed();
+        pwPart = parts.value(2).trimmed();
+    } else if (parts.size() == 2) {
+        pwPart = parts.value(1).trimmed();
+    }
 
     // 1. Microphone sources
     bool micActive = false;
@@ -936,10 +947,12 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
         }
     }
 
-    // 2. Camera streams and screen cast from PipeWire
+    // 2. Camera streams and screen cast from PipeWire + V4L2 device checks
     bool cameraActive = false;
     bool screencastActive = false;
     QVariantList cameraApps;
+    QSet<int> seenCameraPids;
+
     if (!pwPart.isEmpty()) {
         const QStringList blocks = pwPart.split(QRegularExpression(QStringLiteral("\\n(?=\\s*id\\s+\\d+,)")));
         for (const QString &block : blocks) {
@@ -972,6 +985,7 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                 int pid = 0;
                 const auto pidMatch = pidRe.match(block);
                 if (pidMatch.hasMatch()) pid = pidMatch.captured(1).toInt();
+                if (pid > 0) seenCameraPids.insert(pid);
 
                 QVariantMap app;
                 app.insert(QStringLiteral("type"), QStringLiteral("camera"));
@@ -982,6 +996,67 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                 app.insert(QStringLiteral("color"), QStringLiteral("#30d158"));
                 cameraApps.append(app);
             }
+        }
+    }
+
+    // Inspect V4L2 device users from fuser (/dev/video*)
+    if (!fuserPart.isEmpty()) {
+        const QStringList pidTokens = fuserPart.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+#ifdef Q_OS_UNIX
+        const pid_t myPid = getpid();
+#else
+        const qint64 myPid = 0;
+#endif
+        for (const QString &tok : pidTokens) {
+            bool ok = false;
+            const int pid = tok.toInt(&ok);
+            if (!ok || pid <= 0 || pid == static_cast<int>(myPid)) continue;
+            if (seenCameraPids.contains(pid)) continue;
+
+            QString binary;
+            QFile commFile(QStringLiteral("/proc/%1/comm").arg(pid));
+            if (commFile.open(QIODevice::ReadOnly)) {
+                binary = QString::fromUtf8(commFile.readAll()).trimmed();
+            }
+
+            if (binary.isEmpty() || binary == QLatin1String("wireplumber") || binary == QLatin1String("pipewire")) {
+                if (!cameraApps.isEmpty()) continue;
+            }
+
+            QString appName;
+            if (binary.compare(QLatin1String("chrome"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("Google Chrome");
+            } else if (binary.compare(QLatin1String("firefox"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("Firefox");
+            } else if (binary.compare(QLatin1String("obs"), Qt::CaseInsensitive) == 0 || binary.compare(QLatin1String("obs-studio"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("OBS Studio");
+            } else if (binary.compare(QLatin1String("zoom"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("Zoom");
+            } else if (binary.compare(QLatin1String("cheese"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("Cheese");
+            } else if (binary.compare(QLatin1String("ffmpeg"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("FFmpeg");
+            } else if (binary.compare(QLatin1String("mpv"), Qt::CaseInsensitive) == 0) {
+                appName = QStringLiteral("mpv");
+            } else if (!binary.isEmpty()) {
+                appName = binary;
+                appName[0] = appName[0].toUpper();
+            } else {
+                appName = QStringLiteral("Camera");
+                binary = QStringLiteral("camera");
+            }
+
+            seenCameraPids.insert(pid);
+            cameraActive = true;
+
+            QVariantMap app;
+            app.insert(QStringLiteral("type"), QStringLiteral("camera"));
+            app.insert(QStringLiteral("name"), appName);
+            app.insert(QStringLiteral("binary"), binary);
+            app.insert(QStringLiteral("pid"), pid);
+            app.insert(QStringLiteral("icon"), QStringLiteral("camera-web"));
+            app.insert(QStringLiteral("color"), QStringLiteral("#30d158"));
+            cameraApps.append(app);
         }
     }
 
