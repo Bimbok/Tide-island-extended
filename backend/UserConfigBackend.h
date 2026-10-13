@@ -74,6 +74,8 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(QString colorsFilePath READ colorsFilePath NOTIFY colorsFilePathChanged FINAL)
     Q_PROPERTY(bool dynamicBatteryColorEnabled READ dynamicBatteryColorEnabled NOTIFY dynamicBatteryColorEnabledChanged FINAL)
     Q_PROPERTY(bool marqueeTrackTitleEnabled READ marqueeTrackTitleEnabled NOTIFY marqueeTrackTitleEnabledChanged FINAL)
+    Q_PROPERTY(bool privacyCameraBubbleEnabled READ privacyCameraBubbleEnabled NOTIFY privacyCameraBubbleEnabledChanged FINAL)
+    Q_PROPERTY(bool privacyMicBubbleEnabled READ privacyMicBubbleEnabled NOTIFY privacyMicBubbleEnabledChanged FINAL)
 
 public:
     explicit UserConfigBackend(QObject *parent = nullptr);
@@ -135,6 +137,8 @@ public:
     QString colorsFilePath() const;
     bool dynamicBatteryColorEnabled() const;
     bool marqueeTrackTitleEnabled() const;
+    bool privacyCameraBubbleEnabled() const;
+    bool privacyMicBubbleEnabled() const;
     void setDefaultWallpaperPath(const QString &path);
     void setDefaultTlpSudoPassword(const QString &password);
 
@@ -199,6 +203,8 @@ signals:
     void colorsFilePathChanged();
     void dynamicBatteryColorEnabledChanged();
     void marqueeTrackTitleEnabledChanged();
+    void privacyCameraBubbleEnabledChanged();
+    void privacyMicBubbleEnabledChanged();
 
 private:
     void scheduleReload();
@@ -263,6 +269,8 @@ private:
     QString m_colorsFilePath;
     bool m_dynamicBatteryColorEnabled = true;
     bool m_marqueeTrackTitleEnabled = true;
+    bool m_privacyCameraBubbleEnabled = true;
+    bool m_privacyMicBubbleEnabled = true;
 
     QFileSystemWatcher m_watcher;
     QTimer m_reloadTimer;

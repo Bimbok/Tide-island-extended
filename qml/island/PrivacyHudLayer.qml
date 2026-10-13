@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import IslandBackend
 
-Item {
+FocusScope {
     id: root
 
     property bool showCondition: false
@@ -18,6 +18,8 @@ Item {
 
     signal closeRequested
 
+    focus: root.showCondition
+    activeFocusOnTab: true
     anchors.fill: parent
     anchors.margins: 16
     opacity: showCondition ? 1 : 0
@@ -25,9 +27,14 @@ Item {
 
     Behavior on opacity {
         NumberAnimation {
-            duration: root.showCondition ? 240 : 120
+            duration: root.showCondition ? StyleTokens.durationStandard : StyleTokens.durationFast
             easing.type: Easing.InOutQuad
         }
+    }
+
+    Keys.onEscapePressed: function(event) {
+        root.closeRequested();
+        event.accepted = true;
     }
 
     Column {
@@ -51,7 +58,7 @@ Item {
                     width: 24
                     height: 24
                     radius: 12
-                    color: Qt.rgba(0.20, 0.82, 0.35, 0.18)
+                    color: StyleTokens.withAlpha(StyleTokens.success, 0.18)
                     anchors.verticalCenter: parent.verticalCenter
 
                     Text {
@@ -59,43 +66,17 @@ Item {
                         text: "\uf132"
                         font.family: root.iconFontFamily
                         font.pixelSize: 12
-                        color: "#30d158"
+                        color: StyleTokens.success
                     }
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Privacy & Media Activity"
-                    color: "white"
+                    color: StyleTokens.textPrimaryBright
                     font.family: root.heroFontFamily
                     font.pixelSize: 14
                     font.weight: Font.Bold
-                }
-            }
-
-            Rectangle {
-                id: closeBtn
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: 24
-                height: 24
-                radius: 12
-                color: closeMouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.08)
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "\uf00d"
-                    font.family: root.iconFontFamily
-                    font.pixelSize: 10
-                    color: closeMouseArea.containsMouse ? "white" : "#a1a1a6"
-                }
-
-                MouseArea {
-                    id: closeMouseArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.closeRequested()
                 }
             }
         }
@@ -115,14 +96,14 @@ Item {
                     width: parent.width
                     height: 52
                     radius: 12
-                    color: Qt.rgba(1, 1, 1, 0.06)
+                    color: StyleTokens.cardFill
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: StyleTokens.inputBorder
 
                     readonly property string appType: String(modelData.type || "mic")
                     readonly property color typeColor: appType === "camera"
-                        ? "#30d158"
-                        : (appType === "screen" ? "#ff453a" : "#ff9f0a")
+                        ? StyleTokens.success
+                        : (appType === "screen" ? StyleTokens.danger : (root.isMicMuted ? StyleTokens.danger : StyleTokens.warning))
                     readonly property string typeIcon: appType === "camera"
                         ? "\uf03d"
                         : (appType === "screen" ? "\uf108" : (root.isMicMuted ? "\uf131" : "\uf130"))
@@ -133,6 +114,8 @@ Item {
 
                         Row {
                             anchors.left: parent.left
+                            anchors.right: actionBtn.visible ? actionBtn.left : parent.right
+                            anchors.rightMargin: 10
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 10
 
@@ -140,7 +123,7 @@ Item {
                                 width: 32
                                 height: 32
                                 radius: 16
-                                color: Qt.rgba(typeColor.r, typeColor.g, typeColor.b, 0.20)
+                                color: StyleTokens.withAlpha(typeColor, 0.18)
                                 anchors.verticalCenter: parent.verticalCenter
 
                                 Text {
@@ -154,16 +137,17 @@ Item {
 
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 42
                                 spacing: 2
 
                                 Text {
                                     text: String(modelData.name || "Unknown Application")
-                                    color: "white"
+                                    color: StyleTokens.textPrimaryBright
                                     font.family: root.textFontFamily
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                     elide: Text.ElideRight
-                                    width: 220
+                                    width: parent.width
                                 }
 
                                 Text {
@@ -171,9 +155,11 @@ Item {
                                         ? "Camera Active"
                                         : (appType === "screen" ? "Screen Sharing" : "Microphone Active"))
                                         + (modelData.pid > 0 ? " • PID " + modelData.pid : "")
-                                    color: "#98989d"
+                                    color: StyleTokens.textSecondary
                                     font.family: root.textFontFamily
                                     font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                    width: parent.width
                                 }
                             }
                         }
@@ -188,10 +174,10 @@ Item {
                             width: actionBtnText.implicitWidth + 20
                             radius: 14
                             color: actionMouseArea.containsMouse
-                                ? (appType === "screen" ? "#ff3b30" : (root.isMicMuted ? "#30d158" : "#ff9f0a"))
-                                : Qt.rgba(1, 1, 1, 0.12)
+                                ? (appType === "screen" ? StyleTokens.danger : (root.isMicMuted ? StyleTokens.success : StyleTokens.warning))
+                                : StyleTokens.cardFillHover
                             border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.16)
+                            border.color: actionMouseArea.containsMouse ? StyleTokens.transparent : StyleTokens.inputBorder
 
                             Text {
                                 id: actionBtnText
@@ -199,7 +185,7 @@ Item {
                                 text: appType === "screen"
                                     ? "Stop"
                                     : (root.isMicMuted ? "Unmute" : "Mute")
-                                color: actionMouseArea.containsMouse ? "white" : (root.isMicMuted ? "#ff453a" : "white")
+                                color: actionMouseArea.containsMouse ? StyleTokens.white : (root.isMicMuted ? StyleTokens.danger : StyleTokens.textPrimaryBright)
                                 font.family: root.textFontFamily
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
@@ -229,12 +215,14 @@ Item {
                 width: parent.width
                 height: 48
                 radius: 12
-                color: Qt.rgba(1, 1, 1, 0.04)
+                color: StyleTokens.cardFill
+                border.width: 1
+                border.color: StyleTokens.inputBorder
 
                 Text {
                     anchors.centerIn: parent
                     text: "No active microphone or camera capture."
-                    color: "#8e8e93"
+                    color: StyleTokens.textMuted
                     font.family: root.textFontFamily
                     font.pixelSize: 12
                 }
@@ -246,9 +234,9 @@ Item {
             width: parent.width
             height: 40
             radius: 10
-            color: Qt.rgba(1, 1, 1, 0.04)
+            color: StyleTokens.cardFill
             border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.06)
+            border.color: StyleTokens.inputBorder
 
             Item {
                 anchors.fill: parent
@@ -264,13 +252,13 @@ Item {
                         text: root.isMicMuted ? "\uf131" : "\uf130"
                         font.family: root.iconFontFamily
                         font.pixelSize: 12
-                        color: root.isMicMuted ? "#ff453a" : "#30d158"
+                        color: root.isMicMuted ? StyleTokens.danger : StyleTokens.success
                     }
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Hardware Mic State: " + (root.isMicMuted ? "Muted" : "Active")
-                        color: "#a1a1a6"
+                        color: StyleTokens.textSecondary
                         font.family: root.textFontFamily
                         font.pixelSize: 11
                     }
@@ -282,13 +270,15 @@ Item {
                     height: 24
                     width: masterMuteText.implicitWidth + 14
                     radius: 6
-                    color: masterMuteMouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
+                    color: masterMuteMouseArea.containsMouse ? StyleTokens.buttonFillHover : StyleTokens.buttonFill
+                    border.width: 1
+                    border.color: StyleTokens.inputBorder
 
                     Text {
                         id: masterMuteText
                         anchors.centerIn: parent
                         text: root.isMicMuted ? "Enable" : "Mute"
-                        color: "white"
+                        color: StyleTokens.textPrimaryBright
                         font.family: root.textFontFamily
                         font.pixelSize: 10
                         font.weight: Font.DemiBold

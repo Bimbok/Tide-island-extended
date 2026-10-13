@@ -48,6 +48,7 @@ private slots:
     void defaultsIncludeClipboard();
     void defaultsIncludeWeather();
     void defaultsIncludeCalendar();
+    void defaultsIncludePrivacy();
     void applicationLauncherFavoritesPersistAndResolveNames();
     void disabledShortcutPersistsAndIsNotGenerated();
     void disabledShortcutUpdatesActiveHyprlandLuaBlock();
@@ -194,6 +195,27 @@ void ShortcutConfigTests::defaultsIncludeCalendar()
     }
 
     QVERIFY(foundCalendar);
+}
+
+void ShortcutConfigTests::defaultsIncludePrivacy()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundPrivacy = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundPrivacy = foundPrivacy
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER+SHIFT")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("P")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("privacy")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("toggle"));
+    }
+
+    QVERIFY(foundPrivacy);
 }
 
 void ShortcutConfigTests::defaultsIncludeTimer()
@@ -485,7 +507,7 @@ void ShortcutConfigTests::niriDefaultsExcludeWorkspaceOverview()
     Backend backend;
     QVERIFY(!backend.supportsTideWorkspaceOverview());
     QVERIFY(backend.supportsNiriShortcutSnippets());
-    QCOMPARE(backend.shortcutBindings().size(), 15);
+    QCOMPARE(backend.shortcutBindings().size(), 16);
 
     for (const QVariant &value : backend.shortcutBindings()) {
         const QVariantMap binding = value.toMap();

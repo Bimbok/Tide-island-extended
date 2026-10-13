@@ -172,6 +172,28 @@ PagePanel {
         revision += 1
     }
 
+    function privacyCameraBubbleEnabled() {
+        revision
+        return boolValue("privacyCameraBubbleEnabled", true)
+    }
+
+    function setPrivacyCameraBubbleEnabled(enabled) {
+        ConfigStore.setValue("privacyCameraBubbleEnabled", enabled)
+        ConfigStore.save()
+        revision += 1
+    }
+
+    function privacyMicBubbleEnabled() {
+        revision
+        return boolValue("privacyMicBubbleEnabled", true)
+    }
+
+    function setPrivacyMicBubbleEnabled(enabled) {
+        ConfigStore.setValue("privacyMicBubbleEnabled", enabled)
+        ConfigStore.save()
+        revision += 1
+    }
+
     Flickable {
         id: scroller
 
@@ -199,7 +221,7 @@ PagePanel {
             id: content
 
             width: scroller.width
-            height: playerPanel.y + playerPanel.height + 40
+            height: privacyPanel.y + privacyPanel.height + 40
 
             Text {
                 id: title
@@ -391,6 +413,59 @@ PagePanel {
                     }
                 }
             }
+
+            Text {
+                id: privacyTitle
+
+                text: "Privacy Indicators"
+                anchors.top: playerPanel.bottom
+                anchors.topMargin: 34
+                anchors.left: parent.left
+                anchors.leftMargin: 32
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                color: Theme.textColor
+                font.family: Theme.titleFontFamily
+                font.pixelSize: 23
+            }
+
+            Rectangle {
+                id: privacyPanel
+
+                color: Theme.cardBgColor
+                radius: 16
+                border.width: 1
+                border.color: Theme.splitLineColor
+                anchors.top: privacyTitle.bottom
+                anchors.topMargin: 15
+                anchors.left: parent.left
+                anchors.leftMargin: 30
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                height: privacyColumn.implicitHeight + 30
+
+                Column {
+                    id: privacyColumn
+
+                    anchors.top: parent.top
+                    anchors.topMargin: 15
+                    anchors.left: parent.left
+                    anchors.leftMargin: 18
+                    anchors.right: parent.right
+                    anchors.rightMargin: 18
+                    spacing: 15
+
+                    PrivacyCameraRow {
+                        width: parent.width
+                    }
+
+                    SplitLine { width: parent.width }
+
+                    PrivacyMicRow {
+                        width: parent.width
+                    }
+                }
+            }
         }
     }
 
@@ -525,6 +600,88 @@ PagePanel {
 
             onToggled: function(checked) {
                 root.setAutoExpandOnTrackChange(checked)
+            }
+        }
+    }
+
+    component PrivacyCameraRow: Item {
+        id: row
+
+        height: 49
+
+        Text {
+            id: rowTitle
+
+            text: "Camera Bubble"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            color: Theme.textColor
+            font.family: Theme.textFontFamily
+            font.pixelSize: 18
+        }
+
+        Text {
+            text: "Show camera indicator bubble on the island when in use"
+            anchors.left: rowTitle.left
+            anchors.top: rowTitle.bottom
+            anchors.topMargin: 5
+            width: Math.max(80, parent.width - cameraSwitch.width - 28)
+            color: Theme.subtleTextColor
+            elide: Text.ElideRight
+            font.family: Theme.textFontFamily
+            font.pixelSize: 14
+        }
+
+        StyledSwitch {
+            id: cameraSwitch
+
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.privacyCameraBubbleEnabled()
+
+            onToggled: function(checked) {
+                root.setPrivacyCameraBubbleEnabled(checked)
+            }
+        }
+    }
+
+    component PrivacyMicRow: Item {
+        id: row
+
+        height: 49
+
+        Text {
+            id: rowTitle
+
+            text: "Microphone Bubble"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            color: Theme.textColor
+            font.family: Theme.textFontFamily
+            font.pixelSize: 18
+        }
+
+        Text {
+            text: "Show microphone indicator bubble on the island when in use"
+            anchors.left: rowTitle.left
+            anchors.top: rowTitle.bottom
+            anchors.topMargin: 5
+            width: Math.max(80, parent.width - micSwitch.width - 28)
+            color: Theme.subtleTextColor
+            elide: Text.ElideRight
+            font.family: Theme.textFontFamily
+            font.pixelSize: 14
+        }
+
+        StyledSwitch {
+            id: micSwitch
+
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.privacyMicBubbleEnabled()
+
+            onToggled: function(checked) {
+                root.setPrivacyMicBubbleEnabled(checked)
             }
         }
     }

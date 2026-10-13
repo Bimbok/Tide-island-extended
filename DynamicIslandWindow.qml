@@ -232,6 +232,7 @@ PanelWindow {
         || islandContainer.clipboardLayerVisible
         || islandContainer.weatherLayerVisible
         || islandContainer.calendarLayerVisible
+        || islandContainer.privacyHudLayerVisible
         || islandContainer.notificationCenterLayerVisible
         ? WlrLayer.Overlay
         : WlrLayer.Top
@@ -244,6 +245,7 @@ PanelWindow {
                 || islandContainer.clipboardLayerVisible
                 || islandContainer.weatherLayerVisible
                 || islandContainer.calendarLayerVisible
+                || islandContainer.privacyHudLayerVisible
                 || islandContainer.notificationCenterLayerVisible)
             return WlrKeyboardFocus.Exclusive;
         if (islandContainer.notificationLayerVisible)
@@ -1172,10 +1174,12 @@ PanelWindow {
         readonly property int privacyBubbleGap: 8
         readonly property int privacyBubbleStep: privacyBubbleSize + privacyBubbleGap
         readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap
-        readonly property bool cameraBubbleWanted: cameraActive
+        readonly property bool cameraBubbleWanted: userConfig.privacyCameraBubbleEnabled
+            && cameraActive
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
-        readonly property bool micBubbleWanted: micActive
+        readonly property bool micBubbleWanted: userConfig.privacyMicBubbleEnabled
+            && micActive
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property real privacyBubblesOffset: (cameraBubble.mounted ? privacyBubbleStep : 0) + (micBubble.mounted ? privacyBubbleStep : 0)
@@ -1191,6 +1195,7 @@ PanelWindow {
             || islandState === "clipboard"
             || islandState === "weather"
             || islandState === "calendar"
+            || islandState === "privacy_hud"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -3186,7 +3191,10 @@ PanelWindow {
                 active: islandContainer.privacyHudLayerVisible
                 asynchronous: false
                 visible: islandContainer.privacyHudLayerVisible
-                onLoaded: islandContainer.forceActiveFocus()
+                onLoaded: {
+                    islandContainer.forceActiveFocus();
+                    if (item) item.forceActiveFocus();
+                }
 
                 sourceComponent: Component {
                     PrivacyHudLayer {

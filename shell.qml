@@ -358,6 +358,22 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.closeCalendarWindow ? window.closeCalendarWindow() : window.toggleCalendarWindow());
         }
 
+        function togglePrivacy() {
+            shellRoot.forFocusedWindow((window) => window.togglePrivacyHudWindow());
+        }
+
+        function showPrivacy() {
+            shellRoot.forFocusedWindow((window) => window.showPrivacyHudWindow());
+        }
+
+        function openPrivacy() {
+            shellRoot.forFocusedWindow((window) => window.showPrivacyHudWindow());
+        }
+
+        function closePrivacy() {
+            shellRoot.forFocusedWindow((window) => window.closePrivacyHudWindow ? window.closePrivacyHudWindow() : window.togglePrivacyHudWindow());
+        }
+
         function reloadTheme() {
             StyleTokens.reload();
         }

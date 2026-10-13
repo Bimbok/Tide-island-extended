@@ -412,6 +412,16 @@ bool UserConfigBackend::marqueeTrackTitleEnabled() const
     return m_marqueeTrackTitleEnabled;
 }
 
+bool UserConfigBackend::privacyCameraBubbleEnabled() const
+{
+    return m_privacyCameraBubbleEnabled;
+}
+
+bool UserConfigBackend::privacyMicBubbleEnabled() const
+{
+    return m_privacyMicBubbleEnabled;
+}
+
 void UserConfigBackend::setDefaultWallpaperPath(const QString &path)
 {
     if (m_defaultWallpaperPath == path)
@@ -565,6 +575,8 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_colorsFilePath, jsonString(configObject, QLatin1String("colorsFilePath"), QString()), &UserConfigBackend::colorsFilePathChanged);
     updateField(this, m_dynamicBatteryColorEnabled, jsonBool(configObject, QLatin1String("dynamicBatteryColorEnabled"), true), &UserConfigBackend::dynamicBatteryColorEnabledChanged);
     updateField(this, m_marqueeTrackTitleEnabled, jsonBool(configObject, QLatin1String("marqueeTrackTitleEnabled"), true), &UserConfigBackend::marqueeTrackTitleEnabledChanged);
+    updateField(this, m_privacyCameraBubbleEnabled, jsonBool(configObject, QLatin1String("privacyCameraBubbleEnabled"), true), &UserConfigBackend::privacyCameraBubbleEnabledChanged);
+    updateField(this, m_privacyMicBubbleEnabled, jsonBool(configObject, QLatin1String("privacyMicBubbleEnabled"), true), &UserConfigBackend::privacyMicBubbleEnabledChanged);
 
     updateWatchedPaths();
 }

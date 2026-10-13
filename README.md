@@ -178,6 +178,12 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - **Throttled Slider Performance**: Event throttling on microphone, volume, and brightness slider drags to eliminate IPC and D-Bus lag, maintaining smooth 60fps+ responsiveness.
 - **Unified Icon Weight Harmony**: Clean, consistent icon line weights across volume, microphone, brightness, battery, and weather.
 - **Optimized State Management**: In-place reactive property updates for custom info layers, eliminating unnecessary delegate re-instantiations and flickers.
+- **Privacy & Media Activity Indicators & HUD**:
+  - **Dynamic Island Activity Bubbles**: Independent circular satellite bubbles dynamically pop out on the right side of the island capsule when the camera (``) or microphone (`` / ``) are active, matching the File Shelf bubble aesthetic with pulsing status badges (green for camera, orange for active microphone, red when muted).
+  - **Privacy & Media Activity HUD**: Interactive drop-down panel displaying applications currently capturing camera, microphone, or screen sharing with PID telemetry, quick one-click app mute/unmute or screen share stop controls, and a master hardware microphone mute toggle.
+  - **Modal Dismissal & Focus**: Closes seamlessly via `Escape` key and click-outside dismissal, maintaining consistent focus behavior across Wayland compositors.
+  - **Full Theme Harmony**: Automatically styled using `StyleTokens` to inherit Pywal, Matugen, or custom theme palettes.
+  - **Config App Controls**: Independent toggles in Tide Island Settings (`Interaction` tab) to enable or disable camera and microphone bubbles, with configurable shortcuts (`SUPER+SHIFT+P` by default) and IPC endpoints.
 - **In-App Matugen Assistant**: Direct one-click template installation and TOML snippet copying right inside Tide Island Settings (`Color & Wallpaper` tab).
 
 ### Core Features
@@ -408,6 +414,12 @@ You can control Tide Island remotely using `quickshell ipc call`:
 | `quickshell ipc call tide toggleNotificationCenter` | Open or close notification center |
 | `quickshell ipc call tide openNotificationCenter` | Open notification center |
 | `quickshell ipc call tide closeNotificationCenter` | Close notification center |
+| `quickshell ipc call tide togglePrivacy` | Open or close Privacy & Media Activity HUD |
+| `quickshell ipc call tide openPrivacy` | Open Privacy & Media Activity HUD |
+| `quickshell ipc call tide closePrivacy` | Close Privacy & Media Activity HUD |
+| `quickshell ipc call privacy toggle` | Open or close Privacy & Media Activity HUD |
+| `quickshell ipc call privacy show` | Open Privacy & Media Activity HUD |
+| `quickshell ipc call privacy close` | Close Privacy & Media Activity HUD |
 | `quickshell ipc call island toggle` | Toggle dynamic island capsules |
 | `quickshell ipc call island show` | Show dynamic island capsules |
 | `quickshell ipc call island hide` | Hide dynamic island capsules |

@@ -132,6 +132,13 @@ PagePanel {
                 "method": "toggle"
             },
             {
+                "action": "Privacy & media activity",
+                "mods": "SUPER+SHIFT",
+                "key": "P",
+                "target": "privacy",
+                "method": "toggle"
+            },
+            {
                 "action": "Toggle screen recording",
                 "mods": "SUPER",
                 "key": "R",

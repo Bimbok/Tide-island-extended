@@ -66,6 +66,7 @@ QVariantList defaultShortcutBindings()
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("E"), QStringLiteral("tide"), QStringLiteral("toggleWeather")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("K"), QStringLiteral("tide"), QStringLiteral("toggleCalendar")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("F"), QStringLiteral("island"), QStringLiteral("toggle")),
+        shortcutMap(QStringLiteral("SUPER+SHIFT"), QStringLiteral("P"), QStringLiteral("privacy"), QStringLiteral("toggle")),
     };
 }
 
