@@ -222,7 +222,7 @@ SystemServices::SystemServices(QObject *parent)
     connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     QTimer::singleShot(200, this, &SystemServices::requestPrivacySnapshot);
 
-    m_privacyPollTimer.setInterval(2000);
+    m_privacyPollTimer.setInterval(25000);
     connect(&m_privacyPollTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     m_privacyPollTimer.start();
 
@@ -1127,6 +1127,12 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
     m_cameraActive = cameraActive;
     m_activePrivacyApps = allApps;
     setPortalPipeWireActive(screencastActive);
+
+    const bool captureActive = (m_micActive || m_cameraActive || screencastActive || !m_activeScreenCastSessions.isEmpty());
+    const int targetInterval = captureActive ? 10000 : 25000;
+    if (m_privacyPollTimer.interval() != targetInterval) {
+        m_privacyPollTimer.setInterval(targetInterval);
+    }
 
     if (micChanged || cameraChanged || appsChanged) {
         emit privacyIndicatorsChanged();
