@@ -207,6 +207,26 @@ private slots:
         QVERIFY(services.cameraActive());
         QVERIFY(!services.micActive());
         QVERIFY(services.privacyActive());
+
+        // Test that screen share stream (e.g. Discord with media.role="Screen") does NOT trigger cameraActive
+        const QString sampleScreenShare = QStringLiteral(
+            "[]\n---TIDE-PRIVACY-SEP---\n\n---TIDE-PRIVACY-SEP---\n"
+            "id 82, type PipeWire:Interface:Node/3\n"
+            "media.class = \"Stream/Input/Video\"\n"
+            "media.role = \"Screen\"\n"
+            "application.name = \"Discord\"\n"
+            "application.process.id = \"1708\"\n"
+        );
+        QMetaObject::invokeMethod(&services, "handlePrivacySnapshotOutput",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, sampleScreenShare));
+        QVERIFY(!services.cameraActive());
+        QVERIFY(services.screenRecordingActive());
+        QCOMPARE(services.activePrivacyApps().size(), 1);
+        const QVariantMap scApp = services.activePrivacyApps().at(0).toMap();
+        QCOMPARE(scApp.value(QStringLiteral("name")).toString(), QStringLiteral("Discord"));
+        QCOMPARE(scApp.value(QStringLiteral("type")).toString(), QStringLiteral("screen"));
+        QCOMPARE(scApp.value(QStringLiteral("pid")).toInt(), 1708);
     }
 };
 

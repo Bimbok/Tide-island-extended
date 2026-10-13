@@ -869,6 +869,18 @@ bool SystemServices::pipeWireBlockLooksLikeScreenCast(const QString &blockText) 
         || lowerBlock.contains(QStringLiteral("xdpw"));
 }
 
+static bool isPipeWireScreenCastStream(const QString &blockText) {
+    const QString lower = blockText.toLower();
+    return lower.contains(QStringLiteral("media.role = \"screen\""))
+        || lower.contains(QStringLiteral("media.role = \"screencast\""))
+        || lower.contains(QStringLiteral("media.role = \"desktop\""))
+        || lower.contains(QStringLiteral("media.role = \"window\""))
+        || lower.contains(QStringLiteral("media.name = \"xdg-desktop-portal\""))
+        || lower.contains(QStringLiteral("portal.screencast"))
+        || lower.contains(QStringLiteral("pipewire-screencast"))
+        || lower.contains(QStringLiteral("xdpw"));
+}
+
 void SystemServices::requestScreenRecordingSnapshot() {
     requestPrivacySnapshot();
 }
@@ -951,18 +963,19 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
     bool cameraActive = false;
     bool screencastActive = false;
     QVariantList cameraApps;
+    QVariantList screenApps;
     QSet<int> seenCameraPids;
+    QSet<int> seenScreenPids;
 
     if (!pwPart.isEmpty()) {
         const QStringList blocks = pwPart.split(QRegularExpression(QStringLiteral("\\n(?=\\s*id\\s+\\d+,)")));
         for (const QString &block : blocks) {
-            if (pipeWireBlockLooksLikeScreenCast(block)) {
+            if (pipeWireBlockLooksLikeScreenCast(block) || isPipeWireScreenCastStream(block)) {
                 screencastActive = true;
             }
 
             if (block.contains(QStringLiteral("media.class = \"Stream/Input/Video\""))
                 || (block.contains(QStringLiteral("media.role = \"Camera\"")) && block.contains(QStringLiteral("Stream/Input")))) {
-                cameraActive = true;
                 static const QRegularExpression appNameRe(QStringLiteral("application\\.name\\s*=\\s*\"([^\"]+)\""));
                 static const QRegularExpression binRe(QStringLiteral("application\\.process\\.binary\\s*=\\s*\"([^\"]+)\""));
                 static const QRegularExpression pidRe(QStringLiteral("application\\.process\\.id\\s*=\\s*\"([^\"]+)\""));
@@ -976,7 +989,6 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                     const auto nodeMatch = nodeRe.match(block);
                     if (nodeMatch.hasMatch()) appName = nodeMatch.captured(1);
                 }
-                if (appName.isEmpty()) appName = QStringLiteral("Camera");
 
                 QString binary;
                 const auto binMatch = binRe.match(block);
@@ -985,16 +997,36 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                 int pid = 0;
                 const auto pidMatch = pidRe.match(block);
                 if (pidMatch.hasMatch()) pid = pidMatch.captured(1).toInt();
-                if (pid > 0) seenCameraPids.insert(pid);
 
-                QVariantMap app;
-                app.insert(QStringLiteral("type"), QStringLiteral("camera"));
-                app.insert(QStringLiteral("name"), appName);
-                app.insert(QStringLiteral("binary"), binary);
-                app.insert(QStringLiteral("pid"), pid);
-                app.insert(QStringLiteral("icon"), QStringLiteral("camera-web"));
-                app.insert(QStringLiteral("color"), QStringLiteral("#30d158"));
-                cameraApps.append(app);
+                if (isPipeWireScreenCastStream(block)) {
+                    screencastActive = true;
+                    if (pid <= 0 || !seenScreenPids.contains(pid)) {
+                        if (pid > 0) seenScreenPids.insert(pid);
+                        if (appName.isEmpty()) appName = QStringLiteral("Screen Sharing");
+
+                        QVariantMap app;
+                        app.insert(QStringLiteral("type"), QStringLiteral("screen"));
+                        app.insert(QStringLiteral("name"), appName);
+                        app.insert(QStringLiteral("binary"), binary);
+                        app.insert(QStringLiteral("pid"), pid);
+                        app.insert(QStringLiteral("icon"), QStringLiteral("video-display"));
+                        app.insert(QStringLiteral("color"), QStringLiteral("#ff453a"));
+                        screenApps.append(app);
+                    }
+                } else {
+                    cameraActive = true;
+                    if (pid > 0) seenCameraPids.insert(pid);
+                    if (appName.isEmpty()) appName = QStringLiteral("Camera");
+
+                    QVariantMap app;
+                    app.insert(QStringLiteral("type"), QStringLiteral("camera"));
+                    app.insert(QStringLiteral("name"), appName);
+                    app.insert(QStringLiteral("binary"), binary);
+                    app.insert(QStringLiteral("pid"), pid);
+                    app.insert(QStringLiteral("icon"), QStringLiteral("camera-web"));
+                    app.insert(QStringLiteral("color"), QStringLiteral("#30d158"));
+                    cameraApps.append(app);
+                }
             }
         }
     }
@@ -1061,7 +1093,6 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
     }
 
     // 3. Screen recording
-    QVariantList screenApps;
     const bool recorderActive = ScreenRecorderController::instance()
         && ScreenRecorderController::instance()->isRecording();
     if (recorderActive) {
@@ -1072,8 +1103,8 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
         app.insert(QStringLiteral("pid"), 0);
         app.insert(QStringLiteral("icon"), QStringLiteral("video-display"));
         app.insert(QStringLiteral("color"), QStringLiteral("#ff453a"));
-        screenApps.append(app);
-    } else if (screencastActive || !m_activeScreenCastSessions.isEmpty()) {
+        screenApps.prepend(app);
+    } else if (screenApps.isEmpty() && (screencastActive || !m_activeScreenCastSessions.isEmpty())) {
         QVariantMap app;
         app.insert(QStringLiteral("type"), QStringLiteral("screen"));
         app.insert(QStringLiteral("name"), QStringLiteral("Screen Sharing / Portal"));
