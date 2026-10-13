@@ -12,6 +12,14 @@ Item {
     property string iconFontFamily: ""
     property real iconFontSize: 13
     property int bubbleSize: 36
+    readonly property real defaultHorizontalOffset: {
+        if (iconText === "\uf03d") return -2.5;
+        if (iconText === "\uf131") return -3.5;
+        if (iconText === "\uf130") return -0.5;
+        return 0;
+    }
+    property real iconHorizontalOffset: defaultHorizontalOffset
+    property real iconVerticalOffset: 0
     property real shownX: 0
     property real hiddenX: 0
     property real centerY: 0
@@ -100,6 +108,8 @@ Item {
 
         Text {
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: root.iconHorizontalOffset
+            anchors.verticalCenterOffset: root.iconVerticalOffset
             text: root.iconText
             color: StyleTokens.textPrimary
             font.family: root.iconFontFamily

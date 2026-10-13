@@ -3353,7 +3353,7 @@ PanelWindow {
             accentColor: "#30d158"
             iconText: "\uf03d"
             iconFontFamily: root.iconFontFamily
-            iconFontSize: root.iconFontSize - 1
+            iconFontSize: 13
             bubbleSize: islandContainer.privacyBubbleSize
             shownX: islandContainer.bubblesBaseX
             hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
@@ -3382,7 +3382,7 @@ PanelWindow {
             accentColor: islandContainer.isMicMuted ? "#ff453a" : "#ff9f0a"
             iconText: islandContainer.isMicMuted ? "\uf131" : "\uf130"
             iconFontFamily: root.iconFontFamily
-            iconFontSize: root.iconFontSize - 1
+            iconFontSize: 13
             bubbleSize: islandContainer.privacyBubbleSize
             shownX: islandContainer.bubblesBaseX + (cameraBubble.mounted ? islandContainer.privacyBubbleStep : 0)
             hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
