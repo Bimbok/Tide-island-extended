@@ -124,6 +124,30 @@ PanelWindow {
             width: fileShelfBubble.visible ? Math.ceil(fileShelfBubble.width) : 0
             height: fileShelfBubble.visible ? Math.ceil(fileShelfBubble.height) : 0
         }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(cameraBubble.x)
+            y: Math.floor(cameraBubble.y)
+            width: cameraBubble.visible ? Math.ceil(cameraBubble.width) : 0
+            height: cameraBubble.visible ? Math.ceil(cameraBubble.height) : 0
+        }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(micBubble.x)
+            y: Math.floor(micBubble.y)
+            width: micBubble.visible ? Math.ceil(micBubble.width) : 0
+            height: micBubble.visible ? Math.ceil(micBubble.height) : 0
+        }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(timerBubble.x)
+            y: Math.floor(timerBubble.y)
+            width: timerBubble.visible ? Math.ceil(timerBubble.width) : 0
+            height: timerBubble.visible ? Math.ceil(timerBubble.height) : 0
+        }
         
         // Add existing detail shells
         Region {
@@ -1144,6 +1168,17 @@ PanelWindow {
         readonly property bool fileShelfBubbleWanted: FileShelf.count > 0
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property int privacyBubbleSize: 34
+        readonly property int privacyBubbleGap: 8
+        readonly property int privacyBubbleStep: privacyBubbleSize + privacyBubbleGap
+        readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap
+        readonly property bool cameraBubbleWanted: cameraActive
+            && !root.overviewVisible
+            && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property bool micBubbleWanted: micActive
+            && !root.overviewVisible
+            && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property real privacyBubblesOffset: (cameraBubble.mounted ? privacyBubbleStep : 0) + (micBubble.mounted ? privacyBubbleStep : 0)
         readonly property bool fileShelfCanAutoOpen: !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool blocksTransientSplit: islandState === "expanded"
@@ -2306,7 +2341,7 @@ PanelWindow {
                         Math.min(root.width - 48, notificationLoader.item.maximumWidth, notificationLoader.item.preferredWidth)
                     );
                 default:
-                    return userConfig.islandWidth + (islandContainer.privacyActive ? 28 : 0);
+                    return userConfig.islandWidth;
                 }
             }
             readonly property real targetHeight: {
@@ -2370,7 +2405,7 @@ PanelWindow {
                 }
             }
             function sideSwipeWidthForProgress(progressValue) {
-                const restingW = userConfig.islandWidth + (islandContainer.privacyActive ? 28 : 0);
+                const restingW = userConfig.islandWidth;
                 if (progressValue < 0)
                     return restingW + (islandContainer.customCapsuleWidth - restingW)
                         * islandContainer.clamp01(-progressValue);
@@ -3167,27 +3202,6 @@ PanelWindow {
                 }
             }
 
-            PrivacyIndicatorCluster {
-                id: privacyIndicatorCluster
-                z: 50
-                anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.top
-                anchors.verticalCenterOffset: userConfig.islandHeight / 2
-                micActive: islandContainer.micActive
-                cameraActive: islandContainer.cameraActive
-                screenRecordingActive: islandContainer.screenRecordingActive
-                contentOpacity: (islandContainer.islandState === "normal"
-                    || islandContainer.islandState === "custom"
-                    || islandContainer.islandState === "lyrics"
-                    || islandContainer.islandState === "split"
-                    || islandContainer.islandState === "long_capsule") ? 1.0 : 0.0
-                onClicked: {
-                    islandContainer.suppressCapsuleClick(true);
-                    islandContainer.showPrivacyHud();
-                }
-            }
-
             DropArea {
                 id: islandFileDropArea
                 z: 10000
@@ -3334,6 +3348,64 @@ PanelWindow {
             }
         }
 
+        PrivacyBubble {
+            id: cameraBubble
+
+            active: islandContainer.cameraBubbleWanted
+            accentColor: "#30d158"
+            iconText: "\uf03d"
+            iconFontFamily: root.iconFontFamily
+            iconFontSize: root.iconFontSize - 1
+            bubbleSize: islandContainer.privacyBubbleSize
+            shownX: islandContainer.bubblesBaseX
+            hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
+            centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
+            autoHideProgress: root.autoHideProgress
+            autoHideEnabled: root.autoHideEnabled
+            onClicked: root.togglePrivacyHudWindow()
+            onEntered: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = true;
+                    root.showAutoHiddenIsland();
+                }
+            }
+            onExited: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = false;
+                    root.scheduleAutoHide();
+                }
+            }
+        }
+
+        PrivacyBubble {
+            id: micBubble
+
+            active: islandContainer.micBubbleWanted
+            accentColor: islandContainer.isMicMuted ? "#ff453a" : "#ff9f0a"
+            iconText: islandContainer.isMicMuted ? "\uf131" : "\uf130"
+            iconFontFamily: root.iconFontFamily
+            iconFontSize: root.iconFontSize - 1
+            bubbleSize: islandContainer.privacyBubbleSize
+            shownX: islandContainer.bubblesBaseX + (cameraBubble.mounted ? islandContainer.privacyBubbleStep : 0)
+            hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
+            centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
+            autoHideProgress: root.autoHideProgress
+            autoHideEnabled: root.autoHideEnabled
+            onClicked: root.togglePrivacyHudWindow()
+            onEntered: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = true;
+                    root.showAutoHiddenIsland();
+                }
+            }
+            onExited: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = false;
+                    root.scheduleAutoHide();
+                }
+            }
+        }
+
         Item {
             id: timerBubble
 
@@ -3341,7 +3413,13 @@ PanelWindow {
             property real reveal: islandContainer.timerBubbleWanted ? 1 : 0
             readonly property int bubbleSize: 34
             readonly property real hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
-            readonly property real shownX: mainCapsule.x + mainCapsule.width + 8
+            property real shownX: islandContainer.bubblesBaseX + islandContainer.privacyBubblesOffset
+            Behavior on shownX {
+                NumberAnimation {
+                    duration: 320
+                    easing.type: Easing.OutQuint
+                }
+            }
             readonly property real centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
 
             width: bubbleSize

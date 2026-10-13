@@ -164,7 +164,7 @@ private slots:
         QVERIFY(privacySpy.isValid());
 
         // Check property getters
-        QCOMPARE(services.privacyActive(), services.micActive() || services.cameraActive() || services.screenRecordingActive());
+        QCOMPARE(services.privacyActive(), services.micActive() || services.cameraActive());
 
         // Simulate privacy snapshot output parsing
         const QString sampleOutput = QStringLiteral(

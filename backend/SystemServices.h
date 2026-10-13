@@ -48,7 +48,7 @@ public:
     bool screenRecordingActive() const;
     bool micActive() const { return m_micActive; }
     bool cameraActive() const { return m_cameraActive; }
-    bool privacyActive() const { return m_micActive || m_cameraActive || m_screenRecordingActive; }
+    bool privacyActive() const { return m_micActive || m_cameraActive; }
     QVariantList activePrivacyApps() const { return m_activePrivacyApps; }
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
