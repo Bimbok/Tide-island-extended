@@ -267,20 +267,22 @@ FocusScope {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    height: 24
-                    width: masterMuteText.implicitWidth + 14
-                    radius: 6
-                    color: masterMuteMouseArea.containsMouse ? StyleTokens.buttonFillHover : StyleTokens.buttonFill
+                    height: 26
+                    width: masterMuteText.implicitWidth + 20
+                    radius: 13
+                    color: masterMuteMouseArea.containsMouse
+                        ? (root.isMicMuted ? StyleTokens.success : StyleTokens.warning)
+                        : StyleTokens.cardFillHover
                     border.width: 1
-                    border.color: StyleTokens.inputBorder
+                    border.color: masterMuteMouseArea.containsMouse ? StyleTokens.transparent : StyleTokens.inputBorder
 
                     Text {
                         id: masterMuteText
                         anchors.centerIn: parent
-                        text: root.isMicMuted ? "Enable" : "Mute"
-                        color: StyleTokens.textPrimaryBright
+                        text: root.isMicMuted ? "Unmute" : "Mute"
+                        color: masterMuteMouseArea.containsMouse ? StyleTokens.white : (root.isMicMuted ? StyleTokens.danger : StyleTokens.textPrimaryBright)
                         font.family: root.textFontFamily
-                        font.pixelSize: 10
+                        font.pixelSize: 11
                         font.weight: Font.DemiBold
                     }
 
