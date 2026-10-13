@@ -1157,7 +1157,7 @@ PanelWindow {
             && (islandState === "weather" || islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool calendarLayerInteractive: !root.overviewVisible
             && (islandState === "calendar" || islandState === "normal" || islandState === "lyrics" || islandState === "custom")
-        readonly property bool fileShelfOverlayActive: fileShelfLayerInteractive && fileShelfLoader.item && fileShelfLoader.item.hasVisibleCards
+        readonly property bool fileShelfOverlayActive: Boolean(fileShelfLayerInteractive && fileShelfLoader.item && fileShelfLoader.item.hasVisibleCards)
         readonly property bool fileShelfAcceptingDrop: islandFileDropArea.containsDrag
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")

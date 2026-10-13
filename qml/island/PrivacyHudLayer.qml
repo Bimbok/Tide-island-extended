@@ -108,6 +108,10 @@ FocusScope {
                         ? "\uf03d"
                         : (appType === "screen" ? "\uf108" : (root.isMicMuted ? "\uf131" : "\uf130"))
 
+                    MouseArea {
+                        anchors.fill: parent
+                    }
+
                     Item {
                         anchors.fill: parent
                         anchors.margins: 10

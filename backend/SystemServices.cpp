@@ -1051,8 +1051,8 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                 binary = QString::fromUtf8(commFile.readAll()).trimmed();
             }
 
-            if (binary.isEmpty() || binary == QLatin1String("wireplumber") || binary == QLatin1String("pipewire")) {
-                if (!cameraApps.isEmpty()) continue;
+            if (binary == QLatin1String("wireplumber") || binary == QLatin1String("pipewire")) {
+                continue;
             }
 
             QString appName;

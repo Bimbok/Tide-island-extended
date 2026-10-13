@@ -169,8 +169,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
 
             Image {
+                id: appIconImage
                 anchors.fill: parent
-                visible: root.hasResolvedAppIcon
+                visible: root.hasResolvedAppIcon && status !== Image.Error
                 source: root.resolvedAppIcon
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
@@ -180,7 +181,7 @@ Item {
 
             Text {
                 anchors.centerIn: parent
-                visible: !root.hasResolvedAppIcon
+                visible: !root.hasResolvedAppIcon || appIconImage.status === Image.Error
                 text: iconText
                 color: root.urgency === 2 ? StyleTokens.danger : StyleTokens.textPrimaryBright
                 font.pixelSize: userConfig.iconFontSize
@@ -240,7 +241,7 @@ Item {
                     }
 
                     Rectangle {
-                        visible: root.hasImageAttachment
+                        visible: root.hasImageAttachment && imageAttachment.status !== Image.Error
                         width: Math.min(parent.width, 180)
                         height: visible ? 90 : 0
                         radius: 8
@@ -248,6 +249,7 @@ Item {
                         clip: true
 
                         Image {
+                            id: imageAttachment
                             anchors.fill: parent
                             source: root.imagePath
                             fillMode: Image.PreserveAspectCrop
