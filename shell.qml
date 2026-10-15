@@ -262,7 +262,15 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
         }
 
+        function showPlayer() {
+            shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
+        }
+
         function toggleControlCenter() {
+            shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+
+        function showControlCenter() {
             shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
         }
 
@@ -270,7 +278,15 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
         }
 
+        function showPowerMenu() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
+        }
+
         function toggleNotificationCenter() {
+            shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
+        }
+
+        function showNotificationCenter() {
             shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
         }
 
@@ -278,11 +294,35 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
         }
 
+        function showWallpaperPicker() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function toggleWallpaperSwitcher() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
         function toggleApplicationLauncher() {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
         }
 
+        function showApplicationLauncher() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function toggleLauncher() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function toggleAppLauncher() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
         function toggleFileShelf() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
+
+        function showFileShelf() {
             shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
         }
 
@@ -585,6 +625,218 @@ Scope {
 
         function openReplays() {
             ScreenRecorder.openReplaysFolder();
+        }
+    }
+
+    IpcHandler {
+        target: "controlCenter"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "player"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.togglePlayerWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "powerMenu"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "notificationCenter"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleNotificationCenterWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "launcher"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "appLauncher"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "fileShelf"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "wallpaperPicker"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "wallpaperSwitcher"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.toggleWallpaperPickerWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "clock"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.showClockWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showClockWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showClockWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "timer"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.showTimerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showTimerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showTimerWindow());
         }
     }
 
