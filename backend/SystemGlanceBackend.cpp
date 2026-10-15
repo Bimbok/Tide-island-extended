@@ -45,6 +45,34 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
     connect(&m_configWatcher, &QFileSystemWatcher::fileChanged, this, onConfigChanged);
     connect(&m_configWatcher, &QFileSystemWatcher::directoryChanged, this, onConfigChanged);
 
+    // Watch pacman log and local package database for transaction completions
+    const QString pacmanLog = QStringLiteral("/var/log/pacman.log");
+    if (QFile::exists(pacmanLog)) {
+        m_lastPacmanLogTime = QFileInfo(pacmanLog).lastModified();
+        m_pacmanWatcher.addPath(pacmanLog);
+    }
+    const QString pacmanLocalDir = QStringLiteral("/var/lib/pacman/local");
+    if (QDir(pacmanLocalDir).exists()) {
+        m_pacmanWatcher.addPath(pacmanLocalDir);
+    }
+
+    auto onPacmanTransaction = [this]() {
+        const QString pLog = QStringLiteral("/var/log/pacman.log");
+        if (QFile::exists(pLog)) {
+            m_lastPacmanLogTime = QFileInfo(pLog).lastModified();
+            if (!m_pacmanWatcher.files().contains(pLog)) {
+                m_pacmanWatcher.addPath(pLog);
+            }
+        }
+        // Invalidate cooldown so next check gets fresh counts immediately
+        m_lastUpdateCheckTime = QElapsedTimer();
+        if (m_active) {
+            checkUpdatesAsync(true);
+        }
+    };
+    connect(&m_pacmanWatcher, &QFileSystemWatcher::fileChanged, this, onPacmanTransaction);
+    connect(&m_pacmanWatcher, &QFileSystemWatcher::directoryChanged, this, onPacmanTransaction);
+
     initStaticInfo();
 }
 
@@ -74,6 +102,17 @@ void SystemGlanceBackend::setActive(bool active)
 
     if (m_active) {
         reloadAvatar();
+
+        // Check if pacman transactions occurred while glance was closed
+        const QString pLog = QStringLiteral("/var/log/pacman.log");
+        if (QFile::exists(pLog)) {
+            const QDateTime curMtime = QFileInfo(pLog).lastModified();
+            if (!m_lastPacmanLogTime.isValid() || curMtime > m_lastPacmanLogTime) {
+                m_lastPacmanLogTime = curMtime;
+                m_lastUpdateCheckTime = QElapsedTimer(); // Force fresh check
+            }
+        }
+
         checkUpdatesAsync();
         m_prevCpuTotal = 0;
         m_prevCpuIdle = 0;
@@ -108,6 +147,17 @@ void SystemGlanceBackend::onPollTick()
 {
     if (!m_active)
         return;
+
+    // Detect if pacman finished an update while glance is open (zero-overhead stat)
+    const QString pLog = QStringLiteral("/var/log/pacman.log");
+    if (QFile::exists(pLog)) {
+        const QDateTime curMtime = QFileInfo(pLog).lastModified();
+        if (m_lastPacmanLogTime.isValid() && curMtime > m_lastPacmanLogTime) {
+            m_lastPacmanLogTime = curMtime;
+            m_lastUpdateCheckTime = QElapsedTimer();
+            checkUpdatesAsync(true);
+        }
+    }
 
     refreshNow();
 }
@@ -885,13 +935,17 @@ void SystemGlanceBackend::reloadAvatar()
     }
 }
 
-void SystemGlanceBackend::checkUpdatesAsync()
+void SystemGlanceBackend::checkUpdatesAsync(bool force)
 {
     if (m_checkingUpdates)
         return;
 
-    // Rate limit checks to once every 10 minutes (600,000 ms)
-    if (m_lastUpdateCheckTime.isValid() && m_lastUpdateCheckTime.elapsed() < 600000)
+    // Rate limit checks to once every 10 minutes unless explicitly forced or pacman log changed
+    if (!force && m_lastUpdateCheckTime.isValid() && m_lastUpdateCheckTime.elapsed() < 600000)
+        return;
+
+    // If pacman is currently holding the database lock (update in progress), wait until it finishes
+    if (QFile::exists(QStringLiteral("/var/lib/pacman/db.lck")))
         return;
 
     m_checkingUpdates = true;
@@ -904,8 +958,7 @@ void SystemGlanceBackend::checkUpdatesAsync()
     QProcess *proc = new QProcess(this);
     m_updateProcess = proc;
 
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, proc](int exitCode, QProcess::ExitStatus exitStatus) {
+    auto onFinished = [this, proc](int exitCode, QProcess::ExitStatus exitStatus) {
         m_checkingUpdates = false;
         m_lastUpdateCheckTime.restart();
 
@@ -918,30 +971,44 @@ void SystemGlanceBackend::checkUpdatesAsync()
             // checkupdates returns 2 when no updates are available
             m_pendingUpdatesCount = 0;
         } else {
-            // Fallback to local synced pacman database
+            // Fallback: check local synced pacman database with pacman -Qu
             QProcess pacProc;
             pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
             if (pacProc.waitForFinished(2000)) {
-                const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
-                m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+                if (pacProc.exitCode() == 0) {
+                    const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
+                    m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+                } else {
+                    // pacman -Qu exits with 1 when no updates are found
+                    m_pendingUpdatesCount = 0;
+                }
             }
         }
 
         emit updatesChanged();
+        emit statsUpdated();
         proc->deleteLater();
-    });
+    };
+
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, onFinished);
 
     connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError) {
-        // Fallback to pacman -Qu on error
+        // Fallback: check local synced pacman database on error
         QProcess pacProc;
         pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
         if (pacProc.waitForFinished(2000)) {
-            const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
-            m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+            if (pacProc.exitCode() == 0) {
+                const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
+                m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+            } else {
+                m_pendingUpdatesCount = 0;
+            }
         }
 
         m_checkingUpdates = false;
+        m_lastUpdateCheckTime.restart();
         emit updatesChanged();
+        emit statsUpdated();
         proc->deleteLater();
     });
 
@@ -952,12 +1019,16 @@ void SystemGlanceBackend::checkUpdatesAsync()
     } else {
         m_checkingUpdates = false;
         emit updatesChanged();
+        emit statsUpdated();
         proc->deleteLater();
     }
 }
 
 void SystemGlanceBackend::launchUpdateTerminal()
 {
+    // Invalidate cooldown timer so that subsequent check gets fresh post-update data
+    m_lastUpdateCheckTime = QElapsedTimer();
+
     QString term = QStringLiteral("kitty");
     if (!QFile::exists(QStringLiteral("/usr/bin/kitty"))) {
         if (QFile::exists(QStringLiteral("/usr/bin/foot"))) term = QStringLiteral("foot");

@@ -164,7 +164,7 @@ public:
     Q_INVOKABLE void setAvatarPath(const QString &path);
     Q_INVOKABLE void openAvatarDirectory();
     Q_INVOKABLE void refreshNow();
-    Q_INVOKABLE void checkUpdatesAsync();
+    Q_INVOKABLE void checkUpdatesAsync(bool force = false);
     Q_INVOKABLE void launchUpdateTerminal();
     Q_INVOKABLE void lockScreen();
     Q_INVOKABLE void suspendSystem();
@@ -227,6 +227,8 @@ private:
     int m_pendingUpdatesCount = 0;
     bool m_checkingUpdates = false;
     QElapsedTimer m_lastUpdateCheckTime;
+    QDateTime m_lastPacmanLogTime;
+    QFileSystemWatcher m_pacmanWatcher;
     QPointer<QProcess> m_updateProcess;
 
     // GPU state

@@ -37,6 +37,7 @@ FocusScope {
     onShowConditionChanged: {
         if (showCondition) {
             forceActiveFocus();
+            SystemGlance.checkUpdatesAsync();
         }
     }
 
@@ -67,8 +68,10 @@ FocusScope {
         // 1. Top Identity / Profile Header
         // ==========================================
         Item {
+            id: headerItem
             width: parent.width
             height: 40
+            z: 100
 
             Item {
                 id: userProfileContainer
@@ -277,8 +280,15 @@ FocusScope {
                     id: updatesHover
                     anchors.fill: parent
                     hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: SystemGlance.launchUpdateTerminal()
+                    onClicked: (mouse) => {
+                        if (mouse.button === Qt.RightButton) {
+                            SystemGlance.checkUpdatesAsync(true);
+                        } else {
+                            SystemGlance.launchUpdateTerminal();
+                        }
+                    }
                 }
             }
 
