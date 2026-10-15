@@ -2387,7 +2387,7 @@ PanelWindow {
                 case "privacy_hud":
                     return 420;
                 case "glance":
-                    return 460;
+                    return 500;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 410;

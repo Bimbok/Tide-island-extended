@@ -678,7 +678,7 @@ void SystemGlanceBackend::updateBatteryStats()
     } else if (m_batteryStatus.compare(QStringLiteral("Discharging"), Qt::CaseInsensitive) == 0) {
         m_batteryRateText = watts > 0.05 ? QString::asprintf("-%.1f W", watts) : QStringLiteral("Discharging");
     } else if (m_batteryStatus.compare(QStringLiteral("Not charging"), Qt::CaseInsensitive) == 0) {
-        m_batteryRateText = m_batteryConservationActive ? QStringLiteral("Capped (80%)") : QStringLiteral("Plugged In");
+        m_batteryRateText = m_batteryConservationActive ? QStringLiteral("Capped") : QStringLiteral("Plugged In");
     } else if (m_batteryStatus.compare(QStringLiteral("Full"), Qt::CaseInsensitive) == 0) {
         m_batteryRateText = QStringLiteral("Full");
     } else {

@@ -70,13 +70,14 @@ FocusScope {
             width: parent.width
             height: 40
 
-            Row {
-                id: userProfileRow
+            Item {
+                id: userProfileContainer
                 anchors.left: parent.left
                 anchors.right: updatesBadge.visible ? updatesBadge.left : batteryBadge.left
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 10
+                height: 38
+                clip: true
 
                 // Avatar / Monogram (True circular clipping via ClippingRectangle)
                 ClippingRectangle {
@@ -89,6 +90,7 @@ FocusScope {
                     border.color: avatarHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
                     antialiasing: true
                     contentUnderBorder: true
+                    anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
 
                     Image {
@@ -168,18 +170,24 @@ FocusScope {
 
                 // User details
                 Column {
+                    anchors.left: avatarContainer.right
+                    anchors.leftMargin: 10
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
 
                     Row {
+                        width: parent.width
                         spacing: 4
 
                         Text {
+                            id: userNameText
                             text: SystemGlance.userName || "User"
                             color: StyleTokens.textPrimaryBright
                             font.family: root.heroFontFamily
                             font.pixelSize: 13
                             font.weight: Font.Bold
+                            elide: Text.ElideRight
                         }
 
                         Text {
@@ -187,14 +195,18 @@ FocusScope {
                             color: StyleTokens.textSecondary
                             font.family: root.textFontFamily
                             font.pixelSize: 11
-                            anchors.baseline: parent.children[0].baseline
+                            anchors.baseline: userNameText.baseline
+                            width: Math.max(0, parent.width - userNameText.implicitWidth - 4)
+                            elide: Text.ElideRight
                         }
                     }
 
                     Row {
+                        width: parent.width
                         spacing: 6
 
                         Text {
+                            id: uptimeText
                             text: "\uf017 " + (SystemGlance.uptimeText || "0m")
                             color: StyleTokens.textMuted
                             font.family: root.iconFontFamily
@@ -202,6 +214,7 @@ FocusScope {
                         }
 
                         Text {
+                            id: uptimeDot
                             text: "•"
                             color: StyleTokens.textMuted
                             font.pixelSize: 8
@@ -213,6 +226,7 @@ FocusScope {
                             color: StyleTokens.textMuted
                             font.family: root.textFontFamily
                             font.pixelSize: 10
+                            width: Math.max(0, parent.width - uptimeText.implicitWidth - uptimeDot.implicitWidth - 12)
                             elide: Text.ElideRight
                         }
                     }
@@ -339,7 +353,7 @@ FocusScope {
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                             if (batteryBadge.isConservation && !batteryBadge.effectiveCharging)
-                                return "80% Cap";
+                                return "Capped";
                             if (SystemGlance.batteryRateText && SystemGlance.batteryRateText !== "" && SystemGlance.batteryRateText !== "0.0 W")
                                 return SystemGlance.batteryRateText;
                             if (batteryBadge.effectiveCharging)
