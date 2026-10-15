@@ -27,6 +27,24 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
     m_pollTimer.setInterval(1000);
     connect(&m_pollTimer, &QTimer::timeout, this, &SystemGlanceBackend::onPollTick);
 
+    const QString cfgPath = QDir::homePath() + QStringLiteral("/.config/tide-island/userconfig.json");
+    if (QFile::exists(cfgPath)) {
+        m_configWatcher.addPath(cfgPath);
+    }
+    const QString cfgDir = QDir::homePath() + QStringLiteral("/.config/tide-island");
+    if (QDir(cfgDir).exists()) {
+        m_configWatcher.addPath(cfgDir);
+    }
+    auto onConfigChanged = [this]() {
+        reloadAvatar();
+        const QString p = QDir::homePath() + QStringLiteral("/.config/tide-island/userconfig.json");
+        if (QFile::exists(p) && !m_configWatcher.files().contains(p)) {
+            m_configWatcher.addPath(p);
+        }
+    };
+    connect(&m_configWatcher, &QFileSystemWatcher::fileChanged, this, onConfigChanged);
+    connect(&m_configWatcher, &QFileSystemWatcher::directoryChanged, this, onConfigChanged);
+
     initStaticInfo();
 }
 
@@ -50,6 +68,7 @@ void SystemGlanceBackend::setActive(bool active)
     m_active = active;
 
     if (m_active) {
+        reloadAvatar();
         m_prevCpuTotal = 0;
         m_prevCpuIdle = 0;
         m_prevRxBytes = 0;
@@ -113,85 +132,8 @@ void SystemGlanceBackend::initStaticInfo()
     if (m_kernelArch.isEmpty())
         m_kernelArch = QStringLiteral("x86_64");
 
-    // Check avatar paths
-    const QString home = QDir::homePath();
-    QString resolvedAvatar;
-
-    // 1. Check userconfig.json
-    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
-    QFile cfgFile(cfgPath);
-    if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        const QJsonDocument doc = QJsonDocument::fromJson(cfgFile.readAll());
-        if (doc.isObject()) {
-            const QJsonObject obj = doc.object();
-            QString configured = obj.value(QStringLiteral("avatarPath")).toString();
-            if (configured.isEmpty()) {
-                configured = obj.value(QStringLiteral("displayPicture")).toString();
-            }
-            if (!configured.isEmpty()) {
-                if (configured.startsWith(QLatin1String("~"))) configured.replace(0, 1, home);
-                if (configured.startsWith(QLatin1String("file://"))) configured = QUrl(configured).toLocalFile();
-                if (QFileInfo::exists(configured)) {
-                    resolvedAvatar = configured;
-                }
-            }
-        }
-    }
-
-    // 2. Check ChillPill-Shell config for fallback
-    if (resolvedAvatar.isEmpty()) {
-        QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
-        if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString cpText = QString::fromUtf8(cpFile.readAll());
-            cpText.replace(QRegularExpression(QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption), QString());
-            const QStringList lines = cpText.split(u'\n');
-            QStringList stripped;
-            for (const QString &l : lines) {
-                const int commentIdx = l.indexOf(QStringLiteral("//"));
-                stripped.append(commentIdx >= 0 ? l.left(commentIdx) : l);
-            }
-            const QJsonDocument cpDoc = QJsonDocument::fromJson(stripped.join(u'\n').toUtf8());
-            if (cpDoc.isObject()) {
-                QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString();
-                if (!cpPic.isEmpty()) {
-                    if (cpPic.startsWith(QLatin1String("~"))) cpPic.replace(0, 1, home);
-                    if (cpPic.startsWith(QLatin1String("file://"))) cpPic = QUrl(cpPic).toLocalFile();
-                    if (QFileInfo::exists(cpPic)) {
-                        resolvedAvatar = cpPic;
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Check common locations
-    if (resolvedAvatar.isEmpty()) {
-        const QStringList candidates = {
-            home + QStringLiteral("/.config/tide-island/avatar.png"),
-            home + QStringLiteral("/.config/tide-island/avatar.jpg"),
-            home + QStringLiteral("/.config/tide-island/avatar.jpeg"),
-            home + QStringLiteral("/.pfp.png"),
-            home + QStringLiteral("/.pfp.jpg"),
-            home + QStringLiteral("/.pfp.jpeg"),
-            home + QStringLiteral("/.pfp"),
-            home + QStringLiteral("/.face"),
-            home + QStringLiteral("/.face.icon"),
-            home + QStringLiteral("/.avatar.png"),
-            home + QStringLiteral("/.avatar.jpg")
-        };
-        for (const QString &cand : candidates) {
-            if (QFileInfo::exists(cand)) {
-                resolvedAvatar = cand;
-                break;
-            }
-        }
-    }
-
-    if (!resolvedAvatar.isEmpty()) {
-        m_avatarPath = QStringLiteral("file://") + resolvedAvatar;
-    } else {
-        m_avatarPath.clear();
-    }
+    // Resolve Avatar
+    reloadAvatar();
 
     // Read CPU Model name from /proc/cpuinfo
     QFile cpuinfo(QStringLiteral("/proc/cpuinfo"));
@@ -277,50 +219,8 @@ void SystemGlanceBackend::updateCpu()
         }
     }
 
-    // 2. CPU Temperature via /sys/class/hwmon
-    int detectedTemp = 0;
-    QDir hwmonBase(QStringLiteral("/sys/class/hwmon"));
-    const QStringList hwmons = hwmonBase.entryList({QStringLiteral("hwmon*")}, QDir::Dirs | QDir::NoDotAndDotDot);
-
-    for (const QString &h : hwmons) {
-        const QString hPath = hwmonBase.absoluteFilePath(h);
-        QFile nameFile(hPath + QStringLiteral("/name"));
-        if (!nameFile.open(QIODevice::ReadOnly | QIODevice::Text))
-            continue;
-
-        const QString name = QString::fromUtf8(nameFile.readAll()).trimmed().toLower();
-        if (name == QLatin1String("coretemp") || name == QLatin1String("k10temp")
-            || name == QLatin1String("zenpower") || name == QLatin1String("cpu_thermal")
-            || name == QLatin1String("acpitz")) {
-
-            // Try reading temp1_input, temp2_input, etc.
-            for (int t = 1; t <= 4; ++t) {
-                QFile tempFile(hPath + QStringLiteral("/temp%1_input").arg(t));
-                if (tempFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                    bool ok = false;
-                    const int raw = QString::fromUtf8(tempFile.readAll()).trimmed().toInt(&ok);
-                    if (ok && raw > 1000 && raw < 130000) {
-                        detectedTemp = raw / 1000;
-                        break;
-                    }
-                }
-            }
-            if (detectedTemp > 0)
-                break;
-        }
-    }
-
-    if (detectedTemp == 0) {
-        // Fallback to thermal_zone0
-        QFile tzFile(QStringLiteral("/sys/class/thermal/thermal_zone0/temp"));
-        if (tzFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            bool ok = false;
-            const int raw = QString::fromUtf8(tzFile.readAll()).trimmed().toInt(&ok);
-            if (ok && raw > 1000)
-                detectedTemp = raw / 1000;
-        }
-    }
-
+    // 2. CPU Temperature via dedicated sensors (coretemp/k10temp/zenpower)
+    const int detectedTemp = readCpuTemperature();
     if (detectedTemp > 0)
         m_cpuTemperature = detectedTemp;
 }
@@ -759,5 +659,204 @@ void SystemGlanceBackend::updateBatteryStats()
         m_batteryRateText = QStringLiteral("Full");
     } else {
         m_batteryRateText = watts > 0.05 ? QString::asprintf("%.1f W", watts) : m_batteryStatus;
+    }
+}
+
+int SystemGlanceBackend::readCpuTemperature()
+{
+    QDir hwmonBase(QStringLiteral("/sys/class/hwmon"));
+    const QStringList hwmons = hwmonBase.entryList({QStringLiteral("hwmon*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+
+    // Priorities for CPU hwmon drivers:
+    // 1. coretemp (Intel), k10temp (AMD), zenpower (AMD)
+    // 2. cpu_thermal, soc_thermal (ARM / SoC)
+    const QStringList highPriorityDrivers = {
+        QStringLiteral("coretemp"),
+        QStringLiteral("k10temp"),
+        QStringLiteral("zenpower"),
+        QStringLiteral("cpu_thermal"),
+        QStringLiteral("soc_thermal")
+    };
+
+    // First pass: High-priority dedicated CPU sensor drivers
+    for (const QString &driverName : highPriorityDrivers) {
+        for (const QString &h : hwmons) {
+            const QString hPath = hwmonBase.absoluteFilePath(h);
+            QFile nameFile(hPath + QStringLiteral("/name"));
+            if (!nameFile.open(QIODevice::ReadOnly | QIODevice::Text))
+                continue;
+
+            const QString name = QString::fromUtf8(nameFile.readAll()).trimmed().toLower();
+            if (name == driverName) {
+                int packageTemp = 0;
+                int maxCoreTemp = 0;
+
+                QDir hDir(hPath);
+                const QStringList inputs = hDir.entryList({QStringLiteral("temp*_input")}, QDir::Files);
+                for (const QString &input : inputs) {
+                    QFile tempFile(hDir.absoluteFilePath(input));
+                    if (!tempFile.open(QIODevice::ReadOnly | QIODevice::Text))
+                        continue;
+
+                    bool ok = false;
+                    const int raw = QString::fromUtf8(tempFile.readAll()).trimmed().toInt(&ok);
+                    if (!ok || raw < 1000 || raw > 130000)
+                        continue;
+
+                    const int deg = raw / 1000;
+                    if (deg > maxCoreTemp)
+                        maxCoreTemp = deg;
+
+                    // Check for label like "Package id 0", "Tdie", "Tctl"
+                    const QString base = input.left(input.length() - 6);
+                    QFile labelFile(hDir.absoluteFilePath(base + QStringLiteral("_label")));
+                    if (labelFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                        const QString label = QString::fromUtf8(labelFile.readAll()).trimmed().toLower();
+                        if (label.contains(QLatin1String("package")) ||
+                            label.contains(QLatin1String("tdie")) ||
+                            label.contains(QLatin1String("tctl"))) {
+                            packageTemp = deg;
+                        }
+                    }
+                }
+
+                if (packageTemp > 0)
+                    return packageTemp;
+                if (maxCoreTemp > 0)
+                    return maxCoreTemp;
+            }
+        }
+    }
+
+    // Second pass: thermal_zone with type x86_pkg_temp or cpu
+    QDir tzBase(QStringLiteral("/sys/class/thermal"));
+    const QStringList zones = tzBase.entryList({QStringLiteral("thermal_zone*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &z : zones) {
+        const QString zPath = tzBase.absoluteFilePath(z);
+        QFile typeFile(zPath + QStringLiteral("/type"));
+        if (!typeFile.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        const QString type = QString::fromUtf8(typeFile.readAll()).trimmed().toLower();
+        if (type == QLatin1String("x86_pkg_temp") || type.contains(QLatin1String("cpu")) || type.contains(QLatin1String("tcpu"))) {
+            QFile tempFile(zPath + QStringLiteral("/temp"));
+            if (tempFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                bool ok = false;
+                const int raw = QString::fromUtf8(tempFile.readAll()).trimmed().toInt(&ok);
+                if (ok && raw > 1000 && raw < 130000)
+                    return raw / 1000;
+            }
+        }
+    }
+
+    // Third pass: Fallback to acpitz or thermal_zone0
+    for (const QString &h : hwmons) {
+        const QString hPath = hwmonBase.absoluteFilePath(h);
+        QFile nameFile(hPath + QStringLiteral("/name"));
+        if (!nameFile.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        const QString name = QString::fromUtf8(nameFile.readAll()).trimmed().toLower();
+        if (name == QLatin1String("acpitz")) {
+            QFile tempFile(hPath + QStringLiteral("/temp1_input"));
+            if (tempFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                bool ok = false;
+                const int raw = QString::fromUtf8(tempFile.readAll()).trimmed().toInt(&ok);
+                if (ok && raw > 1000 && raw < 130000)
+                    return raw / 1000;
+            }
+        }
+    }
+
+    QFile tz0(QStringLiteral("/sys/class/thermal/thermal_zone0/temp"));
+    if (tz0.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        const int raw = QString::fromUtf8(tz0.readAll()).trimmed().toInt(&ok);
+        if (ok && raw > 1000 && raw < 130000)
+            return raw / 1000;
+    }
+
+    return 0;
+}
+
+void SystemGlanceBackend::reloadAvatar()
+{
+    const QString home = QDir::homePath();
+    QString resolvedAvatar;
+
+    // 1. Check userconfig.json
+    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
+    QFile cfgFile(cfgPath);
+    if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(cfgFile.readAll());
+        if (doc.isObject()) {
+            const QJsonObject obj = doc.object();
+            QString configured = obj.value(QStringLiteral("avatarPath")).toString();
+            if (configured.isEmpty()) {
+                configured = obj.value(QStringLiteral("displayPicture")).toString();
+            }
+            if (!configured.isEmpty()) {
+                if (configured.startsWith(QLatin1String("~"))) configured.replace(0, 1, home);
+                if (configured.startsWith(QLatin1String("file://"))) configured = QUrl(configured).toLocalFile();
+                if (QFileInfo::exists(configured)) {
+                    resolvedAvatar = configured;
+                }
+            }
+        }
+    }
+
+    // 2. Check ChillPill-Shell config for fallback
+    if (resolvedAvatar.isEmpty()) {
+        QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
+        if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString cpText = QString::fromUtf8(cpFile.readAll());
+            cpText.replace(QRegularExpression(QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption), QString());
+            const QStringList lines = cpText.split(u'\n');
+            QStringList stripped;
+            for (const QString &l : lines) {
+                const int commentIdx = l.indexOf(QStringLiteral("//"));
+                stripped.append(commentIdx >= 0 ? l.left(commentIdx) : l);
+            }
+            const QJsonDocument cpDoc = QJsonDocument::fromJson(stripped.join(u'\n').toUtf8());
+            if (cpDoc.isObject()) {
+                QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString();
+                if (!cpPic.isEmpty()) {
+                    if (cpPic.startsWith(QLatin1String("~"))) cpPic.replace(0, 1, home);
+                    if (cpPic.startsWith(QLatin1String("file://"))) cpPic = QUrl(cpPic).toLocalFile();
+                    if (QFileInfo::exists(cpPic)) {
+                        resolvedAvatar = cpPic;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Check common locations
+    if (resolvedAvatar.isEmpty()) {
+        const QStringList candidates = {
+            home + QStringLiteral("/.config/tide-island/avatar.png"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpg"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpeg"),
+            home + QStringLiteral("/.pfp.png"),
+            home + QStringLiteral("/.pfp.jpg"),
+            home + QStringLiteral("/.pfp.jpeg"),
+            home + QStringLiteral("/.pfp"),
+            home + QStringLiteral("/.face"),
+            home + QStringLiteral("/.face.icon"),
+            home + QStringLiteral("/.avatar.png"),
+            home + QStringLiteral("/.avatar.jpg")
+        };
+        for (const QString &cand : candidates) {
+            if (QFileInfo::exists(cand)) {
+                resolvedAvatar = cand;
+                break;
+            }
+        }
+    }
+
+    const QString nextAvatarUrl = resolvedAvatar.isEmpty() ? QString() : (QStringLiteral("file://") + resolvedAvatar);
+    if (m_avatarPath != nextAvatarUrl) {
+        m_avatarPath = nextAvatarUrl;
+        emit avatarPathChanged();
     }
 }

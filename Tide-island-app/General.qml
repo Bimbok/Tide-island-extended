@@ -1,9 +1,21 @@
 import TideIsland 1.0
 import QtQuick.Controls
 import QtQuick
+import QtCore
+import QtQuick.Effects
 
 PagePanel {
     id: root
+
+    HiddenPathDialog {
+        id: avatarFileDialog
+
+        directoryMode: false
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.svg", "*.gif", "*.bmp"]
+        onPathAccepted: function(path) {
+            avatarRow.setPath(path)
+        }
+    }
 
     function intValue(key, fallback) {
         return String(ConfigStore.value(key, fallback))
@@ -184,9 +196,59 @@ PagePanel {
             }
 
             Text {
+                id: profileTitle
+                text: "Profile & System Glance"
+                anchors.top: apperance.bottom
+                anchors.topMargin: 34
+                anchors.left: parent.left
+                anchors.leftMargin: 32
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                font.family: Theme.titleFontFamily
+                font.pixelSize: 23
+                color: Theme.textColor
+            }
+
+            Rectangle {
+                id: profilePanel
+                color: Theme.cardBgColor
+                radius: 16
+                border.width: 1
+                border.color: Theme.splitLineColor
+
+                anchors.top: profileTitle.bottom
+                anchors.topMargin: 15
+                anchors.left: parent.left
+                anchors.leftMargin: 30
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                height: profileColumn.implicitHeight + 36
+
+                Column {
+                    id: profileColumn
+
+                    anchors.top: parent.top
+                    anchors.topMargin: 18
+                    anchors.left: parent.left
+                    anchors.leftMargin: 18
+                    anchors.right: parent.right
+                    anchors.rightMargin: 18
+                    spacing: 16
+
+                    AvatarRow {
+                        id: avatarRow
+                        title: "Profile Avatar"
+                        description: "Avatar shown in the System Glance dashboard"
+                        keyName: "avatarPath"
+                        width: parent.width
+                    }
+                }
+            }
+
+            Text {
                 id: customPageTitle
                 text: "Custom Page"
-                anchors.top: apperance.bottom
+                anchors.top: profilePanel.bottom
                 anchors.topMargin: 34
                 anchors.left: parent.left
                 anchors.leftMargin: 32
@@ -402,6 +464,283 @@ PagePanel {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    component ButtonLike: Rectangle {
+        id: button
+
+        signal clicked
+
+        property string text: ""
+        property bool primary: false
+
+        width: 76
+        height: 36
+        radius: 6
+        color: !button.enabled ? Theme.componentBgColor
+                               : button.primary
+                                   ? mouseArea.pressed ? Theme.buttonPressedColor
+                                                       : mouseArea.containsMouse ? Theme.buttonHoverColor
+                                                                                : Theme.buttonColor
+                                   : mouseArea.pressed ? Theme.controlPressedColor
+                                                       : mouseArea.containsMouse ? Theme.mutedButtonHoverColor
+                                                                                : Theme.mutedButtonColor
+        border.width: 1
+        border.color: button.primary && button.enabled ? color : Theme.inputBorderColor
+
+        Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+        Behavior on border.color { ColorAnimation { duration: Theme.animationDuration } }
+
+        Text {
+            anchors.centerIn: parent
+            text: button.text
+            color: !button.enabled ? Theme.subtleTextColor
+                                   : button.primary ? Theme.buttonTextColor
+                                                    : Theme.mutedButtonTextColor
+            font.family: Theme.textFontFamily
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
+        }
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            enabled: button.enabled
+            hoverEnabled: true
+            cursorShape: button.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: button.clicked()
+        }
+    }
+
+    component AvatarRow: Item {
+        id: row
+
+        property string title: ""
+        property string description: ""
+        property string keyName: "avatarPath"
+        property int avatarVersion: 0
+
+        height: 64
+
+        function cleanHome() {
+            let h = String(StandardPaths.writableLocation(StandardPaths.HomeLocation) || "");
+            if (h.startsWith("file://"))
+                h = h.substring(7);
+            return h.replace(/\/+$/, "");
+        }
+
+        function resolveAvatarUrl(path) {
+            if (!path || path.trim() === "")
+                return "";
+            let clean = path.trim();
+            if (clean.startsWith("~")) {
+                clean = cleanHome() + clean.substring(1);
+            }
+            if (clean.startsWith("/")) {
+                return "file://" + clean;
+            }
+            return clean;
+        }
+
+        function effectiveAvatarSource() {
+            const dummy = avatarVersion;
+            const custom = ConfigStore.value(row.keyName, "");
+            if (custom && String(custom).trim().length > 0)
+                return resolveAvatarUrl(String(custom));
+
+            const disp = ConfigStore.value("displayPicture", "");
+            if (disp && String(disp).trim().length > 0)
+                return resolveAvatarUrl(String(disp));
+
+            return "file://" + cleanHome() + "/.config/tide-island/avatar.png";
+        }
+
+        Item {
+            id: avatarContainer
+            width: 52
+            height: 52
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+                id: avatarBg
+                anchors.fill: parent
+                radius: 26
+                color: Theme.componentBgColor
+                border.width: 1
+                border.color: avatarMouseArea.containsMouse ? Theme.accentColor : Theme.inputBorderColor
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+            }
+
+            Text {
+                id: monogramText
+                anchors.centerIn: parent
+                visible: !avatarContainer.hasValidImage
+                text: {
+                    const home = row.cleanHome();
+                    const parts = home.split('/');
+                    const user = parts.length > 0 ? parts[parts.length - 1] : "U";
+                    return user.charAt(0).toUpperCase();
+                }
+                font.family: Theme.textFontFamily
+                font.pixelSize: 20
+                font.weight: Font.Bold
+                color: Theme.accentColor
+            }
+
+            Image {
+                id: rawImage
+                anchors.fill: parent
+                source: row.effectiveAvatarSource()
+                fillMode: Image.PreserveAspectCrop
+                visible: false
+                asynchronous: true
+                cache: false
+            }
+
+            Rectangle {
+                id: circleMask
+                anchors.fill: parent
+                radius: 26
+                visible: false
+            }
+
+            MultiEffect {
+                anchors.fill: parent
+                source: rawImage
+                maskEnabled: true
+                maskSource: circleMask
+                visible: avatarContainer.hasValidImage
+            }
+
+            readonly property bool hasValidImage: rawImage.status === Image.Ready && (rawImage.source != "")
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 26
+                color: Qt.rgba(0, 0, 0, 0.45)
+                opacity: avatarMouseArea.containsMouse ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Change"
+                    font.family: Theme.textFontFamily
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    color: "#ffffff"
+                }
+            }
+
+            MouseArea {
+                id: avatarMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: avatarFileDialog.openForPath(field.text)
+            }
+
+            DropArea {
+                anchors.fill: parent
+                onDropped: function(drop) {
+                    let p = "";
+                    if (drop.hasUrls && drop.urls.length > 0) {
+                        p = drop.urls[0].toString();
+                    } else if (drop.hasText) {
+                        p = drop.text.trim();
+                    }
+                    if (p.length > 0) {
+                        if (p.startsWith("file://")) {
+                            p = decodeURIComponent(p.substring(7));
+                        }
+                        row.setPath(p);
+                    }
+                }
+            }
+        }
+
+        Column {
+            anchors.left: avatarContainer.right
+            anchors.leftMargin: 16
+            anchors.right: controlsRow.left
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+
+            Text {
+                text: row.title
+                font.family: Theme.textFontFamily
+                font.pixelSize: 18
+                color: Theme.textColor
+            }
+
+            Text {
+                text: row.description
+                font.family: Theme.textFontFamily
+                font.pixelSize: 13
+                color: Theme.subtleTextColor
+                elide: Text.ElideRight
+                width: parent.width
+            }
+        }
+
+        Row {
+            id: controlsRow
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+
+            ConfigTextField {
+                id: field
+                width: Math.max(160, Math.min(260, (row.width - 320) / 2))
+                height: 36
+                placeholderText: "Auto-detect (~/.face, avatar.png)"
+                textPixelSize: 13
+
+                Component.onCompleted: {
+                    text = String(ConfigStore.value(row.keyName, ""))
+                }
+
+                onAccepted: row.commit()
+                onEditingFinished: row.commit()
+            }
+
+            ButtonLike {
+                text: "Browse"
+                primary: true
+                onClicked: avatarFileDialog.openForPath(field.text)
+            }
+
+            ButtonLike {
+                text: "Clear"
+                enabled: field.text.length > 0
+                onClicked: row.clear()
+            }
+        }
+
+        function setPath(path) {
+            field.text = path;
+            commit();
+        }
+
+        function clear() {
+            field.text = "";
+            ConfigStore.remove(row.keyName);
+            ConfigStore.save();
+            avatarVersion++;
+        }
+
+        function commit() {
+            const val = field.text.trim();
+            if (val.length === 0) {
+                clear();
+            } else {
+                ConfigStore.setValue(row.keyName, val);
+                ConfigStore.save();
+                avatarVersion++;
             }
         }
     }

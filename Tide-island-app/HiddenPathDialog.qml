@@ -11,6 +11,7 @@ Dialog {
     property bool directoryMode: false
     property url currentFolder: folderUrl(StandardPaths.writableLocation(StandardPaths.HomeLocation))
     property string selectedDirectory: ""
+    property var nameFilters: []
 
     signal pathAccepted(string path)
 
@@ -223,6 +224,7 @@ Dialog {
                     showOnlyReadable: true
                     sortField: FolderListModel.Name
                     sortCaseSensitive: false
+                    nameFilters: dialog.nameFilters
                 }
 
                 ScrollBar.vertical: ScrollBar { }

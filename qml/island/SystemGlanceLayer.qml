@@ -754,20 +754,18 @@ FocusScope {
                             spacing: 6
 
                             Text {
-                                text: SystemGlance.gpuAvailable ? "\uf108" : "\uf0a0"
+                                text: "\uf0a0"
                                 font.family: root.iconFontFamily
                                 font.pixelSize: 11
                                 color: StyleTokens.warning
                             }
 
                             Text {
-                                text: SystemGlance.gpuAvailable ? (SystemGlance.gpuName || "GPU") : "Storage"
+                                text: "Storage"
                                 font.family: root.heroFontFamily
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
                                 color: StyleTokens.textPrimaryBright
-                                elide: Text.ElideRight
-                                width: Math.min(100, parent.width - 60)
                             }
                         }
 
@@ -782,9 +780,7 @@ FocusScope {
                             Text {
                                 id: diskPercentText
                                 anchors.centerIn: parent
-                                text: (SystemGlance.gpuAvailable && (SystemGlance.gpuTemperature || 0) > 0)
-                                    ? (SystemGlance.gpuTemperature + "°C")
-                                    : (Math.round(SystemGlance.diskUsagePercent || 0) + "%")
+                                text: Math.round(SystemGlance.diskUsagePercent || 0) + "%"
                                 font.family: root.textFontFamily
                                 font.pixelSize: 9
                                 font.weight: Font.Bold

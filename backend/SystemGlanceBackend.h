@@ -5,6 +5,7 @@
 #include <QString>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QFileSystemWatcher>
 
 class SystemGlanceBackend : public QObject {
     Q_OBJECT
@@ -168,12 +169,15 @@ private:
     void updateUptime();
     void updateKernelStats();
     void updateBatteryStats();
+    int readCpuTemperature();
+    void reloadAvatar();
 
     static SystemGlanceBackend *s_instance;
 
     bool m_active = false;
     QTimer m_pollTimer;
     QElapsedTimer m_lastNetTime;
+    QFileSystemWatcher m_configWatcher;
 
     // CPU state
     double m_cpuUsage = 0.0;
