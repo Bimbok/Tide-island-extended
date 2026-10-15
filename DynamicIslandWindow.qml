@@ -2743,7 +2743,7 @@ PanelWindow {
                         return;
                     }
 
-                    if (islandContainer.islandState === "privacy_hud" || islandContainer.islandState === "glance") {
+                    if (islandContainer.islandState === "privacy_hud") {
                         if (preparedOverviewOnPress)
                             root.cancelPreparedOverviewEverywhere();
                         preparedOverviewOnPress = false;

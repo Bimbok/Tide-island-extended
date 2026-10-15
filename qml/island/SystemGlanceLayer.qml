@@ -53,10 +53,6 @@ FocusScope {
         value: root.showCondition
     }
 
-    MouseArea {
-        anchors.fill: parent
-    }
-
     Column {
         id: mainCol
         anchors.left: parent.left
@@ -400,7 +396,7 @@ FocusScope {
                     id: batteryHover
                     anchors.fill: parent
                     hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.NoButton
                 }
 
                 // Tooltip on Hover showing Full Battery Analytics
@@ -1040,6 +1036,7 @@ FocusScope {
                 id: kernelHover
                 anchors.fill: parent
                 hoverEnabled: true
+                acceptedButtons: Qt.NoButton
             }
         }
     }
