@@ -76,6 +76,25 @@ private slots:
         QCOMPARE(avatarSpy.count(), 1);
         QCOMPARE(glance.avatarPath(), QStringLiteral("file:///tmp/test_avatar.png"));
     }
+
+    void testKernelAndBatteryTelemetry() {
+        SystemGlanceBackend glance;
+        QVERIFY(!glance.kernelVersion().isEmpty());
+        QVERIFY(!glance.kernelRelease().isEmpty());
+        QVERIFY(!glance.kernelArch().isEmpty());
+
+        glance.refreshNow();
+        QVERIFY(!glance.loadAvgText().isEmpty());
+        QVERIFY(glance.totalTasks() >= 0);
+        QVERIFY(!glance.cpuGovernor().isEmpty());
+
+        if (glance.hasBattery()) {
+            QVERIFY(glance.batteryCapacity() >= 0 && glance.batteryCapacity() <= 100);
+            QVERIFY(!glance.batteryStatus().isEmpty());
+            QVERIFY(!glance.batteryRateText().isEmpty());
+            QVERIFY(glance.batteryHealthPercent() >= 0 && glance.batteryHealthPercent() <= 100);
+        }
+    }
 };
 
 QTEST_MAIN(SystemGlanceTests)

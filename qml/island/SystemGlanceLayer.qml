@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import IslandBackend
+import Quickshell.Widgets
 
 FocusScope {
     id: root
@@ -70,12 +71,15 @@ FocusScope {
             height: 40
 
             Row {
+                id: userProfileRow
                 anchors.left: parent.left
+                anchors.right: batteryBadge.left
+                anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 10
 
-                // Avatar / Monogram
-                Rectangle {
+                // Avatar / Monogram (True circular clipping via ClippingRectangle)
+                ClippingRectangle {
                     id: avatarContainer
                     width: 38
                     height: 38
@@ -83,7 +87,8 @@ FocusScope {
                     color: StyleTokens.cardFillActive
                     border.width: 1
                     border.color: avatarHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
-                    clip: true
+                    antialiasing: true
+                    contentUnderBorder: true
                     anchors.verticalCenter: parent.verticalCenter
 
                     Image {
@@ -119,7 +124,7 @@ FocusScope {
                     // Hover hint overlay
                     Rectangle {
                         anchors.fill: parent
-                        radius: parent.radius
+                        radius: 19
                         color: Qt.rgba(0, 0, 0, 0.4)
                         opacity: avatarHover.containsMouse ? 1 : 0
                         visible: opacity > 0
@@ -214,37 +219,179 @@ FocusScope {
                 }
             }
 
-            // Right side: Battery badge
+            // Right side: Rich Battery Badge
             Rectangle {
+                id: batteryBadge
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                height: 24
-                width: batteryRow.implicitWidth + 14
-                radius: 12
-                color: StyleTokens.cardFill
+                height: 26
+                width: batteryContentRow.implicitWidth + 16
+                radius: 13
+                color: batteryHover.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill
                 border.width: 1
-                border.color: StyleTokens.inputBorder
+                border.color: batteryHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
+
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                readonly property int effectiveCap: SystemGlance.hasBattery ? SystemGlance.batteryCapacity : root.batteryCapacity
+                readonly property bool effectiveCharging: root.isCharging || (SystemGlance.batteryStatus === "Charging")
+                readonly property bool isConservation: SystemGlance.batteryConservationActive || (SystemServices.batteryConservationMode ?? false)
+                readonly property int effectiveHealth: SystemGlance.batteryHealthPercent > 0 ? SystemGlance.batteryHealthPercent : (SystemServices.batteryHealthPercent || 100)
 
                 Row {
-                    id: batteryRow
+                    id: batteryContentRow
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: 5
 
+                    // Battery Icon
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.isCharging ? "\uf0e7" : "\uf240"
+                        text: {
+                            if (batteryBadge.effectiveCharging) return "\uf0e7"; // Bolt
+                            const c = batteryBadge.effectiveCap;
+                            if (c >= 85) return "\uf240"; // Full
+                            if (c >= 60) return "\uf241"; // 3/4
+                            if (c >= 35) return "\uf242"; // 1/2
+                            if (c >= 15) return "\uf243"; // 1/4
+                            return "\uf244"; // Empty
+                        }
                         font.family: root.iconFontFamily
-                        font.pixelSize: 10
-                        color: root.isCharging ? StyleTokens.success : (root.batteryCapacity <= 20 ? StyleTokens.danger : StyleTokens.textPrimaryBright)
+                        font.pixelSize: 11
+                        color: {
+                            if (batteryBadge.effectiveCharging) return StyleTokens.success;
+                            if (batteryBadge.effectiveCap <= 20) return StyleTokens.danger;
+                            if (batteryBadge.effectiveCap <= 40) return StyleTokens.warning;
+                            return StyleTokens.accent;
+                        }
                     }
 
+                    // Main Capacity %
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.batteryCapacity + "%"
+                        text: batteryBadge.effectiveCap + "%"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                        color: StyleTokens.textPrimaryBright
+                    }
+
+                    // Separator
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "•"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 8
+                        color: StyleTokens.textMuted
+                    }
+
+                    // Secondary info: Rate (e.g. +14.2W / -8.5W / 80% Cap / Plugged In)
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: {
+                            if (batteryBadge.isConservation && !batteryBadge.effectiveCharging)
+                                return "80% Cap";
+                            if (SystemGlance.batteryRateText && SystemGlance.batteryRateText !== "" && SystemGlance.batteryRateText !== "0.0 W")
+                                return SystemGlance.batteryRateText;
+                            if (batteryBadge.effectiveCharging)
+                                return "Charging";
+                            return "Plugged In";
+                        }
                         font.family: root.textFontFamily
                         font.pixelSize: 10
                         font.weight: Font.DemiBold
-                        color: StyleTokens.textPrimaryBright
+                        color: batteryBadge.isConservation ? StyleTokens.accent : StyleTokens.textSecondary
+                    }
+
+                    // Separator
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "•"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 8
+                        color: StyleTokens.textMuted
+                    }
+
+                    // Battery Health
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: batteryBadge.effectiveHealth + "% Health"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        color: StyleTokens.textSecondary
+                    }
+                }
+
+                MouseArea {
+                    id: batteryHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                // Tooltip on Hover showing Full Battery Analytics
+                Rectangle {
+                    id: batteryTooltip
+                    anchors.top: parent.bottom
+                    anchors.topMargin: 6
+                    anchors.right: parent.right
+                    width: tooltipCol.implicitWidth + 20
+                    height: tooltipCol.implicitHeight + 14
+                    radius: 8
+                    color: Qt.rgba(0.08, 0.08, 0.1, 0.95)
+                    border.width: 1
+                    border.color: StyleTokens.inputBorder
+                    opacity: batteryHover.containsMouse ? 1 : 0
+                    visible: opacity > 0
+                    z: 9999
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 150 }
+                    }
+
+                    Column {
+                        id: tooltipCol
+                        anchors.centerIn: parent
+                        spacing: 3
+
+                        Text {
+                            text: "Battery Telemetry"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            color: StyleTokens.accent
+                        }
+
+                        Text {
+                            text: "Status: " + (SystemGlance.batteryStatus || (batteryBadge.effectiveCharging ? "Charging" : "Discharging"))
+                            font.family: root.textFontFamily
+                            font.pixelSize: 9
+                            color: StyleTokens.textPrimaryBright
+                        }
+
+                        Text {
+                            text: "Health: " + batteryBadge.effectiveHealth + "% (" + (SystemGlance.batteryCycleCount > 0 ? (SystemGlance.batteryCycleCount + " cycles") : "Good") + ")"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 9
+                            color: StyleTokens.textPrimaryBright
+                        }
+
+                        Text {
+                            visible: SystemGlance.batteryPowerWatts > 0.05
+                            text: "Power Rate: " + SystemGlance.batteryPowerWatts.toFixed(1) + " W"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 9
+                            color: StyleTokens.textMuted
+                        }
+
+                        Text {
+                            visible: batteryBadge.isConservation
+                            text: "Conservation Mode: Active (80% Cap)"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 9
+                            color: StyleTokens.accent
+                        }
                     }
                 }
             }
@@ -682,185 +829,136 @@ FocusScope {
         }
 
         // ==========================================
-        // 3. Bottom Quick Actions Bar (ChillPill-Shell inspired)
+        // 3. Bottom Kernel & System Telemetry Pill
         // ==========================================
         Rectangle {
+            id: kernelPill
             width: parent.width
-            height: 38
-            radius: 19
+            height: 44
+            radius: 14
             color: StyleTokens.clearBlack
             border.width: 1
-            border.color: StyleTokens.inputBorder
+            border.color: kernelHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
+
+            Behavior on border.color { ColorAnimation { duration: 150 } }
 
             Row {
-                anchors.centerIn: parent
-                spacing: 14
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 12
 
-                // Lock button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: lockBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
+                // Left Section: Linux Kernel & Architecture
+                Row {
                     anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    width: Math.floor((parent.width - 25) * 0.52)
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf023"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: lockBtnArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+                    // Linux Tux Icon
+                    Rectangle {
+                        width: 28
+                        height: 28
+                        radius: 8
+                        color: StyleTokens.cardFillActive
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uf17c" // Tux Linux penguin
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 14
+                            color: StyleTokens.accent
+                        }
                     }
 
-                    MouseArea {
-                        id: lockBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemGlance.lockScreen()
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+                        width: parent.width - 36
+
+                        Text {
+                            width: parent.width
+                            text: "Linux " + (SystemGlance.kernelRelease || SystemGlance.kernelVersion || "Kernel")
+                            font.family: root.textFontFamily
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: StyleTokens.textPrimaryBright
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: (SystemGlance.kernelArch || "x86_64") + " • " + (SystemGlance.cpuGovernor || "powersave")
+                            font.family: root.textFontFamily
+                            font.pixelSize: 10
+                            color: StyleTokens.textMuted
+                            elide: Text.ElideRight
+                        }
                     }
                 }
 
-                // Sleep / Suspend button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: sleepBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf186"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: sleepBtnArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
-                    }
-
-                    MouseArea {
-                        id: sleepBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemGlance.suspendSystem()
-                    }
-                }
-
-                // Divider
+                // Vertical Divider
                 Rectangle {
                     width: 1
-                    height: 16
+                    height: 22
                     color: StyleTokens.inputBorder
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // Calendar button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: calBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
+                // Right Section: Load Averages & Scheduling Entities (Tasks)
+                Row {
                     anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+                    width: Math.floor((parent.width - 25) * 0.48)
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf073"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: calBtnArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+                    // Tachometer / Load Icon
+                    Rectangle {
+                        width: 28
+                        height: 28
+                        radius: 8
+                        color: StyleTokens.cardFillActive
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uf0e4" // Tachometer / Gauge
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 13
+                            color: StyleTokens.textPrimaryBright
+                        }
                     }
 
-                    MouseArea {
-                        id: calBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.openCalendarRequested()
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+                        width: parent.width - 36
+
+                        Text {
+                            width: parent.width
+                            text: "Load: " + (SystemGlance.loadAvgText || "0.00, 0.00, 0.00")
+                            font.family: root.textFontFamily
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: StyleTokens.textPrimaryBright
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: SystemGlance.tasksText || "Active tasks"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 10
+                            color: StyleTokens.textMuted
+                            elide: Text.ElideRight
+                        }
                     }
                 }
+            }
 
-                // Weather button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: weatherBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf0c2"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: weatherBtnArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
-                    }
-
-                    MouseArea {
-                        id: weatherBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.openWeatherRequested()
-                    }
-                }
-
-                // Divider
-                Rectangle {
-                    width: 1
-                    height: 16
-                    color: StyleTokens.inputBorder
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                // Restart / Reboot button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: rebootBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf021"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: rebootBtnArea.containsMouse ? StyleTokens.warning : StyleTokens.textPrimaryBright
-                    }
-
-                    MouseArea {
-                        id: rebootBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemGlance.rebootSystem()
-                    }
-                }
-
-                // Power off / Shutdown button
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    color: shutdownBtnArea.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf011"
-                        font.family: root.iconFontFamily
-                        font.pixelSize: 12
-                        color: shutdownBtnArea.containsMouse ? StyleTokens.danger : StyleTokens.textPrimaryBright
-                    }
-
-                    MouseArea {
-                        id: shutdownBtnArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemGlance.powerOffSystem()
-                    }
-                }
+            MouseArea {
+                id: kernelHover
+                anchors.fill: parent
+                hoverEnabled: true
             }
         }
     }

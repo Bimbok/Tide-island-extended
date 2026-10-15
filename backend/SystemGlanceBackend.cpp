@@ -13,6 +13,7 @@
 #include <QSysInfo>
 #include <QTextStream>
 #include <QUrl>
+#include <algorithm>
 #include <sys/statvfs.h>
 #include <unistd.h>
 
@@ -72,6 +73,8 @@ void SystemGlanceBackend::refreshNow()
     updateDisk();
     updateNetwork();
     updateUptime();
+    updateKernelStats();
+    updateBatteryStats();
 
     emit statsUpdated();
 }
@@ -99,6 +102,16 @@ void SystemGlanceBackend::initStaticInfo()
         m_osName = QStringLiteral("Linux");
 
     m_kernelVersion = QSysInfo::kernelVersion();
+    m_kernelRelease = m_kernelVersion;
+    QFile osRelFile(QStringLiteral("/proc/sys/kernel/osrelease"));
+    if (osRelFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString rel = QString::fromUtf8(osRelFile.readAll()).trimmed();
+        if (!rel.isEmpty())
+            m_kernelRelease = rel;
+    }
+    m_kernelArch = QSysInfo::currentCpuArchitecture();
+    if (m_kernelArch.isEmpty())
+        m_kernelArch = QStringLiteral("x86_64");
 
     // Check avatar paths
     const QString home = QDir::homePath();
@@ -611,4 +624,140 @@ void SystemGlanceBackend::openAvatarDirectory()
         }
     }
     QProcess::startDetached(QStringLiteral("xdg-open"), {dir});
+}
+
+void SystemGlanceBackend::updateKernelStats()
+{
+    // Read /proc/loadavg
+    QFile loadFile(QStringLiteral("/proc/loadavg"));
+    if (loadFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString line = QString::fromUtf8(loadFile.readLine()).trimmed();
+        const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.size() >= 4) {
+            bool ok1 = false, ok5 = false, ok15 = false;
+            m_loadAvg1 = parts[0].toDouble(&ok1);
+            m_loadAvg5 = parts[1].toDouble(&ok5);
+            m_loadAvg15 = parts[2].toDouble(&ok15);
+            m_loadAvgText = QStringLiteral("%1, %2, %3").arg(parts[0], parts[1], parts[2]);
+
+            const QStringList taskParts = parts[3].split(QLatin1Char('/'));
+            if (taskParts.size() >= 2) {
+                m_runningTasks = taskParts[0].toInt();
+                m_totalTasks = taskParts[1].toInt();
+                m_tasksText = QStringLiteral("%1 running • %2 tasks").arg(m_runningTasks).arg(m_totalTasks);
+            }
+        }
+    }
+
+    // Read CPU scaling governor
+    QFile govFile(QStringLiteral("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"));
+    if (govFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        m_cpuGovernor = QString::fromUtf8(govFile.readAll()).trimmed();
+    } else {
+        m_cpuGovernor = QStringLiteral("powersave");
+    }
+}
+
+void SystemGlanceBackend::updateBatteryStats()
+{
+    QDir dir(QStringLiteral("/sys/class/power_supply"));
+    const QStringList batteries = dir.entryList({QStringLiteral("BAT*"), QStringLiteral("battery*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+    if (batteries.isEmpty()) {
+        m_hasBattery = false;
+        return;
+    }
+
+    m_hasBattery = true;
+    const QString batPath = dir.absoluteFilePath(batteries.first());
+
+    // Status
+    QFile statusFile(batPath + QStringLiteral("/status"));
+    if (statusFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        m_batteryStatus = QString::fromUtf8(statusFile.readAll()).trimmed();
+    }
+
+    // Capacity
+    QFile capFile(batPath + QStringLiteral("/capacity"));
+    if (capFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        int cap = QString::fromUtf8(capFile.readAll()).trimmed().toInt(&ok);
+        if (ok) m_batteryCapacity = cap;
+    }
+
+    // Power now / Watts
+    double watts = 0.0;
+    QFile powerFile(batPath + QStringLiteral("/power_now"));
+    if (powerFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        qint64 uW = QString::fromUtf8(powerFile.readAll()).trimmed().toLongLong(&ok);
+        if (ok && uW > 0) {
+            watts = uW / 1000000.0;
+        }
+    } else {
+        QFile currFile(batPath + QStringLiteral("/current_now"));
+        QFile voltFile(batPath + QStringLiteral("/voltage_now"));
+        if (currFile.open(QIODevice::ReadOnly | QIODevice::Text) && voltFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            bool okC = false, okV = false;
+            qint64 uA = QString::fromUtf8(currFile.readAll()).trimmed().toLongLong(&okC);
+            qint64 uV = QString::fromUtf8(voltFile.readAll()).trimmed().toLongLong(&okV);
+            if (okC && okV && uA > 0 && uV > 0) {
+                watts = (static_cast<double>(uA) * static_cast<double>(uV)) / 1000000000000.0;
+            }
+        }
+    }
+    m_batteryPowerWatts = watts;
+
+    // Cycle count
+    QFile cycleFile(batPath + QStringLiteral("/cycle_count"));
+    if (cycleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        int cyc = QString::fromUtf8(cycleFile.readAll()).trimmed().toInt(&ok);
+        if (ok) m_batteryCycleCount = cyc;
+    }
+
+    // Health percent
+    qint64 full = 0, fullDesign = 0;
+    QFile efFile(batPath + QStringLiteral("/energy_full"));
+    QFile efdFile(batPath + QStringLiteral("/energy_full_design"));
+    if (efFile.open(QIODevice::ReadOnly | QIODevice::Text) && efdFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        full = QString::fromUtf8(efFile.readAll()).trimmed().toLongLong();
+        fullDesign = QString::fromUtf8(efdFile.readAll()).trimmed().toLongLong();
+    } else {
+        QFile cfFile(batPath + QStringLiteral("/charge_full"));
+        QFile cfdFile(batPath + QStringLiteral("/charge_full_design"));
+        if (cfFile.open(QIODevice::ReadOnly | QIODevice::Text) && cfdFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            full = QString::fromUtf8(cfFile.readAll()).trimmed().toLongLong();
+            fullDesign = QString::fromUtf8(cfdFile.readAll()).trimmed().toLongLong();
+        }
+    }
+    if (full > 0 && fullDesign > 0) {
+        m_batteryHealthPercent = std::clamp(static_cast<int>(qRound(100.0 * full / fullDesign)), 0, 100);
+    }
+
+    // Conservation mode
+    const QString ideapadPath = QStringLiteral("/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode");
+    const QString ideapadPlatform = QStringLiteral("/sys/devices/platform/ideapad_acpi/conservation_mode");
+    QString cmPath;
+    if (QFile::exists(ideapadPath)) cmPath = ideapadPath;
+    else if (QFile::exists(ideapadPlatform)) cmPath = ideapadPlatform;
+
+    if (!cmPath.isEmpty()) {
+        QFile cmFile(cmPath);
+        if (cmFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            m_batteryConservationActive = (QString::fromUtf8(cmFile.readAll()).trimmed() == QStringLiteral("1"));
+        }
+    }
+
+    // Rate text
+    if (m_batteryStatus.compare(QStringLiteral("Charging"), Qt::CaseInsensitive) == 0) {
+        m_batteryRateText = watts > 0.05 ? QString::asprintf("+%.1f W", watts) : QStringLiteral("Charging");
+    } else if (m_batteryStatus.compare(QStringLiteral("Discharging"), Qt::CaseInsensitive) == 0) {
+        m_batteryRateText = watts > 0.05 ? QString::asprintf("-%.1f W", watts) : QStringLiteral("Discharging");
+    } else if (m_batteryStatus.compare(QStringLiteral("Not charging"), Qt::CaseInsensitive) == 0) {
+        m_batteryRateText = m_batteryConservationActive ? QStringLiteral("Capped (80%)") : QStringLiteral("Plugged In");
+    } else if (m_batteryStatus.compare(QStringLiteral("Full"), Qt::CaseInsensitive) == 0) {
+        m_batteryRateText = QStringLiteral("Full");
+    } else {
+        m_batteryRateText = watts > 0.05 ? QString::asprintf("%.1f W", watts) : m_batteryStatus;
+    }
 }

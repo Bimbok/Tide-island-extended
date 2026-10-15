@@ -51,7 +51,29 @@ class SystemGlanceBackend : public QObject {
     Q_PROPERTY(QString uptimeText READ uptimeText NOTIFY statsUpdated FINAL)
     Q_PROPERTY(QString osName READ osName NOTIFY staticInfoReady FINAL)
     Q_PROPERTY(QString kernelVersion READ kernelVersion NOTIFY staticInfoReady FINAL)
+    Q_PROPERTY(QString kernelRelease READ kernelRelease NOTIFY staticInfoReady FINAL)
+    Q_PROPERTY(QString kernelArch READ kernelArch NOTIFY staticInfoReady FINAL)
     Q_PROPERTY(QString avatarPath READ avatarPath WRITE setAvatarPath NOTIFY avatarPathChanged FINAL)
+
+    // Kernel & Load Telemetry
+    Q_PROPERTY(QString loadAvgText READ loadAvgText NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double loadAvg1 READ loadAvg1 NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double loadAvg5 READ loadAvg5 NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double loadAvg15 READ loadAvg15 NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(int runningTasks READ runningTasks NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(int totalTasks READ totalTasks NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(QString tasksText READ tasksText NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(QString cpuGovernor READ cpuGovernor NOTIFY statsUpdated FINAL)
+
+    // Battery Telemetry
+    Q_PROPERTY(bool hasBattery READ hasBattery NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(int batteryCapacity READ batteryCapacity NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(QString batteryStatus READ batteryStatus NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double batteryPowerWatts READ batteryPowerWatts NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(QString batteryRateText READ batteryRateText NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(int batteryHealthPercent READ batteryHealthPercent NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(int batteryCycleCount READ batteryCycleCount NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(bool batteryConservationActive READ batteryConservationActive NOTIFY statsUpdated FINAL)
 
 public:
     explicit SystemGlanceBackend(QObject *parent = nullptr);
@@ -94,7 +116,27 @@ public:
     QString uptimeText() const { return m_uptimeText; }
     QString osName() const { return m_osName; }
     QString kernelVersion() const { return m_kernelVersion; }
+    QString kernelRelease() const { return m_kernelRelease; }
+    QString kernelArch() const { return m_kernelArch; }
     QString avatarPath() const { return m_avatarPath; }
+
+    QString loadAvgText() const { return m_loadAvgText; }
+    double loadAvg1() const { return m_loadAvg1; }
+    double loadAvg5() const { return m_loadAvg5; }
+    double loadAvg15() const { return m_loadAvg15; }
+    int runningTasks() const { return m_runningTasks; }
+    int totalTasks() const { return m_totalTasks; }
+    QString tasksText() const { return m_tasksText; }
+    QString cpuGovernor() const { return m_cpuGovernor; }
+
+    bool hasBattery() const { return m_hasBattery; }
+    int batteryCapacity() const { return m_batteryCapacity; }
+    QString batteryStatus() const { return m_batteryStatus; }
+    double batteryPowerWatts() const { return m_batteryPowerWatts; }
+    QString batteryRateText() const { return m_batteryRateText; }
+    int batteryHealthPercent() const { return m_batteryHealthPercent; }
+    int batteryCycleCount() const { return m_batteryCycleCount; }
+    bool batteryConservationActive() const { return m_batteryConservationActive; }
 
     Q_INVOKABLE void setAvatarPath(const QString &path);
     Q_INVOKABLE void openAvatarDirectory();
@@ -124,6 +166,8 @@ private:
     void updateDisk();
     void updateNetwork();
     void updateUptime();
+    void updateKernelStats();
+    void updateBatteryStats();
 
     static SystemGlanceBackend *s_instance;
 
@@ -173,5 +217,27 @@ private:
     QString m_uptimeText;
     QString m_osName;
     QString m_kernelVersion;
+    QString m_kernelRelease;
+    QString m_kernelArch;
     QString m_avatarPath;
+
+    // Kernel & Load state
+    QString m_cpuGovernor = QStringLiteral("powersave");
+    QString m_loadAvgText = QStringLiteral("0.00, 0.00, 0.00");
+    double m_loadAvg1 = 0.0;
+    double m_loadAvg5 = 0.0;
+    double m_loadAvg15 = 0.0;
+    int m_runningTasks = 0;
+    int m_totalTasks = 0;
+    QString m_tasksText = QStringLiteral("0 tasks");
+
+    // Battery state
+    bool m_hasBattery = false;
+    int m_batteryCapacity = 0;
+    QString m_batteryStatus = QStringLiteral("Unknown");
+    double m_batteryPowerWatts = 0.0;
+    QString m_batteryRateText = QStringLiteral("0.0 W");
+    int m_batteryHealthPercent = 100;
+    int m_batteryCycleCount = 0;
+    bool m_batteryConservationActive = false;
 };
