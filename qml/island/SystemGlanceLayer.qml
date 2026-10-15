@@ -73,8 +73,8 @@ FocusScope {
             Row {
                 id: userProfileRow
                 anchors.left: parent.left
-                anchors.right: batteryBadge.left
-                anchors.rightMargin: 10
+                anchors.right: updatesBadge.visible ? updatesBadge.left : batteryBadge.left
+                anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 10
 
@@ -216,6 +216,55 @@ FocusScope {
                             elide: Text.ElideRight
                         }
                     }
+                }
+            }
+
+            // Updates Badge (Interactive)
+            Rectangle {
+                id: updatesBadge
+                visible: (SystemGlance.pendingUpdatesCount || 0) > 0
+                anchors.right: batteryBadge.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                height: 26
+                width: updatesContentRow.implicitWidth + 16
+                radius: 13
+                color: updatesHover.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill
+                border.width: 1
+                border.color: updatesHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
+
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                Row {
+                    id: updatesContentRow
+                    anchors.centerIn: parent
+                    spacing: 5
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "\uf1b2" // package cube
+                        font.family: root.iconFontFamily
+                        font.pixelSize: 10
+                        color: StyleTokens.accent
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: SystemGlance.pendingUpdatesCount + (SystemGlance.pendingUpdatesCount === 1 ? " update" : " updates")
+                        font.family: root.heroFontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        color: StyleTokens.accent
+                    }
+                }
+
+                MouseArea {
+                    id: updatesHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: SystemGlance.launchUpdateTerminal()
                 }
             }
 
@@ -578,17 +627,29 @@ FocusScope {
                         }
                     }
 
-                    Row {
+                    Item {
                         width: parent.width
-                        spacing: 8
+                        height: 18
 
                         Text {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
                             text: SystemGlance.memoryText || "0 / 0 GB"
                             font.family: root.heroFontFamily
-                            font.pixelSize: 15
+                            font.pixelSize: 14
                             font.weight: Font.Bold
                             color: StyleTokens.textPrimaryBright
-                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            visible: !!SystemGlance.hasSwap
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Swap " + Math.round(SystemGlance.swapUsagePercent || 0) + "%"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            color: StyleTokens.textSecondary
                         }
                     }
 
@@ -884,7 +945,7 @@ FocusScope {
 
                         Text {
                             width: parent.width
-                            text: (SystemGlance.kernelArch || "x86_64") + " • " + (SystemGlance.cpuGovernor || "powersave")
+                            text: (SystemGlance.kernelArch || "x86_64") + " • " + (SystemGlance.cpuGovernor || "powersave") + ((SystemGlance.pendingUpdatesCount || 0) > 0 ? (" • " + SystemGlance.pendingUpdatesCount + " pkgs") : "")
                             font.family: root.textFontFamily
                             font.pixelSize: 10
                             color: StyleTokens.textMuted

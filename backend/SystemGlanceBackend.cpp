@@ -50,6 +50,11 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
 
 SystemGlanceBackend::~SystemGlanceBackend()
 {
+    if (m_updateProcess && m_updateProcess->state() != QProcess::NotRunning) {
+        m_updateProcess->kill();
+        m_updateProcess->waitForFinished(300);
+    }
+
     if (s_instance == this) {
         s_instance = nullptr;
     }
@@ -69,6 +74,7 @@ void SystemGlanceBackend::setActive(bool active)
 
     if (m_active) {
         reloadAvatar();
+        checkUpdatesAsync();
         m_prevCpuTotal = 0;
         m_prevCpuIdle = 0;
         m_prevRxBytes = 0;
@@ -229,6 +235,8 @@ void SystemGlanceBackend::updateMemory()
 {
     quint64 memTotalKb = 0;
     quint64 memAvailKb = 0;
+    quint64 swapTotalKb = 0;
+    quint64 swapFreeKb = 0;
 
     QFile memFile(QStringLiteral("/proc/meminfo"));
     if (memFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -242,10 +250,13 @@ void SystemGlanceBackend::updateMemory()
             } else if (line.startsWith(QLatin1String("MemAvailable:"))) {
                 const auto parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
                 if (parts.size() >= 2) memAvailKb = parts[1].toULongLong();
+            } else if (line.startsWith(QLatin1String("SwapTotal:"))) {
+                const auto parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                if (parts.size() >= 2) swapTotalKb = parts[1].toULongLong();
+            } else if (line.startsWith(QLatin1String("SwapFree:"))) {
+                const auto parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                if (parts.size() >= 2) swapFreeKb = parts[1].toULongLong();
             }
-
-            if (memTotalKb > 0 && memAvailKb > 0)
-                break;
         }
     }
 
@@ -270,6 +281,19 @@ void SystemGlanceBackend::updateMemory()
         m_memoryUsedGb = static_cast<double>(usedKb) / (1024.0 * 1024.0);
         m_memoryUsagePercent = qBound(0.0, (static_cast<double>(usedKb) / memTotalKb) * 100.0, 100.0);
         m_memoryText = QString::asprintf("%.1f / %.1f GB", m_memoryUsedGb, m_memoryTotalGb);
+    }
+
+    if (swapTotalKb > 0) {
+        const quint64 swapUsedKb = (swapTotalKb >= swapFreeKb) ? (swapTotalKb - swapFreeKb) : 0;
+        m_swapTotalGb = static_cast<double>(swapTotalKb) / (1024.0 * 1024.0);
+        m_swapUsedGb = static_cast<double>(swapUsedKb) / (1024.0 * 1024.0);
+        m_swapUsagePercent = qBound(0.0, (static_cast<double>(swapUsedKb) / swapTotalKb) * 100.0, 100.0);
+        m_swapText = QString::asprintf("%.1f / %.1f GB", m_swapUsedGb, m_swapTotalGb);
+    } else {
+        m_swapTotalGb = 0.0;
+        m_swapUsedGb = 0.0;
+        m_swapUsagePercent = 0.0;
+        m_swapText = QStringLiteral("0 GB");
     }
 }
 
@@ -859,4 +883,92 @@ void SystemGlanceBackend::reloadAvatar()
         m_avatarPath = nextAvatarUrl;
         emit avatarPathChanged();
     }
+}
+
+void SystemGlanceBackend::checkUpdatesAsync()
+{
+    if (m_checkingUpdates)
+        return;
+
+    // Rate limit checks to once every 10 minutes (600,000 ms)
+    if (m_lastUpdateCheckTime.isValid() && m_lastUpdateCheckTime.elapsed() < 600000)
+        return;
+
+    m_checkingUpdates = true;
+    emit updatesChanged();
+
+    // Clean any stale lock left by an abruptly terminated checkupdates run
+    const QString lckPath = QStringLiteral("/tmp/checkup-db-") + QString::number(getuid()) + QStringLiteral("/db.lck");
+    QFile::remove(lckPath);
+
+    QProcess *proc = new QProcess(this);
+    m_updateProcess = proc;
+
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, proc](int exitCode, QProcess::ExitStatus exitStatus) {
+        m_checkingUpdates = false;
+        m_lastUpdateCheckTime.restart();
+
+        const QByteArray stdOut = proc->readAllStandardOutput();
+
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            const QString text = QString::fromUtf8(stdOut).trimmed();
+            m_pendingUpdatesCount = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+        } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
+            // checkupdates returns 2 when no updates are available
+            m_pendingUpdatesCount = 0;
+        } else {
+            // Fallback to local synced pacman database
+            QProcess pacProc;
+            pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
+            if (pacProc.waitForFinished(2000)) {
+                const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
+                m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+            }
+        }
+
+        emit updatesChanged();
+        proc->deleteLater();
+    });
+
+    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError) {
+        // Fallback to pacman -Qu on error
+        QProcess pacProc;
+        pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
+        if (pacProc.waitForFinished(2000)) {
+            const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
+            m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+        }
+
+        m_checkingUpdates = false;
+        emit updatesChanged();
+        proc->deleteLater();
+    });
+
+    if (QFile::exists(QStringLiteral("/usr/bin/checkupdates"))) {
+        proc->start(QStringLiteral("/usr/bin/checkupdates"), QStringList());
+    } else if (QFile::exists(QStringLiteral("/usr/bin/pacman"))) {
+        proc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
+    } else {
+        m_checkingUpdates = false;
+        emit updatesChanged();
+        proc->deleteLater();
+    }
+}
+
+void SystemGlanceBackend::launchUpdateTerminal()
+{
+    QString term = QStringLiteral("kitty");
+    if (!QFile::exists(QStringLiteral("/usr/bin/kitty"))) {
+        if (QFile::exists(QStringLiteral("/usr/bin/foot"))) term = QStringLiteral("foot");
+        else if (QFile::exists(QStringLiteral("/usr/bin/alacritty"))) term = QStringLiteral("alacritty");
+        else if (QFile::exists(QStringLiteral("/usr/bin/konsole"))) term = QStringLiteral("konsole");
+        else term = QStringLiteral("xterm");
+    }
+
+    const QString updateCmd = QFile::exists(QStringLiteral("/usr/bin/yay"))
+        ? QStringLiteral("yay; echo; read -n 1 -s -r -p 'Press any key to close...'")
+        : QStringLiteral("sudo pacman -Syu; echo; read -n 1 -s -r -p 'Press any key to close...'");
+
+    QProcess::startDetached(term, {QStringLiteral("-e"), QStringLiteral("sh"), QStringLiteral("-c"), updateCmd});
 }

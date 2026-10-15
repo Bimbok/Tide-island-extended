@@ -6,6 +6,8 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QFileSystemWatcher>
+#include <QProcess>
+#include <QPointer>
 
 class SystemGlanceBackend : public QObject {
     Q_OBJECT
@@ -24,6 +26,17 @@ class SystemGlanceBackend : public QObject {
     Q_PROPERTY(double memoryUsedGb READ memoryUsedGb NOTIFY statsUpdated FINAL)
     Q_PROPERTY(double memoryTotalGb READ memoryTotalGb NOTIFY statsUpdated FINAL)
     Q_PROPERTY(QString memoryText READ memoryText NOTIFY statsUpdated FINAL)
+
+    // Swap / ZRAM
+    Q_PROPERTY(bool hasSwap READ hasSwap NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double swapUsagePercent READ swapUsagePercent NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double swapUsedGb READ swapUsedGb NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(double swapTotalGb READ swapTotalGb NOTIFY statsUpdated FINAL)
+    Q_PROPERTY(QString swapText READ swapText NOTIFY statsUpdated FINAL)
+
+    // Package Updates
+    Q_PROPERTY(int pendingUpdatesCount READ pendingUpdatesCount NOTIFY updatesChanged FINAL)
+    Q_PROPERTY(bool checkingUpdates READ checkingUpdates NOTIFY updatesChanged FINAL)
 
     // GPU
     Q_PROPERTY(bool gpuAvailable READ gpuAvailable NOTIFY staticInfoReady FINAL)
@@ -94,6 +107,15 @@ public:
     double memoryTotalGb() const { return m_memoryTotalGb; }
     QString memoryText() const { return m_memoryText; }
 
+    bool hasSwap() const { return m_swapTotalGb > 0.05; }
+    double swapUsagePercent() const { return m_swapUsagePercent; }
+    double swapUsedGb() const { return m_swapUsedGb; }
+    double swapTotalGb() const { return m_swapTotalGb; }
+    QString swapText() const { return m_swapText; }
+
+    int pendingUpdatesCount() const { return m_pendingUpdatesCount; }
+    bool checkingUpdates() const { return m_checkingUpdates; }
+
     bool gpuAvailable() const { return m_gpuAvailable; }
     QString gpuName() const { return m_gpuName; }
     double gpuUsage() const { return m_gpuUsage; }
@@ -142,6 +164,8 @@ public:
     Q_INVOKABLE void setAvatarPath(const QString &path);
     Q_INVOKABLE void openAvatarDirectory();
     Q_INVOKABLE void refreshNow();
+    Q_INVOKABLE void checkUpdatesAsync();
+    Q_INVOKABLE void launchUpdateTerminal();
     Q_INVOKABLE void lockScreen();
     Q_INVOKABLE void suspendSystem();
     Q_INVOKABLE void rebootSystem();
@@ -155,6 +179,7 @@ signals:
     void statsUpdated();
     void staticInfoReady();
     void avatarPathChanged();
+    void updatesChanged();
 
 private slots:
     void onPollTick();
@@ -191,6 +216,18 @@ private:
     double m_memoryUsedGb = 0.0;
     double m_memoryTotalGb = 0.0;
     QString m_memoryText;
+
+    // Swap state
+    double m_swapUsagePercent = 0.0;
+    double m_swapUsedGb = 0.0;
+    double m_swapTotalGb = 0.0;
+    QString m_swapText;
+
+    // Updates state
+    int m_pendingUpdatesCount = 0;
+    bool m_checkingUpdates = false;
+    QElapsedTimer m_lastUpdateCheckTime;
+    QPointer<QProcess> m_updateProcess;
 
     // GPU state
     bool m_gpuAvailable = false;

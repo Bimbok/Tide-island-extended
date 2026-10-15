@@ -95,6 +95,24 @@ private slots:
             QVERIFY(glance.batteryHealthPercent() >= 0 && glance.batteryHealthPercent() <= 100);
         }
     }
+
+    void testSwapAndUpdates() {
+        SystemGlanceBackend glance;
+        glance.refreshNow();
+
+        if (glance.hasSwap()) {
+            QVERIFY(glance.swapTotalGb() > 0.0);
+            QVERIFY(glance.swapUsagePercent() >= 0.0 && glance.swapUsagePercent() <= 100.0);
+            QVERIFY(!glance.swapText().isEmpty());
+        }
+
+        QSignalSpy spy(&glance, &SystemGlanceBackend::updatesChanged);
+        glance.checkUpdatesAsync();
+        QVERIFY(glance.checkingUpdates());
+        QTRY_VERIFY_WITH_TIMEOUT(!glance.checkingUpdates(), 12000);
+        qDebug() << "Pending updates count:" << glance.pendingUpdatesCount();
+        QVERIFY(glance.pendingUpdatesCount() >= 0);
+    }
 };
 
 QTEST_MAIN(SystemGlanceTests)
