@@ -10,17 +10,42 @@ case "$ACTION" in
     watch)
         command -v cliphist >/dev/null 2>&1 || exit 127
         command -v wl-paste >/dev/null 2>&1 || exit 127
-        # A user service or compositor session may already be recording history.
-        # Don't spawn duplicate watchers if cliphist store is already active.
-        if pgrep -f "cliphist store" >/dev/null 2>&1; then
-            exit 0
-        fi
-        exec 9>"${XDG_RUNTIME_DIR:-$CACHE_DIR}/tide-island-clipboard.lock"
+
+        LOCK_FILE="${XDG_RUNTIME_DIR:-$CACHE_DIR}/tide-island-clipboard.lock"
+        exec 9>"$LOCK_FILE"
         flock -n 9 || exit 0
-        wl-paste --type text --watch cliphist store &
-        TEXT_PID=$!
-        trap 'kill $TEXT_PID 2>/dev/null' EXIT INT TERM
-        exec wl-paste --type image --watch cliphist store
+
+        TEXT_PID=""
+        IMAGE_PID=""
+
+        cleanup() {
+            [[ -n "$TEXT_PID" ]] && kill "$TEXT_PID" 2>/dev/null || true
+            [[ -n "$IMAGE_PID" ]] && kill "$IMAGE_PID" 2>/dev/null || true
+            exit 0
+        }
+        trap cleanup EXIT INT TERM HUP
+
+        # Check and spawn text watcher if not already running
+        if ! pgrep -f "wl-paste.*--type.*text.*cliphist" >/dev/null 2>&1; then
+            wl-paste --type text --watch cliphist store &
+            TEXT_PID=$!
+        fi
+
+        # Check and spawn image watcher if not already running
+        if ! pgrep -f "wl-paste.*--type.*image.*cliphist" >/dev/null 2>&1; then
+            wl-paste --type image --watch cliphist store &
+            IMAGE_PID=$!
+        fi
+
+        # Keep running to supervise both background watchers
+        if [[ -n "$TEXT_PID" || -n "$IMAGE_PID" ]]; then
+            wait
+        else
+            while true; do
+                sleep 3600 &
+                wait $!
+            done
+        fi
         ;;
     list)
         if ! command -v cliphist >/dev/null 2>&1 || ! command -v wl-paste >/dev/null 2>&1 || ! command -v wl-copy >/dev/null 2>&1; then
@@ -28,10 +53,20 @@ case "$ACTION" in
         fi
 
         LIMIT="${2:-200}"
+        DECODE_COUNT=0
 
         cliphist list 2>/dev/null | head -n "$LIMIT" | while IFS=$'\t' read -r id rest; do
             if [[ "$rest" == *"[[ binary data"* ]]; then
                 img_path="$CACHE_DIR/$id.png"
+                if [[ ! -s "$img_path" && $DECODE_COUNT -lt 8 ]]; then
+                    tmp_path="$CACHE_DIR/$id.tmp.$$"
+                    if cliphist decode "$id" > "$tmp_path" 2>/dev/null && [[ -s "$tmp_path" ]]; then
+                        mv -f "$tmp_path" "$img_path"
+                        DECODE_COUNT=$((DECODE_COUNT + 1))
+                    else
+                        rm -f "$tmp_path"
+                    fi
+                fi
                 if [[ -s "$img_path" ]]; then
                     printf "%s\t%s\000icon\x1f%s\n" "$id" "$rest" "$img_path"
                 else

@@ -25,6 +25,7 @@ FocusScope {
     property int totalCount: 0
     property var allEntries: []
     property bool cliphistAvailable: true
+    property int modelRevision: 0
 
     readonly property string helperScriptPath: {
         const candidate = Qt.resolvedUrl("../../scripts/cliphist-helper.sh").toString();
@@ -120,6 +121,15 @@ FocusScope {
         }
     }
 
+    onSelectedIndexChanged: {
+        if (selectedIndex >= 0 && selectedIndex < listModel.count) {
+            const entry = listModel.get(selectedIndex);
+            if (entry && entry.isImage && !entry.imagePath && entry.id) {
+                decodeSingle(entry.id);
+            }
+        }
+    }
+
     function grabKeyboardFocus() {
         root.focus = true;
         root.forceActiveFocus();
@@ -154,6 +164,7 @@ FocusScope {
                 break;
             }
         }
+        root.modelRevision++;
     }
 
     function decodeSingle(id) {
@@ -799,6 +810,7 @@ FocusScope {
                 }
 
                 readonly property var currentEntry: {
+                    root.modelRevision;
                     if (root.selectedIndex >= 0 && root.selectedIndex < listModel.count)
                         return listModel.get(root.selectedIndex);
                     return null;
