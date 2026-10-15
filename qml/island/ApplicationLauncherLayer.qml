@@ -346,6 +346,9 @@ FocusScope {
         if (count <= 0)
             return;
 
+        if (appScrollAnim.running)
+            appScrollAnim.stop();
+
         root.selectedIndex = (root.selectedIndex + offset + count) % count;
         appGrid.currentIndex = root.selectedIndex;
         appGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain);
@@ -401,6 +404,8 @@ FocusScope {
     }
 
     onShowConditionChanged: {
+        if (appScrollAnim.running)
+            appScrollAnim.stop();
         if (showCondition) {
             sortFavoriteIds = favoriteIds.slice();
             searchInput.text = "";
@@ -816,6 +821,46 @@ FocusScope {
                 font.family: root.textFontFamily
                 font.pixelSize: 13
             }
+        }
+    }
+
+    NumberAnimation {
+        id: appScrollAnim
+        target: appGrid
+        property: "contentX"
+        duration: 140
+        easing.type: Easing.OutCubic
+    }
+
+    WheelHandler {
+        id: launcherWheelHandler
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        enabled: root.showCondition && root.visibleApplicationCount > 0 && !root.favoriteDragActive
+
+        onWheel: function(event) {
+            const deltaY = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const deltaX = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+            const rawDelta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX : -deltaY;
+            const isPixel = (event.pixelDelta.y !== 0 || event.pixelDelta.x !== 0);
+            const step = isPixel
+                ? rawDelta
+                : (rawDelta / 120.0) * (appGrid.cellWidth * 1.5);
+            const totalContentWidth = Math.max(appGrid.contentWidth, root.visibleApplicationCount * appGrid.cellWidth);
+            const maxX = Math.max(0, totalContentWidth - appGrid.width);
+
+            if (isPixel) {
+                appScrollAnim.stop();
+                appGrid.contentX = Math.max(0, Math.min(maxX, appGrid.contentX + step));
+            } else {
+                const currentTarget = appScrollAnim.running ? appScrollAnim.to : appGrid.contentX;
+                const newTarget = Math.max(0, Math.min(maxX, currentTarget + step));
+                appScrollAnim.stop();
+                appScrollAnim.from = appGrid.contentX;
+                appScrollAnim.to = newTarget;
+                appScrollAnim.start();
+            }
+            event.accepted = true;
         }
     }
 }

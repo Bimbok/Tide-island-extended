@@ -2776,20 +2776,6 @@ PanelWindow {
                         return;
                     }
                 }
-
-                onWheel: (wheel) => {
-                    if (wheel.angleDelta.y < -30) {
-                        if (islandContainer.islandState !== "glance") {
-                            islandContainer.showGlance();
-                            wheel.accepted = true;
-                        }
-                    } else if (wheel.angleDelta.y > 30) {
-                        if (islandContainer.islandState === "glance") {
-                            islandContainer.smartRestoreState();
-                            wheel.accepted = true;
-                        }
-                    }
-                }
             }
 
             MultiPointTouchArea {

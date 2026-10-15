@@ -588,4 +588,43 @@ FocusScope {
             }
         }
     }
+
+    NumberAnimation {
+        id: shelfScrollAnim
+        target: trayViewport
+        property: "contentX"
+        duration: 140
+        easing.type: Easing.OutCubic
+    }
+
+    WheelHandler {
+        id: shelfWheelHandler
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        enabled: root.showCondition && FileShelf.count > root.visibleCapacity && !root.reorderActive
+
+        onWheel: function(event) {
+            const deltaY = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y;
+            const deltaX = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x;
+            const rawDelta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX : -deltaY;
+            const isPixel = (event.pixelDelta.y !== 0 || event.pixelDelta.x !== 0);
+            const step = isPixel
+                ? rawDelta
+                : (rawDelta / 120.0) * (root.overflowCellWidth * 1.5);
+            const maxX = Math.max(0, trayViewport.contentWidth - trayViewport.width);
+
+            if (isPixel) {
+                shelfScrollAnim.stop();
+                trayViewport.contentX = Math.max(0, Math.min(maxX, trayViewport.contentX + step));
+            } else {
+                const currentTarget = shelfScrollAnim.running ? shelfScrollAnim.to : trayViewport.contentX;
+                const newTarget = Math.max(0, Math.min(maxX, currentTarget + step));
+                shelfScrollAnim.stop();
+                shelfScrollAnim.from = trayViewport.contentX;
+                shelfScrollAnim.to = newTarget;
+                shelfScrollAnim.start();
+            }
+            event.accepted = true;
+        }
+    }
 }
