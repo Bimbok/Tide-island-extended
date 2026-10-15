@@ -51,7 +51,7 @@ class SystemGlanceBackend : public QObject {
     Q_PROPERTY(QString uptimeText READ uptimeText NOTIFY statsUpdated FINAL)
     Q_PROPERTY(QString osName READ osName NOTIFY staticInfoReady FINAL)
     Q_PROPERTY(QString kernelVersion READ kernelVersion NOTIFY staticInfoReady FINAL)
-    Q_PROPERTY(QString avatarPath READ avatarPath NOTIFY staticInfoReady FINAL)
+    Q_PROPERTY(QString avatarPath READ avatarPath WRITE setAvatarPath NOTIFY avatarPathChanged FINAL)
 
 public:
     explicit SystemGlanceBackend(QObject *parent = nullptr);
@@ -96,6 +96,8 @@ public:
     QString kernelVersion() const { return m_kernelVersion; }
     QString avatarPath() const { return m_avatarPath; }
 
+    Q_INVOKABLE void setAvatarPath(const QString &path);
+    Q_INVOKABLE void openAvatarDirectory();
     Q_INVOKABLE void refreshNow();
     Q_INVOKABLE void lockScreen();
     Q_INVOKABLE void suspendSystem();
@@ -109,6 +111,7 @@ signals:
     void activeChanged(bool active);
     void statsUpdated();
     void staticInfoReady();
+    void avatarPathChanged();
 
 private slots:
     void onPollTick();

@@ -1,5 +1,6 @@
 #include "UserConfigBackend.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -8,6 +9,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QSet>
+#include <QUrl>
 #include <QVariant>
 #include <Qt>
 
@@ -422,6 +424,41 @@ bool UserConfigBackend::privacyMicBubbleEnabled() const
     return m_privacyMicBubbleEnabled;
 }
 
+QString UserConfigBackend::avatarPath() const
+{
+    return m_avatarPath;
+}
+
+void UserConfigBackend::setAvatarPath(const QString &path)
+{
+    QString clean = path.trimmed();
+    if (clean.startsWith(QLatin1String("file://"))) {
+        clean = QUrl(clean).toLocalFile();
+    }
+    if (clean.startsWith(QLatin1String("~"))) {
+        clean.replace(0, 1, QDir::homePath());
+    }
+    if (m_avatarPath == clean)
+        return;
+
+    m_avatarPath = clean;
+    emit avatarPathChanged();
+
+    // Persist to userconfig.json
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("avatarPath"), clean);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
 void UserConfigBackend::setDefaultWallpaperPath(const QString &path)
 {
     if (m_defaultWallpaperPath == path)
@@ -577,6 +614,48 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_marqueeTrackTitleEnabled, jsonBool(configObject, QLatin1String("marqueeTrackTitleEnabled"), true), &UserConfigBackend::marqueeTrackTitleEnabledChanged);
     updateField(this, m_privacyCameraBubbleEnabled, jsonBool(configObject, QLatin1String("privacyCameraBubbleEnabled"), true), &UserConfigBackend::privacyCameraBubbleEnabledChanged);
     updateField(this, m_privacyMicBubbleEnabled, jsonBool(configObject, QLatin1String("privacyMicBubbleEnabled"), true), &UserConfigBackend::privacyMicBubbleEnabledChanged);
+
+    QString nextAvatarPath = jsonString(configObject, QLatin1String("avatarPath"), jsonString(configObject, QLatin1String("displayPicture"), QString()));
+    const QString home = QDir::homePath();
+    if (nextAvatarPath.startsWith(QLatin1String("~"))) {
+        nextAvatarPath.replace(0, 1, home);
+    }
+    if (nextAvatarPath.isEmpty()) {
+        // Check ChillPill-Shell config for fallback
+        QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
+        if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QJsonDocument cpDoc = QJsonDocument::fromJson(stripJsonComments(cpFile.readAll()));
+            if (cpDoc.isObject()) {
+                const QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString();
+                if (!cpPic.isEmpty()) {
+                    QString resolved = cpPic;
+                    if (resolved.startsWith(QLatin1String("~"))) {
+                        resolved.replace(0, 1, home);
+                    }
+                    if (QFileInfo::exists(resolved)) {
+                        nextAvatarPath = resolved;
+                    }
+                }
+            }
+        }
+    }
+    if (nextAvatarPath.isEmpty()) {
+        const QStringList candidates = {
+            home + QStringLiteral("/.config/tide-island/avatar.png"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpg"),
+            home + QStringLiteral("/.pfp.png"),
+            home + QStringLiteral("/.pfp.jpg"),
+            home + QStringLiteral("/.face"),
+            home + QStringLiteral("/.face.icon")
+        };
+        for (const QString &cand : candidates) {
+            if (QFileInfo::exists(cand)) {
+                nextAvatarPath = cand;
+                break;
+            }
+        }
+    }
+    updateField(this, m_avatarPath, nextAvatarPath, &UserConfigBackend::avatarPathChanged);
 
     updateWatchedPaths();
 }

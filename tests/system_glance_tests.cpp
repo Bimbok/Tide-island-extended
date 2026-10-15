@@ -65,6 +65,17 @@ private slots:
         QVERIFY(!glance.downloadSpeedText().isEmpty());
         QVERIFY(!glance.uploadSpeedText().isEmpty());
     }
+
+    void testAvatarSupport() {
+        SystemGlanceBackend glance;
+        QSignalSpy avatarSpy(&glance, &SystemGlanceBackend::avatarPathChanged);
+
+        // Setting a custom avatar path
+        const QString testPath = QStringLiteral("/tmp/test_avatar.png");
+        glance.setAvatarPath(testPath);
+        QCOMPARE(avatarSpy.count(), 1);
+        QCOMPARE(glance.avatarPath(), QStringLiteral("file:///tmp/test_avatar.png"));
+    }
 };
 
 QTEST_MAIN(SystemGlanceTests)

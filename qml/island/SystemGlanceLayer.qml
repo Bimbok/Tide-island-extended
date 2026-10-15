@@ -33,6 +33,12 @@ FocusScope {
         }
     }
 
+    onShowConditionChanged: {
+        if (showCondition) {
+            forceActiveFocus();
+        }
+    }
+
     Keys.onEscapePressed: function(event) {
         root.closeRequested();
         event.accepted = true;
@@ -70,27 +76,37 @@ FocusScope {
 
                 // Avatar / Monogram
                 Rectangle {
+                    id: avatarContainer
                     width: 38
                     height: 38
                     radius: 19
                     color: StyleTokens.cardFillActive
                     border.width: 1
-                    border.color: StyleTokens.inputBorder
+                    border.color: avatarHover.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
                     clip: true
                     anchors.verticalCenter: parent.verticalCenter
 
                     Image {
+                        id: avatarImg
                         anchors.fill: parent
                         visible: (SystemGlance.avatarPath || "") !== "" && status === Image.Ready
-                        source: SystemGlance.avatarPath || ""
+                        source: {
+                            const p = SystemGlance.avatarPath || "";
+                            if (!p) return "";
+                            if (p.startsWith("/") && !p.startsWith("file://"))
+                                return "file://" + p;
+                            return p;
+                        }
                         fillMode: Image.PreserveAspectCrop
+                        smooth: true
                         mipmap: true
-                        asynchronous: true
+                        asynchronous: false
+                        sourceSize: Qt.size(96, 96)
                     }
 
                     Text {
                         anchors.centerIn: parent
-                        visible: (SystemGlance.avatarPath || "") === ""
+                        visible: (SystemGlance.avatarPath || "") === "" || avatarImg.status !== Image.Ready
                         text: (SystemGlance.userName && SystemGlance.userName.length > 0)
                             ? SystemGlance.userName.charAt(0).toUpperCase()
                             : "U"
@@ -98,6 +114,50 @@ FocusScope {
                         font.family: root.heroFontFamily
                         font.pixelSize: 16
                         font.weight: Font.Bold
+                    }
+
+                    // Hover hint overlay
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Qt.rgba(0, 0, 0, 0.4)
+                        opacity: avatarHover.containsMouse ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uf030" // Camera icon
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 13
+                            color: "#ffffff"
+                        }
+                    }
+
+                    MouseArea {
+                        id: avatarHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: SystemGlance.openAvatarDirectory()
+                    }
+
+                    DropArea {
+                        anchors.fill: parent
+                        onDropped: (drop) => {
+                            let path = "";
+                            if (drop.hasUrls && drop.urls.length > 0) {
+                                path = drop.urls[0].toString();
+                            } else if (drop.hasText) {
+                                path = drop.text.trim();
+                            }
+                            if (path !== "") {
+                                if (path.startsWith("file://")) {
+                                    path = path.substring(7);
+                                }
+                                SystemGlance.setAvatarPath(path);
+                            }
+                        }
                     }
                 }
 
@@ -154,70 +214,37 @@ FocusScope {
                 }
             }
 
-            // Right side: Battery badge & Close button
-            Row {
+            // Right side: Battery badge
+            Rectangle {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
+                height: 24
+                width: batteryRow.implicitWidth + 14
+                radius: 12
+                color: StyleTokens.cardFill
+                border.width: 1
+                border.color: StyleTokens.inputBorder
 
-                // Battery badge
-                Rectangle {
-                    height: 24
-                    width: batteryRow.implicitWidth + 14
-                    radius: 12
-                    color: StyleTokens.cardFill
-                    border.width: 1
-                    border.color: StyleTokens.inputBorder
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Row {
-                        id: batteryRow
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: root.isCharging ? "\uf0e7" : "\uf240"
-                            font.family: root.iconFontFamily
-                            font.pixelSize: 10
-                            color: root.isCharging ? StyleTokens.success : (root.batteryCapacity <= 20 ? StyleTokens.danger : StyleTokens.textPrimaryBright)
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: root.batteryCapacity + "%"
-                            font.family: root.textFontFamily
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                            color: StyleTokens.textPrimaryBright
-                        }
-                    }
-                }
-
-                // Close button
-                Rectangle {
-                    width: 24
-                    height: 24
-                    radius: 12
-                    color: closeArea.containsMouse ? StyleTokens.cardFillActive : StyleTokens.cardFill
-                    border.width: 1
-                    border.color: closeArea.containsMouse ? StyleTokens.accent : StyleTokens.inputBorder
-                    anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    id: batteryRow
+                    anchors.centerIn: parent
+                    spacing: 4
 
                     Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.isCharging ? "\uf0e7" : "\uf240"
                         font.family: root.iconFontFamily
                         font.pixelSize: 10
-                        color: closeArea.containsMouse ? StyleTokens.textPrimaryBright : StyleTokens.textSecondary
+                        color: root.isCharging ? StyleTokens.success : (root.batteryCapacity <= 20 ? StyleTokens.danger : StyleTokens.textPrimaryBright)
                     }
 
-                    MouseArea {
-                        id: closeArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.closeRequested()
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.batteryCapacity + "%"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        color: StyleTokens.textPrimaryBright
                     }
                 }
             }

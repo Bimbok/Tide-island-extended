@@ -76,6 +76,7 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(bool marqueeTrackTitleEnabled READ marqueeTrackTitleEnabled NOTIFY marqueeTrackTitleEnabledChanged FINAL)
     Q_PROPERTY(bool privacyCameraBubbleEnabled READ privacyCameraBubbleEnabled NOTIFY privacyCameraBubbleEnabledChanged FINAL)
     Q_PROPERTY(bool privacyMicBubbleEnabled READ privacyMicBubbleEnabled NOTIFY privacyMicBubbleEnabledChanged FINAL)
+    Q_PROPERTY(QString avatarPath READ avatarPath WRITE setAvatarPath NOTIFY avatarPathChanged FINAL)
 
 public:
     explicit UserConfigBackend(QObject *parent = nullptr);
@@ -139,6 +140,8 @@ public:
     bool marqueeTrackTitleEnabled() const;
     bool privacyCameraBubbleEnabled() const;
     bool privacyMicBubbleEnabled() const;
+    QString avatarPath() const;
+    void setAvatarPath(const QString &path);
     void setDefaultWallpaperPath(const QString &path);
     void setDefaultTlpSudoPassword(const QString &password);
 
@@ -205,6 +208,7 @@ signals:
     void marqueeTrackTitleEnabledChanged();
     void privacyCameraBubbleEnabledChanged();
     void privacyMicBubbleEnabledChanged();
+    void avatarPathChanged();
 
 private:
     void scheduleReload();
@@ -271,6 +275,7 @@ private:
     bool m_marqueeTrackTitleEnabled = true;
     bool m_privacyCameraBubbleEnabled = true;
     bool m_privacyMicBubbleEnabled = true;
+    QString m_avatarPath;
 
     QFileSystemWatcher m_watcher;
     QTimer m_reloadTimer;

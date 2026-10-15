@@ -1,15 +1,18 @@
 #include "SystemGlanceBackend.h"
 
-#include <QFile>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QHostInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkInterface>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSysInfo>
 #include <QTextStream>
-#include <QRegularExpression>
+#include <QUrl>
 #include <sys/statvfs.h>
 #include <unistd.h>
 
@@ -99,13 +102,80 @@ void SystemGlanceBackend::initStaticInfo()
 
     // Check avatar paths
     const QString home = QDir::homePath();
-    const QString facePath = home + QStringLiteral("/.face");
-    const QString faceIconPath = home + QStringLiteral("/.face.icon");
+    QString resolvedAvatar;
 
-    if (QFileInfo::exists(facePath)) {
-        m_avatarPath = QStringLiteral("file://") + facePath;
-    } else if (QFileInfo::exists(faceIconPath)) {
-        m_avatarPath = QStringLiteral("file://") + faceIconPath;
+    // 1. Check userconfig.json
+    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
+    QFile cfgFile(cfgPath);
+    if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(cfgFile.readAll());
+        if (doc.isObject()) {
+            const QJsonObject obj = doc.object();
+            QString configured = obj.value(QStringLiteral("avatarPath")).toString();
+            if (configured.isEmpty()) {
+                configured = obj.value(QStringLiteral("displayPicture")).toString();
+            }
+            if (!configured.isEmpty()) {
+                if (configured.startsWith(QLatin1String("~"))) configured.replace(0, 1, home);
+                if (configured.startsWith(QLatin1String("file://"))) configured = QUrl(configured).toLocalFile();
+                if (QFileInfo::exists(configured)) {
+                    resolvedAvatar = configured;
+                }
+            }
+        }
+    }
+
+    // 2. Check ChillPill-Shell config for fallback
+    if (resolvedAvatar.isEmpty()) {
+        QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
+        if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString cpText = QString::fromUtf8(cpFile.readAll());
+            cpText.replace(QRegularExpression(QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption), QString());
+            const QStringList lines = cpText.split(u'\n');
+            QStringList stripped;
+            for (const QString &l : lines) {
+                const int commentIdx = l.indexOf(QStringLiteral("//"));
+                stripped.append(commentIdx >= 0 ? l.left(commentIdx) : l);
+            }
+            const QJsonDocument cpDoc = QJsonDocument::fromJson(stripped.join(u'\n').toUtf8());
+            if (cpDoc.isObject()) {
+                QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString();
+                if (!cpPic.isEmpty()) {
+                    if (cpPic.startsWith(QLatin1String("~"))) cpPic.replace(0, 1, home);
+                    if (cpPic.startsWith(QLatin1String("file://"))) cpPic = QUrl(cpPic).toLocalFile();
+                    if (QFileInfo::exists(cpPic)) {
+                        resolvedAvatar = cpPic;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Check common locations
+    if (resolvedAvatar.isEmpty()) {
+        const QStringList candidates = {
+            home + QStringLiteral("/.config/tide-island/avatar.png"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpg"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpeg"),
+            home + QStringLiteral("/.pfp.png"),
+            home + QStringLiteral("/.pfp.jpg"),
+            home + QStringLiteral("/.pfp.jpeg"),
+            home + QStringLiteral("/.pfp"),
+            home + QStringLiteral("/.face"),
+            home + QStringLiteral("/.face.icon"),
+            home + QStringLiteral("/.avatar.png"),
+            home + QStringLiteral("/.avatar.jpg")
+        };
+        for (const QString &cand : candidates) {
+            if (QFileInfo::exists(cand)) {
+                resolvedAvatar = cand;
+                break;
+            }
+        }
+    }
+
+    if (!resolvedAvatar.isEmpty()) {
+        m_avatarPath = QStringLiteral("file://") + resolvedAvatar;
     } else {
         m_avatarPath.clear();
     }
@@ -491,4 +561,54 @@ void SystemGlanceBackend::rebootSystem()
 void SystemGlanceBackend::powerOffSystem()
 {
     QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("poweroff")});
+}
+
+void SystemGlanceBackend::setAvatarPath(const QString &path)
+{
+    QString clean = path.trimmed();
+    if (clean.startsWith(QLatin1String("file://"))) {
+        clean = QUrl(clean).toLocalFile();
+    }
+    const QString home = QDir::homePath();
+    if (clean.startsWith(QLatin1String("~"))) {
+        clean.replace(0, 1, home);
+    }
+
+    const QString nextAvatarUrl = clean.isEmpty() ? QString() : (QStringLiteral("file://") + clean);
+    if (m_avatarPath != nextAvatarUrl) {
+        m_avatarPath = nextAvatarUrl;
+        emit avatarPathChanged();
+        emit staticInfoReady();
+    }
+
+    // Persist to userconfig.json
+    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
+    QFile file(cfgPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("avatarPath"), clean);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+void SystemGlanceBackend::openAvatarDirectory()
+{
+    QString dir = QDir::homePath() + QStringLiteral("/Pictures");
+    if (!m_avatarPath.isEmpty()) {
+        QString local = m_avatarPath;
+        if (local.startsWith(QLatin1String("file://"))) {
+            local = QUrl(local).toLocalFile();
+        }
+        QFileInfo fi(local);
+        if (fi.exists()) {
+            dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+        }
+    }
+    QProcess::startDetached(QStringLiteral("xdg-open"), {dir});
 }

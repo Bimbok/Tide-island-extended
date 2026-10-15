@@ -184,9 +184,9 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **Modal Dismissal & Focus**: Closes seamlessly via `Escape` key and click-outside dismissal, maintaining consistent focus behavior across Wayland compositors.
   - **Full Theme Harmony**: Automatically styled using `StyleTokens` to inherit Pywal, Matugen, or custom theme palettes.
 - **On-Demand System Glance Capsule & Dashboard**:
-  - **Dynamic Island Mini Dashboard**: The island expands into a system glance dashboard displaying user profile / avatar monogram, hostname, system uptime, battery badge, real-time download/upload throughput (`↓ 5.2 MB/s`, `↑ 240 KB/s`), CPU load & core temperature, RAM utilization (`GB` and `%`), and GPU / Storage meters.
+  - **Dynamic Island Mini Dashboard**: The island expands into a system glance dashboard displaying custom avatar / profile picture (with auto-detection from ChillPill-Shell `displayPicture`, `userconfig.json` `"avatarPath"`, image drag-and-drop, or click-to-browse), hostname, system uptime, battery badge, real-time download/upload throughput (`↓ 5.2 MB/s`, `↑ 240 KB/s`), CPU load & core temperature, RAM utilization (`GB` and `%`), and GPU / Storage meters.
   - **100% On-Demand Sampling**: Sampling timers only run when the glance layer is visibly mounted; zero CPU overhead when hidden. No third-party monitor dependencies (e.g. `nusmon`), extracting metrics directly from standard Linux `/proc` and `/sys` interfaces.
-  - **Intuitive Triggers & Controls**: Triggered instantly via keyboard shortcut (`SUPER+G`), swipe down / wheel scroll on the island capsule, or IPC (`tide-island ipc glance toggle`). Quick actions for screen lock, sleep, calendar, weather, reboot, and power-off.
+  - **Intuitive Triggers & Controls**: Clean aesthetic without intrusive close buttons — dismiss seamlessly with `Escape`, click outside, or shortcut toggle (`SUPER+G`). Quick actions for screen lock, sleep, calendar, weather, reboot, and power-off.
 - **In-App Matugen Assistant**: Direct one-click template installation and TOML snippet copying right inside Tide Island Settings (`Color & Wallpaper` tab).
 
 ### Core Features
