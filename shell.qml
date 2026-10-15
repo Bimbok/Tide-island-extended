@@ -374,6 +374,38 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.closePrivacyHudWindow ? window.closePrivacyHudWindow() : window.togglePrivacyHudWindow());
         }
 
+        function toggleGlance() {
+            shellRoot.forFocusedWindow((window) => window.toggleGlanceWindow ? window.toggleGlanceWindow() : null);
+        }
+
+        function showGlance() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function openGlance() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function closeGlance() {
+            shellRoot.forFocusedWindow((window) => window.closeGlanceWindow ? window.closeGlanceWindow() : null);
+        }
+
+        function toggleDashboard() {
+            shellRoot.forFocusedWindow((window) => window.toggleGlanceWindow ? window.toggleGlanceWindow() : null);
+        }
+
+        function showDashboard() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function openDashboard() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function closeDashboard() {
+            shellRoot.forFocusedWindow((window) => window.closeGlanceWindow ? window.closeGlanceWindow() : null);
+        }
+
         function reloadTheme() {
             StyleTokens.reload();
         }

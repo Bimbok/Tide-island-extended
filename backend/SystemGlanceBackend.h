@@ -8,7 +8,7 @@
 
 class SystemGlanceBackend : public QObject {
     Q_OBJECT
-    QML_ELEMENT
+    QML_NAMED_ELEMENT(SystemGlance)
     QML_SINGLETON
 
     Q_PROPERTY(bool active READ isActive WRITE setActive NOTIFY activeChanged FINAL)

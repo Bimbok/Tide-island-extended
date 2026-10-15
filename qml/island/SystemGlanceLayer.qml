@@ -81,8 +81,8 @@ FocusScope {
 
                     Image {
                         anchors.fill: parent
-                        visible: SystemGlance.avatarPath !== "" && status === Image.Ready
-                        source: SystemGlance.avatarPath
+                        visible: (SystemGlance.avatarPath || "") !== "" && status === Image.Ready
+                        source: SystemGlance.avatarPath || ""
                         fillMode: Image.PreserveAspectCrop
                         mipmap: true
                         asynchronous: true
@@ -90,7 +90,7 @@ FocusScope {
 
                     Text {
                         anchors.centerIn: parent
-                        visible: SystemGlance.avatarPath === ""
+                        visible: (SystemGlance.avatarPath || "") === ""
                         text: (SystemGlance.userName && SystemGlance.userName.length > 0)
                             ? SystemGlance.userName.charAt(0).toUpperCase()
                             : "U"
@@ -110,7 +110,7 @@ FocusScope {
                         spacing: 4
 
                         Text {
-                            text: SystemGlance.userName
+                            text: SystemGlance.userName || "User"
                             color: StyleTokens.textPrimaryBright
                             font.family: root.heroFontFamily
                             font.pixelSize: 13
@@ -118,7 +118,7 @@ FocusScope {
                         }
 
                         Text {
-                            text: "@" + SystemGlance.hostName
+                            text: "@" + (SystemGlance.hostName || "linux")
                             color: StyleTokens.textSecondary
                             font.family: root.textFontFamily
                             font.pixelSize: 11
@@ -130,7 +130,7 @@ FocusScope {
                         spacing: 6
 
                         Text {
-                            text: "\uf017 " + SystemGlance.uptimeText
+                            text: "\uf017 " + (SystemGlance.uptimeText || "0m")
                             color: StyleTokens.textMuted
                             font.family: root.iconFontFamily
                             font.pixelSize: 10
@@ -144,7 +144,7 @@ FocusScope {
                         }
 
                         Text {
-                            text: SystemGlance.osName
+                            text: SystemGlance.osName || "Linux"
                             color: StyleTokens.textMuted
                             font.family: root.textFontFamily
                             font.pixelSize: 10
@@ -227,6 +227,7 @@ FocusScope {
         // 2. 2x2 Metric Cards Grid
         // ==========================================
         Grid {
+            id: metricGrid
             width: parent.width
             columns: 2
             spacing: 8
@@ -235,7 +236,7 @@ FocusScope {
             // Card 1: CPU Card
             // --------------------
             Rectangle {
-                width: Math.floor((mainCol.width - 8) / 2)
+                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
                 height: 76
                 radius: 14
                 color: StyleTokens.cardFill
@@ -279,20 +280,20 @@ FocusScope {
                             width: cpuTempText.implicitWidth + 10
                             radius: 9
                             color: StyleTokens.withAlpha(
-                                SystemGlance.cpuTemperature >= 80 ? StyleTokens.danger
-                                : (SystemGlance.cpuTemperature >= 65 ? StyleTokens.warning : StyleTokens.success),
+                                (SystemGlance.cpuTemperature || 0) >= 80 ? StyleTokens.danger
+                                : ((SystemGlance.cpuTemperature || 0) >= 65 ? StyleTokens.warning : StyleTokens.success),
                                 0.18
                             )
 
                             Text {
                                 id: cpuTempText
                                 anchors.centerIn: parent
-                                text: SystemGlance.cpuTemperature + "°C"
+                                text: (SystemGlance.cpuTemperature || 0) + "°C"
                                 font.family: root.textFontFamily
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
-                                color: SystemGlance.cpuTemperature >= 80 ? StyleTokens.danger
-                                    : (SystemGlance.cpuTemperature >= 65 ? StyleTokens.warning : StyleTokens.success)
+                                color: (SystemGlance.cpuTemperature || 0) >= 80 ? StyleTokens.danger
+                                    : ((SystemGlance.cpuTemperature || 0) >= 65 ? StyleTokens.warning : StyleTokens.success)
                             }
                         }
                     }
@@ -302,7 +303,7 @@ FocusScope {
                         spacing: 8
 
                         Text {
-                            text: Math.round(SystemGlance.cpuUsage) + "%"
+                            text: Math.round(SystemGlance.cpuUsage || 0) + "%"
                             font.family: root.heroFontFamily
                             font.pixelSize: 18
                             font.weight: Font.Bold
@@ -311,12 +312,12 @@ FocusScope {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: SystemGlance.cpuModel
+                            text: SystemGlance.cpuModel || "Processor"
                             font.family: root.textFontFamily
                             font.pixelSize: 10
                             color: StyleTokens.textSecondary
                             elide: Text.ElideRight
-                            width: parent.width - 50
+                            width: parent.width - 55
                         }
                     }
 
@@ -330,9 +331,9 @@ FocusScope {
                         Rectangle {
                             height: parent.height
                             radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, SystemGlance.cpuUsage / 100.0))
-                            color: SystemGlance.cpuUsage >= 85 ? StyleTokens.danger
-                                : (SystemGlance.cpuUsage >= 60 ? StyleTokens.warning : StyleTokens.accent)
+                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.cpuUsage || 0) / 100.0))
+                            color: (SystemGlance.cpuUsage || 0) >= 85 ? StyleTokens.danger
+                                : ((SystemGlance.cpuUsage || 0) >= 60 ? StyleTokens.warning : StyleTokens.accent)
 
                             Behavior on width {
                                 NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
@@ -346,7 +347,7 @@ FocusScope {
             // Card 2: Memory (RAM) Card
             // --------------------
             Rectangle {
-                width: Math.floor((mainCol.width - 8) / 2)
+                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
                 height: 76
                 radius: 14
                 color: StyleTokens.cardFill
@@ -394,7 +395,7 @@ FocusScope {
                             Text {
                                 id: memPercentText
                                 anchors.centerIn: parent
-                                text: Math.round(SystemGlance.memoryUsagePercent) + "%"
+                                text: Math.round(SystemGlance.memoryUsagePercent || 0) + "%"
                                 font.family: root.textFontFamily
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
@@ -408,7 +409,7 @@ FocusScope {
                         spacing: 8
 
                         Text {
-                            text: SystemGlance.memoryText
+                            text: SystemGlance.memoryText || "0 / 0 GB"
                             font.family: root.heroFontFamily
                             font.pixelSize: 15
                             font.weight: Font.Bold
@@ -427,7 +428,7 @@ FocusScope {
                         Rectangle {
                             height: parent.height
                             radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, SystemGlance.memoryUsagePercent / 100.0))
+                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.memoryUsagePercent || 0) / 100.0))
                             color: "#af52de"
 
                             Behavior on width {
@@ -442,7 +443,7 @@ FocusScope {
             // Card 3: Network Throughput Card
             // --------------------
             Rectangle {
-                width: Math.floor((mainCol.width - 8) / 2)
+                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
                 height: 76
                 radius: 14
                 color: StyleTokens.cardFill
@@ -471,7 +472,7 @@ FocusScope {
                             }
 
                             Text {
-                                text: SystemGlance.networkInterface
+                                text: SystemGlance.networkInterface || "Offline"
                                 font.family: root.heroFontFamily
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
@@ -480,7 +481,7 @@ FocusScope {
                         }
 
                         Rectangle {
-                            visible: SystemGlance.vpnActive
+                            visible: !!SystemGlance.vpnActive
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             height: 18
@@ -515,7 +516,7 @@ FocusScope {
                                 color: StyleTokens.success
                             }
                             Text {
-                                text: SystemGlance.downloadSpeedText.replace("↓ ", "")
+                                text: SystemGlance.downloadSpeedText ? SystemGlance.downloadSpeedText.replace("↓ ", "") : "0 B/s"
                                 font.family: root.heroFontFamily
                                 font.pixelSize: 12
                                 font.weight: Font.DemiBold
@@ -533,7 +534,7 @@ FocusScope {
                                 color: "#0a84ff"
                             }
                             Text {
-                                text: SystemGlance.uploadSpeedText.replace("↑ ", "")
+                                text: SystemGlance.uploadSpeedText ? SystemGlance.uploadSpeedText.replace("↑ ", "") : "0 B/s"
                                 font.family: root.heroFontFamily
                                 font.pixelSize: 12
                                 font.weight: Font.DemiBold
@@ -543,7 +544,7 @@ FocusScope {
                     }
 
                     Text {
-                        text: "IP: " + SystemGlance.ipAddress
+                        text: "IP: " + (SystemGlance.ipAddress || "127.0.0.1")
                         font.family: root.textFontFamily
                         font.pixelSize: 10
                         color: StyleTokens.textSecondary
@@ -557,7 +558,7 @@ FocusScope {
             // Card 4: GPU / Disk Card
             // --------------------
             Rectangle {
-                width: Math.floor((mainCol.width - 8) / 2)
+                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
                 height: 76
                 radius: 14
                 color: StyleTokens.cardFill
@@ -586,7 +587,7 @@ FocusScope {
                             }
 
                             Text {
-                                text: SystemGlance.gpuAvailable ? SystemGlance.gpuName : "Storage"
+                                text: SystemGlance.gpuAvailable ? (SystemGlance.gpuName || "GPU") : "Storage"
                                 font.family: root.heroFontFamily
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
@@ -607,9 +608,9 @@ FocusScope {
                             Text {
                                 id: diskPercentText
                                 anchors.centerIn: parent
-                                text: (SystemGlance.gpuAvailable && SystemGlance.gpuTemperature > 0)
+                                text: (SystemGlance.gpuAvailable && (SystemGlance.gpuTemperature || 0) > 0)
                                     ? (SystemGlance.gpuTemperature + "°C")
-                                    : (Math.round(SystemGlance.diskUsagePercent) + "%")
+                                    : (Math.round(SystemGlance.diskUsagePercent || 0) + "%")
                                 font.family: root.textFontFamily
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
@@ -623,7 +624,7 @@ FocusScope {
                         spacing: 8
 
                         Text {
-                            text: SystemGlance.diskText
+                            text: SystemGlance.diskText || "0 / 0 GB"
                             font.family: root.heroFontFamily
                             font.pixelSize: 14
                             font.weight: Font.Bold
@@ -641,7 +642,7 @@ FocusScope {
                         Rectangle {
                             height: parent.height
                             radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, SystemGlance.diskUsagePercent / 100.0))
+                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.diskUsagePercent || 0) / 100.0))
                             color: StyleTokens.warning
 
                             Behavior on width {
