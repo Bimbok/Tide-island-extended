@@ -139,6 +139,13 @@ PagePanel {
                 "method": "toggle"
             },
             {
+                "action": "System glance & dashboard",
+                "mods": "SUPER",
+                "key": "G",
+                "target": "glance",
+                "method": "toggle"
+            },
+            {
                 "action": "Toggle screen recording",
                 "mods": "SUPER",
                 "key": "R",

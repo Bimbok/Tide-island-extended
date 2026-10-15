@@ -233,6 +233,7 @@ PanelWindow {
         || islandContainer.weatherLayerVisible
         || islandContainer.calendarLayerVisible
         || islandContainer.privacyHudLayerVisible
+        || islandContainer.glanceLayerVisible
         || islandContainer.notificationCenterLayerVisible
         ? WlrLayer.Overlay
         : WlrLayer.Top
@@ -246,6 +247,7 @@ PanelWindow {
                 || islandContainer.weatherLayerVisible
                 || islandContainer.calendarLayerVisible
                 || islandContainer.privacyHudLayerVisible
+                || islandContainer.glanceLayerVisible
                 || islandContainer.notificationCenterLayerVisible)
             return WlrKeyboardFocus.Exclusive;
         if (islandContainer.notificationLayerVisible)
@@ -865,6 +867,25 @@ PanelWindow {
             islandContainer.smartRestoreState();
     }
 
+    function toggleGlanceWindow() {
+        if (islandContainer.islandState === "glance")
+            islandContainer.smartRestoreState();
+        else {
+            islandContainer.showGlance();
+            showIslandWindow();
+        }
+    }
+
+    function showGlanceWindow() {
+        islandContainer.showGlance();
+        showIslandWindow();
+    }
+
+    function closeGlanceWindow() {
+        if (islandContainer.islandState === "glance")
+            islandContainer.smartRestoreState();
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)
@@ -1196,6 +1217,7 @@ PanelWindow {
             || islandState === "weather"
             || islandState === "calendar"
             || islandState === "privacy_hud"
+            || islandState === "glance"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -1244,6 +1266,7 @@ PanelWindow {
         readonly property bool weatherLayerVisible: !root.overviewVisible && islandState === "weather"
         readonly property bool calendarLayerVisible: !root.overviewVisible && islandState === "calendar"
         readonly property bool privacyHudLayerVisible: !root.overviewVisible && islandState === "privacy_hud"
+        readonly property bool glanceLayerVisible: !root.overviewVisible && islandState === "glance"
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
         readonly property string currentTrack: mediaController.currentTrack
@@ -1563,6 +1586,24 @@ PanelWindow {
                 return;
             case "closePrivacyHud":
                 if (islandState === "privacy_hud")
+                    smartRestoreState();
+                return;
+            case "toggleGlance":
+            case "toggleDashboard":
+                if (islandState === "glance")
+                    smartRestoreState();
+                else
+                    showGlance();
+                return;
+            case "openGlance":
+            case "showGlance":
+            case "openDashboard":
+            case "showDashboard":
+                showGlance();
+                return;
+            case "closeGlance":
+            case "closeDashboard":
+                if (islandState === "glance")
                     smartRestoreState();
                 return;
             default:
@@ -2152,6 +2193,15 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showGlance() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "glance";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            stopAutoHideTimer();
+        }
+
         function showCustomCapsule() {
             if (!hasCustomLeftItems) {
                 showTimeCapsule();
@@ -2336,6 +2386,8 @@ PanelWindow {
                     return 420;
                 case "privacy_hud":
                     return 420;
+                case "glance":
+                    return 460;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 410;
@@ -2370,6 +2422,8 @@ PanelWindow {
                     return 340;
                 case "privacy_hud":
                     return privacyHudLoader.item ? privacyHudLoader.item.contentHeight : 200;
+                case "glance":
+                    return glanceLoader.item ? glanceLoader.item.contentHeight : 270;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 165;
@@ -2397,6 +2451,7 @@ PanelWindow {
                 case "calendar":
                     return 34;
                 case "privacy_hud":
+                case "glance":
                     return 34;
                 case "expanded":
                 case "bluetooth_expanded":
@@ -2496,6 +2551,8 @@ PanelWindow {
                 property bool sideSwipeInteractive: false
                 property bool suppressNextClick: false
                 property bool preparedOverviewOnPress: false
+                property bool swipeDownDetected: false
+                property bool swipeUpDetected: false
 
                 Timer {
                     id: swipeSuppressReset
@@ -2528,6 +2585,8 @@ PanelWindow {
                     const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
                     swipeStartX = mappedPoint.x;
                     swipeStartY = mappedPoint.y;
+                    swipeDownDetected = false;
+                    swipeUpDetected = false;
                     islandContainer.cancelSideSwipeSettle();
                     swipeArmed = mouse.button === Qt.LeftButton
                         && islandContainer.canShowSideSwipe;
@@ -2556,8 +2615,18 @@ PanelWindow {
                     if (!pressed || !swipeArmed || suppressNextClick || twoFingerTouchArea.touchPoints.length >= 2) return;
 
                     const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
+                    const dy = mappedPoint.y - swipeStartY;
+                    const dx = Math.abs(mappedPoint.x - swipeStartX);
+                    if (dy > 30 && dx < 35) {
+                        swipeDownDetected = true;
+                        swipeMoved = true;
+                    } else if (dy < -25 && dx < 35) {
+                        swipeUpDetected = true;
+                        swipeMoved = true;
+                    }
+
                     const deltaX = mappedPoint.x - swipeLastX;
-                    const deltaY = Math.abs(mappedPoint.y - swipeStartY);
+                    const deltaY = Math.abs(dy);
                     const adjustedDeltaX = deltaY < sideSwipeVerticalTolerance ? deltaX : 0;
                     const nextProgress = islandContainer.advanceSideSwipeProgress(
                         islandContainer.swipeTransitionProgress,
@@ -2578,6 +2647,35 @@ PanelWindow {
                         suppressNextClick = true;
                         swipeSuppressReset.restart();
                     }
+
+                    if (swipeDownDetected) {
+                        swipeDownDetected = false;
+                        swipeUpDetected = false;
+                        swipeArmed = false;
+                        swipeMoved = false;
+                        sideSwipeInteractive = false;
+                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
+                        if (islandContainer.islandState === "glance")
+                            islandContainer.smartRestoreState();
+                        else
+                            islandContainer.showGlance();
+                        return;
+                    }
+
+                    if (swipeUpDetected) {
+                        swipeDownDetected = false;
+                        swipeUpDetected = false;
+                        swipeArmed = false;
+                        swipeMoved = false;
+                        sideSwipeInteractive = false;
+                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
+                        if (islandContainer.islandState === "glance")
+                            islandContainer.smartRestoreState();
+                        return;
+                    }
+
                     let settleResult = {
                         action: "",
                         progress: islandContainer.sideSwipeRestProgressForProgress(swipeStartProgress),
@@ -2623,6 +2721,8 @@ PanelWindow {
                         root.cancelPreparedOverviewEverywhere();
                     swipeArmed = false;
                     swipeMoved = false;
+                    swipeDownDetected = false;
+                    swipeUpDetected = false;
                     sideSwipeInteractive = false;
                     suppressNextClick = false;
                     preparedOverviewOnPress = false;
@@ -2643,7 +2743,7 @@ PanelWindow {
                         return;
                     }
 
-                    if (islandContainer.islandState === "privacy_hud") {
+                    if (islandContainer.islandState === "privacy_hud" || islandContainer.islandState === "glance") {
                         if (preparedOverviewOnPress)
                             root.cancelPreparedOverviewEverywhere();
                         preparedOverviewOnPress = false;
@@ -2676,6 +2776,20 @@ PanelWindow {
                         return;
                     }
                 }
+
+                onWheel: (wheel) => {
+                    if (wheel.angleDelta.y < -30) {
+                        if (islandContainer.islandState !== "glance") {
+                            islandContainer.showGlance();
+                            wheel.accepted = true;
+                        }
+                    } else if (wheel.angleDelta.y > 30) {
+                        if (islandContainer.islandState === "glance") {
+                            islandContainer.smartRestoreState();
+                            wheel.accepted = true;
+                        }
+                    }
+                }
             }
 
             MultiPointTouchArea {
@@ -2688,16 +2802,22 @@ PanelWindow {
                 maximumTouchPoints: 2
 
                 property real swipeStartX: 0
+                property real swipeStartY: 0
                 property real swipeStartProgress: 0
                 property bool swipeMoved: false
+                property bool touchSwipeDown: false
+                property bool touchSwipeUp: false
 
                 onPressed: (touchPoints) => {
                     const centerPoint = islandContainer.mapFromItem(twoFingerTouchArea, 
                         (touchPoints[0].x + touchPoints[1].x) / 2,
                         (touchPoints[0].y + touchPoints[1].y) / 2);
                     swipeStartX = centerPoint.x;
+                    swipeStartY = centerPoint.y;
                     swipeStartProgress = islandContainer.swipeTransitionProgress;
                     swipeMoved = false;
+                    touchSwipeDown = false;
+                    touchSwipeUp = false;
                     islandContainer.cancelSideSwipeSettle();
                 }
 
@@ -2707,6 +2827,15 @@ PanelWindow {
                         (touchPoints[0].y + touchPoints[1].y) / 2);
                     
                     const deltaX = centerPoint.x - swipeStartX;
+                    const deltaY = centerPoint.y - swipeStartY;
+                    if (deltaY > 30 && Math.abs(deltaX) < 35) {
+                        touchSwipeDown = true;
+                        swipeMoved = true;
+                    } else if (deltaY < -25 && Math.abs(deltaX) < 35) {
+                        touchSwipeUp = true;
+                        swipeMoved = true;
+                    }
+
                     const nextProgress = islandContainer.advanceSideSwipeProgress(
                         swipeStartProgress,
                         deltaX
@@ -2721,6 +2850,30 @@ PanelWindow {
                 }
 
                 onReleased: {
+                    if (touchSwipeDown) {
+                        touchSwipeDown = false;
+                        touchSwipeUp = false;
+                        swipeMoved = false;
+                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
+                        if (islandContainer.islandState === "glance")
+                            islandContainer.smartRestoreState();
+                        else
+                            islandContainer.showGlance();
+                        return;
+                    }
+
+                    if (touchSwipeUp) {
+                        touchSwipeDown = false;
+                        touchSwipeUp = false;
+                        swipeMoved = false;
+                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
+                        if (islandContainer.islandState === "glance")
+                            islandContainer.smartRestoreState();
+                        return;
+                    }
+
                     if (swipeMoved) {
                         const settleResult = islandContainer.resolveSideSwipeSettle(
                             swipeStartProgress,
@@ -3204,6 +3357,38 @@ PanelWindow {
                         isMicMuted: islandContainer.isMicMuted
                         showCondition: islandContainer.privacyHudLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            Loader {
+                id: glanceLoader
+                anchors.fill: parent
+                active: islandContainer.glanceLayerVisible
+                asynchronous: false
+                visible: islandContainer.glanceLayerVisible
+                onLoaded: {
+                    islandContainer.forceActiveFocus();
+                    if (item) item.forceActiveFocus();
+                }
+
+                sourceComponent: Component {
+                    SystemGlanceLayer {
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        heroFontFamily: root.heroFontFamily
+                        batteryCapacity: islandContainer.batteryCapacity
+                        isCharging: islandContainer.isCharging
+                        showCondition: islandContainer.glanceLayerVisible
+                        onCloseRequested: islandContainer.smartRestoreState()
+                        onOpenCalendarRequested: {
+                            islandContainer.smartRestoreState();
+                            root.showCalendarWindow();
+                        }
+                        onOpenWeatherRequested: {
+                            islandContainer.smartRestoreState();
+                            root.showWeatherWindow();
+                        }
                     }
                 }
             }

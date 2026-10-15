@@ -183,12 +183,16 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **Privacy & Media Activity HUD**: Interactive drop-down panel displaying applications currently capturing camera, microphone, or screen sharing with PID telemetry, quick one-click app mute/unmute or screen share stop controls, and a master hardware microphone mute toggle.
   - **Modal Dismissal & Focus**: Closes seamlessly via `Escape` key and click-outside dismissal, maintaining consistent focus behavior across Wayland compositors.
   - **Full Theme Harmony**: Automatically styled using `StyleTokens` to inherit Pywal, Matugen, or custom theme palettes.
-  - **Config App Controls**: Independent toggles in Tide Island Settings (`Interaction` tab) to enable or disable camera and microphone bubbles, with configurable shortcuts (`SUPER+SHIFT+P` by default) and IPC endpoints.
+- **On-Demand System Glance Capsule & Dashboard**:
+  - **Dynamic Island Mini Dashboard**: The island expands into a system glance dashboard displaying user profile / avatar monogram, hostname, system uptime, battery badge, real-time download/upload throughput (`↓ 5.2 MB/s`, `↑ 240 KB/s`), CPU load & core temperature, RAM utilization (`GB` and `%`), and GPU / Storage meters.
+  - **100% On-Demand Sampling**: Sampling timers only run when the glance layer is visibly mounted; zero CPU overhead when hidden. No third-party monitor dependencies (e.g. `nusmon`), extracting metrics directly from standard Linux `/proc` and `/sys` interfaces.
+  - **Intuitive Triggers & Controls**: Triggered instantly via keyboard shortcut (`SUPER+G`), swipe down / wheel scroll on the island capsule, or IPC (`tide-island ipc glance toggle`). Quick actions for screen lock, sleep, calendar, weather, reboot, and power-off.
 - **In-App Matugen Assistant**: Direct one-click template installation and TOML snippet copying right inside Tide Island Settings (`Color & Wallpaper` tab).
 
 ### Core Features
 
 - Clock
+- System Glance & Dashboard (Super + G, swipe down, or IPC)
 - Music player
 - Control Center
 - Audio device switcher & per-app volume mixer
@@ -338,7 +342,7 @@ Search `Tide Island Settings` in any application launcher, or run:
 tide-island-config-app
 ```
 
-- **Shortcuts**: Configure shortcuts for Workspace Overview, Application Launcher, Music Player, Notification Center, Control Center, Clipboard History (`Super + V`), Weather (`Super + E`), and Calendar (`Super + K` by default).
+- **Shortcuts**: Configure shortcuts for Workspace Overview, Application Launcher, Music Player, Notification Center, Control Center, System Glance (`Super + G`), Clipboard History (`Super + V`), Weather (`Super + E`), and Calendar (`Super + K` by default).
 - **Interaction**: Configure click actions for the dynamic island pill (Left, Middle, and Right mouse buttons for Player, Control Center, and Clipboard History).
 - **Weather**: Configure auto-detection or custom city name, temperature units (°C or °F), and refresh interval.
 - **Calendar**: Quick month view with week numbers and relative date indicators. Click the date in the Control Center, press `Super + K`, or use the scroll wheel / arrow keys to browse months. Press `Home` to return to today, and `Esc` to close.

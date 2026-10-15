@@ -477,6 +477,46 @@ Scope {
     }
 
     IpcHandler {
+        target: "glance"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleGlanceWindow ? window.toggleGlanceWindow() : null);
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closeGlanceWindow ? window.closeGlanceWindow() : null);
+        }
+    }
+
+    IpcHandler {
+        target: "dashboard"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleGlanceWindow ? window.toggleGlanceWindow() : null);
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showGlanceWindow ? window.showGlanceWindow() : null);
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closeGlanceWindow ? window.closeGlanceWindow() : null);
+        }
+    }
+
+    IpcHandler {
         target: "recorder"
 
         function toggle() {

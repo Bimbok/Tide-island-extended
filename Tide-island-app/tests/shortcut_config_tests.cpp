@@ -49,6 +49,7 @@ private slots:
     void defaultsIncludeWeather();
     void defaultsIncludeCalendar();
     void defaultsIncludePrivacy();
+    void defaultsIncludeGlance();
     void applicationLauncherFavoritesPersistAndResolveNames();
     void disabledShortcutPersistsAndIsNotGenerated();
     void disabledShortcutUpdatesActiveHyprlandLuaBlock();
@@ -216,6 +217,27 @@ void ShortcutConfigTests::defaultsIncludePrivacy()
     }
 
     QVERIFY(foundPrivacy);
+}
+
+void ShortcutConfigTests::defaultsIncludeGlance()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundGlance = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundGlance = foundGlance
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("G")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("glance")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("toggle"));
+    }
+
+    QVERIFY(foundGlance);
 }
 
 void ShortcutConfigTests::defaultsIncludeTimer()
@@ -507,7 +529,7 @@ void ShortcutConfigTests::niriDefaultsExcludeWorkspaceOverview()
     Backend backend;
     QVERIFY(!backend.supportsTideWorkspaceOverview());
     QVERIFY(backend.supportsNiriShortcutSnippets());
-    QCOMPARE(backend.shortcutBindings().size(), 16);
+    QCOMPARE(backend.shortcutBindings().size(), 17);
 
     for (const QVariant &value : backend.shortcutBindings()) {
         const QVariantMap binding = value.toMap();

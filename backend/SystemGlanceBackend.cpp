@@ -1,0 +1,494 @@
+#include "SystemGlanceBackend.h"
+
+#include <QFile>
+#include <QDir>
+#include <QFileInfo>
+#include <QHostInfo>
+#include <QNetworkInterface>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QSysInfo>
+#include <QTextStream>
+#include <QRegularExpression>
+#include <sys/statvfs.h>
+#include <unistd.h>
+
+SystemGlanceBackend *SystemGlanceBackend::s_instance = nullptr;
+
+SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
+    : QObject(parent)
+{
+    s_instance = this;
+
+    m_pollTimer.setInterval(1000);
+    connect(&m_pollTimer, &QTimer::timeout, this, &SystemGlanceBackend::onPollTick);
+
+    initStaticInfo();
+}
+
+SystemGlanceBackend::~SystemGlanceBackend()
+{
+    if (s_instance == this) {
+        s_instance = nullptr;
+    }
+}
+
+SystemGlanceBackend *SystemGlanceBackend::instance()
+{
+    return s_instance;
+}
+
+void SystemGlanceBackend::setActive(bool active)
+{
+    if (m_active == active)
+        return;
+
+    m_active = active;
+
+    if (m_active) {
+        m_prevCpuTotal = 0;
+        m_prevCpuIdle = 0;
+        m_prevRxBytes = 0;
+        m_prevTxBytes = 0;
+        m_lastNetTime.restart();
+
+        refreshNow();
+        m_pollTimer.start();
+    } else {
+        m_pollTimer.stop();
+    }
+
+    emit activeChanged(m_active);
+}
+
+void SystemGlanceBackend::refreshNow()
+{
+    updateCpu();
+    updateMemory();
+    updateGpu();
+    updateDisk();
+    updateNetwork();
+    updateUptime();
+
+    emit statsUpdated();
+}
+
+void SystemGlanceBackend::onPollTick()
+{
+    if (!m_active)
+        return;
+
+    refreshNow();
+}
+
+void SystemGlanceBackend::initStaticInfo()
+{
+    m_userName = qEnvironmentVariable("USER");
+    if (m_userName.isEmpty())
+        m_userName = QStringLiteral("user");
+
+    m_hostName = QHostInfo::localHostName();
+    if (m_hostName.isEmpty())
+        m_hostName = QStringLiteral("localhost");
+
+    m_osName = QSysInfo::prettyProductName();
+    if (m_osName.isEmpty())
+        m_osName = QStringLiteral("Linux");
+
+    m_kernelVersion = QSysInfo::kernelVersion();
+
+    // Check avatar paths
+    const QString home = QDir::homePath();
+    const QString facePath = home + QStringLiteral("/.face");
+    const QString faceIconPath = home + QStringLiteral("/.face.icon");
+
+    if (QFileInfo::exists(facePath)) {
+        m_avatarPath = QStringLiteral("file://") + facePath;
+    } else if (QFileInfo::exists(faceIconPath)) {
+        m_avatarPath = QStringLiteral("file://") + faceIconPath;
+    } else {
+        m_avatarPath.clear();
+    }
+
+    // Read CPU Model name from /proc/cpuinfo
+    QFile cpuinfo(QStringLiteral("/proc/cpuinfo"));
+    if (cpuinfo.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QByteArray content = cpuinfo.readAll();
+        QTextStream in(content);
+        while (!in.atEnd()) {
+            const QString line = in.readLine();
+            if (line.startsWith(QLatin1String("model name"), Qt::CaseInsensitive)) {
+                const int colon = line.indexOf(QLatin1Char(':'));
+                if (colon != -1) {
+                    m_cpuModel = line.mid(colon + 1).trimmed();
+                    // Clean up common verbose suffixes like "(R)" or "12th Gen"
+                    m_cpuModel.replace(QStringLiteral("(R)"), QString());
+                    m_cpuModel.replace(QStringLiteral("(TM)"), QString());
+                    m_cpuModel.replace(QStringLiteral("CPU @"), QStringLiteral("@"));
+                    m_cpuModel = m_cpuModel.simplified();
+                    break;
+                }
+            }
+        }
+    }
+    if (m_cpuModel.isEmpty()) {
+        m_cpuModel = QStringLiteral("Generic Processor");
+    }
+
+    // Check GPU
+    m_gpuAvailable = false;
+    m_gpuName = QStringLiteral("Integrated Graphics");
+
+    QDir drmDir(QStringLiteral("/sys/class/drm"));
+    const QStringList cards = drmDir.entryList({QStringLiteral("card*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &card : cards) {
+        if (card.contains(QLatin1Char('-'))) continue; // skip outputs like card1-DP-1
+
+        const QString vendorPath = drmDir.absoluteFilePath(card) + QStringLiteral("/device/vendor");
+        QFile vendorFile(vendorPath);
+        if (vendorFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QString vendor = QString::fromUtf8(vendorFile.readAll()).trimmed();
+            m_gpuAvailable = true;
+            if (vendor == QLatin1String("0x8086")) {
+                m_gpuName = QStringLiteral("Intel Graphics");
+                break;
+            } else if (vendor == QLatin1String("0x1002")) {
+                m_gpuName = QStringLiteral("AMD Radeon");
+                break;
+            } else if (vendor == QLatin1String("0x10de")) {
+                m_gpuName = QStringLiteral("NVIDIA GeForce");
+                break;
+            }
+        }
+    }
+
+    emit staticInfoReady();
+}
+
+void SystemGlanceBackend::updateCpu()
+{
+    // 1. CPU Usage via /proc/stat
+    QFile statFile(QStringLiteral("/proc/stat"));
+    if (statFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QByteArray line = statFile.readLine();
+        if (line.startsWith("cpu ")) {
+            quint64 user = 0, nice = 0, system = 0, idle = 0;
+            quint64 iowait = 0, irq = 0, softirq = 0, steal = 0;
+
+            const int matched = sscanf(line.constData() + 4,
+                                       "%llu %llu %llu %llu %llu %llu %llu %llu",
+                                       &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal);
+            if (matched >= 4) {
+                const quint64 total = user + nice + system + idle + iowait + irq + softirq + steal;
+                const quint64 idleAll = idle + iowait;
+
+                if (m_prevCpuTotal > 0 && total > m_prevCpuTotal) {
+                    const quint64 diffTotal = total - m_prevCpuTotal;
+                    const quint64 diffIdle = (idleAll >= m_prevCpuIdle) ? (idleAll - m_prevCpuIdle) : 0;
+                    m_cpuUsage = qBound(0.0, (1.0 - static_cast<double>(diffIdle) / diffTotal) * 100.0, 100.0);
+                }
+
+                m_prevCpuTotal = total;
+                m_prevCpuIdle = idleAll;
+            }
+        }
+    }
+
+    // 2. CPU Temperature via /sys/class/hwmon
+    int detectedTemp = 0;
+    QDir hwmonBase(QStringLiteral("/sys/class/hwmon"));
+    const QStringList hwmons = hwmonBase.entryList({QStringLiteral("hwmon*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+
+    for (const QString &h : hwmons) {
+        const QString hPath = hwmonBase.absoluteFilePath(h);
+        QFile nameFile(hPath + QStringLiteral("/name"));
+        if (!nameFile.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        const QString name = QString::fromUtf8(nameFile.readAll()).trimmed().toLower();
+        if (name == QLatin1String("coretemp") || name == QLatin1String("k10temp")
+            || name == QLatin1String("zenpower") || name == QLatin1String("cpu_thermal")
+            || name == QLatin1String("acpitz")) {
+
+            // Try reading temp1_input, temp2_input, etc.
+            for (int t = 1; t <= 4; ++t) {
+                QFile tempFile(hPath + QStringLiteral("/temp%1_input").arg(t));
+                if (tempFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    bool ok = false;
+                    const int raw = QString::fromUtf8(tempFile.readAll()).trimmed().toInt(&ok);
+                    if (ok && raw > 1000 && raw < 130000) {
+                        detectedTemp = raw / 1000;
+                        break;
+                    }
+                }
+            }
+            if (detectedTemp > 0)
+                break;
+        }
+    }
+
+    if (detectedTemp == 0) {
+        // Fallback to thermal_zone0
+        QFile tzFile(QStringLiteral("/sys/class/thermal/thermal_zone0/temp"));
+        if (tzFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            bool ok = false;
+            const int raw = QString::fromUtf8(tzFile.readAll()).trimmed().toInt(&ok);
+            if (ok && raw > 1000)
+                detectedTemp = raw / 1000;
+        }
+    }
+
+    if (detectedTemp > 0)
+        m_cpuTemperature = detectedTemp;
+}
+
+void SystemGlanceBackend::updateMemory()
+{
+    quint64 memTotalKb = 0;
+    quint64 memAvailKb = 0;
+
+    QFile memFile(QStringLiteral("/proc/meminfo"));
+    if (memFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QByteArray content = memFile.readAll();
+        QTextStream in(content);
+        while (!in.atEnd()) {
+            const QString line = in.readLine();
+            if (line.startsWith(QLatin1String("MemTotal:"))) {
+                const auto parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                if (parts.size() >= 2) memTotalKb = parts[1].toULongLong();
+            } else if (line.startsWith(QLatin1String("MemAvailable:"))) {
+                const auto parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                if (parts.size() >= 2) memAvailKb = parts[1].toULongLong();
+            }
+
+            if (memTotalKb > 0 && memAvailKb > 0)
+                break;
+        }
+    }
+
+    if (memTotalKb == 0) {
+        const long pages = sysconf(_SC_PHYS_PAGES);
+        const long pageSize = sysconf(_SC_PAGE_SIZE);
+        if (pages > 0 && pageSize > 0) {
+            memTotalKb = static_cast<quint64>(pages) * static_cast<quint64>(pageSize) / 1024ULL;
+        }
+    }
+    if (memAvailKb == 0) {
+        const long avPages = sysconf(_SC_AVPHYS_PAGES);
+        const long pageSize = sysconf(_SC_PAGE_SIZE);
+        if (avPages > 0 && pageSize > 0) {
+            memAvailKb = static_cast<quint64>(avPages) * static_cast<quint64>(pageSize) / 1024ULL;
+        }
+    }
+
+    if (memTotalKb > 0) {
+        const quint64 usedKb = (memTotalKb >= memAvailKb) ? (memTotalKb - memAvailKb) : 0;
+        m_memoryTotalGb = static_cast<double>(memTotalKb) / (1024.0 * 1024.0);
+        m_memoryUsedGb = static_cast<double>(usedKb) / (1024.0 * 1024.0);
+        m_memoryUsagePercent = qBound(0.0, (static_cast<double>(usedKb) / memTotalKb) * 100.0, 100.0);
+        m_memoryText = QString::asprintf("%.1f / %.1f GB", m_memoryUsedGb, m_memoryTotalGb);
+    }
+}
+
+void SystemGlanceBackend::updateGpu()
+{
+    if (!m_gpuAvailable) return;
+
+    // Check AMD GPU busy percent
+    QFile amdBusy(QStringLiteral("/sys/class/drm/card0/device/gpu_busy_percent"));
+    if (amdBusy.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        bool ok = false;
+        const int val = QString::fromUtf8(amdBusy.readAll()).trimmed().toInt(&ok);
+        if (ok) m_gpuUsage = qBound(0.0, static_cast<double>(val), 100.0);
+    }
+
+    // Read GPU temperature if available from drm card device hwmon
+    QDir drmHwmon(QStringLiteral("/sys/class/drm/card0/device/hwmon"));
+    if (drmHwmon.exists()) {
+        const QStringList entries = drmHwmon.entryList({QStringLiteral("hwmon*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+        if (!entries.isEmpty()) {
+            QFile tempF(drmHwmon.absoluteFilePath(entries.first()) + QStringLiteral("/temp1_input"));
+            if (tempF.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                bool ok = false;
+                const int raw = QString::fromUtf8(tempF.readAll()).trimmed().toInt(&ok);
+                if (ok && raw > 1000)
+                    m_gpuTemperature = raw / 1000;
+            }
+        }
+    }
+
+    // If integrated Intel GPU on same die, temperature mirrors package CPU temperature
+    if (m_gpuTemperature <= 0 && m_gpuName.contains(QLatin1String("Intel"), Qt::CaseInsensitive)) {
+        m_gpuTemperature = m_cpuTemperature;
+    }
+}
+
+void SystemGlanceBackend::updateDisk()
+{
+    struct statvfs st;
+    if (statvfs("/", &st) == 0) {
+        const quint64 totalBytes = static_cast<quint64>(st.f_blocks) * st.f_frsize;
+        const quint64 availBytes = static_cast<quint64>(st.f_bavail) * st.f_frsize;
+        const quint64 usedBytes = (totalBytes >= availBytes) ? (totalBytes - availBytes) : 0;
+
+        m_diskTotalGb = static_cast<double>(totalBytes) / (1024.0 * 1024.0 * 1024.0);
+        m_diskUsedGb = static_cast<double>(usedBytes) / (1024.0 * 1024.0 * 1024.0);
+        m_diskUsagePercent = totalBytes > 0 ? qBound(0.0, (static_cast<double>(usedBytes) / totalBytes) * 100.0, 100.0) : 0.0;
+        m_diskText = QString::asprintf("%.0f / %.0f GB", m_diskUsedGb, m_diskTotalGb);
+    }
+}
+
+void SystemGlanceBackend::updateNetwork()
+{
+    // Find active interface and IP
+    QString primaryIface;
+    QString primaryIp;
+    bool vpn = false;
+
+    const QList<QNetworkInterface> ifaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface &iface : ifaces) {
+        const QString name = iface.name();
+        if (name.startsWith(QLatin1String("tun")) || name.startsWith(QLatin1String("wg"))
+            || name.startsWith(QLatin1String("proton")) || name.startsWith(QLatin1String("wireguard"))
+            || name.startsWith(QLatin1String("tailscale"))) {
+            vpn = true;
+        }
+
+        if (primaryIface.isEmpty() && (iface.flags() & QNetworkInterface::IsUp)
+            && (iface.flags() & QNetworkInterface::IsRunning)
+            && !(iface.flags() & QNetworkInterface::IsLoopBack)) {
+
+            for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol && !entry.ip().isLoopback()) {
+                    primaryIface = name;
+                    primaryIp = entry.ip().toString();
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!primaryIface.isEmpty())
+        m_networkInterface = primaryIface;
+    if (!primaryIp.isEmpty())
+        m_ipAddress = primaryIp;
+    m_vpnActive = vpn;
+
+    // Read cumulative rx and tx bytes from /proc/net/dev
+    QFile netDev(QStringLiteral("/proc/net/dev"));
+    if (netDev.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        quint64 totalRx = 0;
+        quint64 totalTx = 0;
+
+        const QByteArray content = netDev.readAll();
+        QTextStream in(content);
+        int lineNum = 0;
+        while (!in.atEnd()) {
+            const QString line = in.readLine();
+            lineNum++;
+            if (lineNum <= 2) continue; // Skip header lines
+
+            const int colonIdx = line.indexOf(QLatin1Char(':'));
+            if (colonIdx == -1) continue;
+
+            const QString ifaceName = line.left(colonIdx).trimmed();
+            if (ifaceName == QLatin1String("lo")) continue; // Skip loopback
+
+            const auto tokens = line.mid(colonIdx + 1).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+            if (tokens.size() >= 9) {
+                const quint64 rx = tokens[0].toULongLong();
+                const quint64 tx = tokens[8].toULongLong();
+                totalRx += rx;
+                totalTx += tx;
+            }
+        }
+
+        if (m_lastNetTime.isValid() && m_prevRxBytes > 0 && m_prevTxBytes > 0) {
+            const qint64 elapsedMs = m_lastNetTime.elapsed();
+            if (elapsedMs > 200) {
+                const double elapsedSec = elapsedMs / 1000.0;
+                const quint64 deltaRx = (totalRx >= m_prevRxBytes) ? (totalRx - m_prevRxBytes) : 0;
+                const quint64 deltaTx = (totalTx >= m_prevTxBytes) ? (totalTx - m_prevTxBytes) : 0;
+
+                m_downloadBytesPerSec = static_cast<double>(deltaRx) / elapsedSec;
+                m_uploadBytesPerSec = static_cast<double>(deltaTx) / elapsedSec;
+
+                m_downloadSpeedText = QStringLiteral("↓ ") + formatSpeed(m_downloadBytesPerSec);
+                m_uploadSpeedText = QStringLiteral("↑ ") + formatSpeed(m_uploadBytesPerSec);
+            }
+        }
+
+        m_prevRxBytes = totalRx;
+        m_prevTxBytes = totalTx;
+        m_lastNetTime.restart();
+    }
+}
+
+void SystemGlanceBackend::updateUptime()
+{
+    QFile uptimeFile(QStringLiteral("/proc/uptime"));
+    if (uptimeFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString content = QString::fromUtf8(uptimeFile.readAll()).trimmed();
+        const auto parts = content.split(QLatin1Char(' '));
+        if (!parts.isEmpty()) {
+            bool ok = false;
+            const double sec = parts[0].toDouble(&ok);
+            if (ok && sec >= 0) {
+                m_uptimeText = formatUptime(static_cast<quint64>(sec));
+            }
+        }
+    }
+}
+
+QString SystemGlanceBackend::formatSpeed(double bytesPerSec)
+{
+    if (bytesPerSec < 1024.0)
+        return QString::asprintf("%.0f B/s", bytesPerSec);
+    if (bytesPerSec < 1024.0 * 1024.0)
+        return QString::asprintf("%.1f KB/s", bytesPerSec / 1024.0);
+    if (bytesPerSec < 1024.0 * 1024.0 * 1024.0)
+        return QString::asprintf("%.1f MB/s", bytesPerSec / (1024.0 * 1024.0));
+    return QString::asprintf("%.2f GB/s", bytesPerSec / (1024.0 * 1024.0 * 1024.0));
+}
+
+QString SystemGlanceBackend::formatUptime(quint64 uptimeSeconds)
+{
+    const quint64 days = uptimeSeconds / 86400;
+    const quint64 hours = (uptimeSeconds % 86400) / 3600;
+    const quint64 minutes = (uptimeSeconds % 3600) / 60;
+
+    if (days > 0)
+        return QStringLiteral("%1d %2h").arg(days).arg(hours);
+    if (hours > 0)
+        return QStringLiteral("%1h %2m").arg(hours).arg(minutes);
+    return QStringLiteral("%1m").arg(minutes);
+}
+
+void SystemGlanceBackend::lockScreen()
+{
+    // Try lock helpers
+    if (!QStandardPaths::findExecutable(QStringLiteral("hyprlock")).isEmpty()) {
+        QProcess::startDetached(QStringLiteral("hyprlock"), {});
+    } else if (!QStandardPaths::findExecutable(QStringLiteral("swaylock")).isEmpty()) {
+        QProcess::startDetached(QStringLiteral("swaylock"), {});
+    } else if (!QStandardPaths::findExecutable(QStringLiteral("waylock")).isEmpty()) {
+        QProcess::startDetached(QStringLiteral("waylock"), {});
+    } else {
+        QProcess::startDetached(QStringLiteral("loginctl"), {QStringLiteral("lock-session")});
+    }
+}
+
+void SystemGlanceBackend::suspendSystem()
+{
+    QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("suspend")});
+}
+
+void SystemGlanceBackend::rebootSystem()
+{
+    QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("reboot")});
+}
+
+void SystemGlanceBackend::powerOffSystem()
+{
+    QProcess::startDetached(QStringLiteral("systemctl"), {QStringLiteral("poweroff")});
+}

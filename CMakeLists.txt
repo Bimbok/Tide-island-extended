@@ -189,6 +189,26 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/style_tokens_backend_tests.cpp")
     add_test(NAME style_tokens_backend COMMAND style_tokens_backend_tests)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/system_glance_tests.cpp")
+    add_executable(system_glance_tests
+        tests/system_glance_tests.cpp
+        backend/SystemGlanceBackend.h
+        backend/SystemGlanceBackend.cpp
+    )
+
+    target_include_directories(system_glance_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend
+    )
+
+    target_link_libraries(system_glance_tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        Qt6::Test
+    )
+
+    add_test(NAME system_glance COMMAND system_glance_tests)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/compositor_backend_tests.cpp")
     add_executable(compositor_backend_tests
         tests/compositor_backend_tests.cpp
@@ -273,6 +293,8 @@ qt_add_qml_module(IslandBackend
         backend/WifiNetworkModel.cpp
         backend/ScreenRecorderController.h
         backend/ScreenRecorderController.cpp
+        backend/SystemGlanceBackend.h
+        backend/SystemGlanceBackend.cpp
 )
 
 # The QML plugin is installed below lib/qt6/qml/IslandBackend while its backing
