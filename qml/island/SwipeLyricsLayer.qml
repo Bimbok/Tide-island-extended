@@ -15,6 +15,7 @@ Item {
     readonly property var activeConfig: configSource || userConfig
     property string textFontFamily: activeConfig.textFontFamily
     property string timeFontFamily: activeConfig.timeFontFamily
+    property string iconFontFamily: activeConfig.iconFontFamily
     property bool showCondition: false
     property bool showSecondaryText: true
     property bool recordingActive: false
@@ -198,11 +199,21 @@ Item {
                 layer.enabled: true
             }
 
+            Text {
+                anchors.centerIn: parent
+                text: "\uf001"
+                font.family: root.iconFontFamily
+                font.pixelSize: 11
+                color: StyleTokens.textMuted
+                visible: !coverImg.visible || coverImg.status !== Image.Ready
+            }
+
             Image {
+                id: coverImg
                 anchors.fill: parent
                 source: root.currentArtUrl
                 fillMode: Image.PreserveAspectCrop
-                visible: source.toString() !== ""
+                visible: source.toString() !== "" && status === Image.Ready
                 sourceSize: Qt.size(root.coverSize * 2, root.coverSize * 2)
                 layer.enabled: true
                 layer.effect: OpacityMask {

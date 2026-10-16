@@ -234,6 +234,7 @@ private:
     // GPU state
     bool m_gpuAvailable = false;
     QString m_gpuName;
+    QString m_gpuDrmCard;
     double m_gpuUsage = 0.0;
     int m_gpuTemperature = 0;
 
@@ -251,6 +252,7 @@ private:
     QString m_networkInterface = QStringLiteral("wlan0");
     QString m_ipAddress = QStringLiteral("127.0.0.1");
     bool m_vpnActive = false;
+    bool m_hasNetSample = false;
     quint64 m_prevRxBytes = 0;
     quint64 m_prevTxBytes = 0;
 

@@ -288,11 +288,21 @@ Item {
                                 color: StyleTokens.module
                                 antialiasing: true
 
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "\uf001"
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: 22
+                                    color: StyleTokens.textMuted
+                                    visible: !expandedArtImg.visible || expandedArtImg.status !== Image.Ready
+                                }
+
                                 Image {
+                                    id: expandedArtImg
                                     anchors.fill: parent
                                     source: currentArtUrl
                                     fillMode: Image.PreserveAspectCrop
-                                    visible: source.toString() !== ""
+                                    visible: source.toString() !== "" && status === Image.Ready
                                     sourceSize: Qt.size(120, 120)
                                     smooth: true
                                 }

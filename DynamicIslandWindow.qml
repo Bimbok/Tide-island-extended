@@ -2423,7 +2423,7 @@ PanelWindow {
                 case "privacy_hud":
                     return privacyHudLoader.item ? privacyHudLoader.item.contentHeight : 200;
                 case "glance":
-                    return glanceLoader.item ? glanceLoader.item.contentHeight : 270;
+                    return glanceLoader.item ? glanceLoader.item.contentHeight : 292;
                 case "expanded":
                 case "bluetooth_expanded":
                     return 165;

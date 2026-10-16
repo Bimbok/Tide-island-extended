@@ -17,6 +17,21 @@
 #include <sys/statvfs.h>
 #include <unistd.h>
 
+namespace {
+QString resolveUserConfigDir()
+{
+    const QString xdg = qEnvironmentVariable("XDG_CONFIG_HOME").trimmed();
+    if (!xdg.isEmpty())
+        return xdg + QStringLiteral("/tide-island");
+    return QDir::homePath() + QStringLiteral("/.config/tide-island");
+}
+
+QString resolveUserConfigPath()
+{
+    return resolveUserConfigDir() + QStringLiteral("/userconfig.json");
+}
+}
+
 SystemGlanceBackend *SystemGlanceBackend::s_instance = nullptr;
 
 SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
@@ -27,17 +42,17 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
     m_pollTimer.setInterval(1000);
     connect(&m_pollTimer, &QTimer::timeout, this, &SystemGlanceBackend::onPollTick);
 
-    const QString cfgPath = QDir::homePath() + QStringLiteral("/.config/tide-island/userconfig.json");
+    const QString cfgPath = resolveUserConfigPath();
     if (QFile::exists(cfgPath)) {
         m_configWatcher.addPath(cfgPath);
     }
-    const QString cfgDir = QDir::homePath() + QStringLiteral("/.config/tide-island");
+    const QString cfgDir = resolveUserConfigDir();
     if (QDir(cfgDir).exists()) {
         m_configWatcher.addPath(cfgDir);
     }
     auto onConfigChanged = [this]() {
         reloadAvatar();
-        const QString p = QDir::homePath() + QStringLiteral("/.config/tide-island/userconfig.json");
+        const QString p = resolveUserConfigPath();
         if (QFile::exists(p) && !m_configWatcher.files().contains(p)) {
             m_configWatcher.addPath(p);
         }
@@ -118,6 +133,7 @@ void SystemGlanceBackend::setActive(bool active)
         m_prevCpuIdle = 0;
         m_prevRxBytes = 0;
         m_prevTxBytes = 0;
+        m_hasNetSample = false;
         m_lastNetTime.restart();
 
         refreshNow();
@@ -230,6 +246,7 @@ void SystemGlanceBackend::initStaticInfo()
         if (vendorFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             const QString vendor = QString::fromUtf8(vendorFile.readAll()).trimmed();
             m_gpuAvailable = true;
+            m_gpuDrmCard = card;
             if (vendor == QLatin1String("0x8086")) {
                 m_gpuName = QStringLiteral("Intel Graphics");
                 break;
@@ -351,8 +368,10 @@ void SystemGlanceBackend::updateGpu()
 {
     if (!m_gpuAvailable) return;
 
+    const QString cardName = m_gpuDrmCard.isEmpty() ? QStringLiteral("card0") : m_gpuDrmCard;
+
     // Check AMD GPU busy percent
-    QFile amdBusy(QStringLiteral("/sys/class/drm/card0/device/gpu_busy_percent"));
+    QFile amdBusy(QStringLiteral("/sys/class/drm/") + cardName + QStringLiteral("/device/gpu_busy_percent"));
     if (amdBusy.open(QIODevice::ReadOnly | QIODevice::Text)) {
         bool ok = false;
         const int val = QString::fromUtf8(amdBusy.readAll()).trimmed().toInt(&ok);
@@ -360,7 +379,7 @@ void SystemGlanceBackend::updateGpu()
     }
 
     // Read GPU temperature if available from drm card device hwmon
-    QDir drmHwmon(QStringLiteral("/sys/class/drm/card0/device/hwmon"));
+    QDir drmHwmon(QStringLiteral("/sys/class/drm/") + cardName + QStringLiteral("/device/hwmon"));
     if (drmHwmon.exists()) {
         const QStringList entries = drmHwmon.entryList({QStringLiteral("hwmon*")}, QDir::Dirs | QDir::NoDotAndDotDot);
         if (!entries.isEmpty()) {
@@ -460,7 +479,7 @@ void SystemGlanceBackend::updateNetwork()
             }
         }
 
-        if (m_lastNetTime.isValid() && m_prevRxBytes > 0 && m_prevTxBytes > 0) {
+        if (m_hasNetSample && m_lastNetTime.isValid()) {
             const qint64 elapsedMs = m_lastNetTime.elapsed();
             if (elapsedMs > 200) {
                 const double elapsedSec = elapsedMs / 1000.0;
@@ -475,6 +494,7 @@ void SystemGlanceBackend::updateNetwork()
             }
         }
 
+        m_hasNetSample = true;
         m_prevRxBytes = totalRx;
         m_prevTxBytes = totalTx;
         m_lastNetTime.restart();
@@ -569,7 +589,7 @@ void SystemGlanceBackend::setAvatarPath(const QString &path)
     }
 
     // Persist to userconfig.json
-    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
+    const QString cfgPath = resolveUserConfigPath();
     QFile file(cfgPath);
     QJsonObject obj;
     if (file.open(QIODevice::ReadOnly)) {
@@ -859,7 +879,7 @@ void SystemGlanceBackend::reloadAvatar()
     QString resolvedAvatar;
 
     // 1. Check userconfig.json
-    const QString cfgPath = home + QStringLiteral("/.config/tide-island/userconfig.json");
+    const QString cfgPath = resolveUserConfigPath();
     QFile cfgFile(cfgPath);
     if (cfgFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         const QJsonDocument doc = QJsonDocument::fromJson(cfgFile.readAll());
@@ -881,7 +901,9 @@ void SystemGlanceBackend::reloadAvatar()
 
     // 2. Check ChillPill-Shell config for fallback
     if (resolvedAvatar.isEmpty()) {
-        QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
+        const QString xdgConfig = qEnvironmentVariable("XDG_CONFIG_HOME").trimmed();
+        const QString cpConfigDir = !xdgConfig.isEmpty() ? (xdgConfig + QStringLiteral("/chillpill-shell")) : (home + QStringLiteral("/.config/chillpill-shell"));
+        QFile cpFile(cpConfigDir + QStringLiteral("/config.jsonc"));
         if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QString cpText = QString::fromUtf8(cpFile.readAll());
             cpText.replace(QRegularExpression(QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption), QString());
@@ -907,10 +929,11 @@ void SystemGlanceBackend::reloadAvatar()
 
     // 3. Check common locations
     if (resolvedAvatar.isEmpty()) {
+        const QString tideCfgDir = resolveUserConfigDir();
         const QStringList candidates = {
-            home + QStringLiteral("/.config/tide-island/avatar.png"),
-            home + QStringLiteral("/.config/tide-island/avatar.jpg"),
-            home + QStringLiteral("/.config/tide-island/avatar.jpeg"),
+            tideCfgDir + QStringLiteral("/avatar.png"),
+            tideCfgDir + QStringLiteral("/avatar.jpg"),
+            tideCfgDir + QStringLiteral("/avatar.jpeg"),
             home + QStringLiteral("/.pfp.png"),
             home + QStringLiteral("/.pfp.jpg"),
             home + QStringLiteral("/.pfp.jpeg"),
@@ -1029,17 +1052,45 @@ void SystemGlanceBackend::launchUpdateTerminal()
     // Invalidate cooldown timer so that subsequent check gets fresh post-update data
     m_lastUpdateCheckTime = QElapsedTimer();
 
-    QString term = QStringLiteral("kitty");
-    if (!QFile::exists(QStringLiteral("/usr/bin/kitty"))) {
-        if (QFile::exists(QStringLiteral("/usr/bin/foot"))) term = QStringLiteral("foot");
-        else if (QFile::exists(QStringLiteral("/usr/bin/alacritty"))) term = QStringLiteral("alacritty");
-        else if (QFile::exists(QStringLiteral("/usr/bin/konsole"))) term = QStringLiteral("konsole");
-        else term = QStringLiteral("xterm");
+    QString term;
+    const QString envTerm = qEnvironmentVariable("TERMINAL").trimmed();
+    if (!envTerm.isEmpty()) {
+        term = envTerm;
+    } else {
+        const QStringList candidates = {
+            QStringLiteral("kitty"),
+            QStringLiteral("foot"),
+            QStringLiteral("alacritty"),
+            QStringLiteral("wezterm"),
+            QStringLiteral("ghostty"),
+            QStringLiteral("konsole"),
+            QStringLiteral("gnome-terminal"),
+            QStringLiteral("xfce4-terminal"),
+            QStringLiteral("xterm")
+        };
+        for (const QString &c : candidates) {
+            if (!QStandardPaths::findExecutable(c).isEmpty()) {
+                term = c;
+                break;
+            }
+        }
     }
+    if (term.isEmpty())
+        term = QStringLiteral("xterm");
 
     const QString updateCmd = QFile::exists(QStringLiteral("/usr/bin/yay"))
         ? QStringLiteral("yay; echo; read -n 1 -s -r -p 'Press any key to close...'")
         : QStringLiteral("sudo pacman -Syu; echo; read -n 1 -s -r -p 'Press any key to close...'");
 
-    QProcess::startDetached(term, {QStringLiteral("-e"), QStringLiteral("sh"), QStringLiteral("-c"), updateCmd});
+    QStringList args;
+    const QString binName = QFileInfo(term).fileName().toLower();
+    if (binName == QLatin1String("foot")) {
+        args = {QStringLiteral("sh"), QStringLiteral("-c"), updateCmd};
+    } else if (binName == QLatin1String("gnome-terminal")) {
+        args = {QStringLiteral("--"), QStringLiteral("sh"), QStringLiteral("-c"), updateCmd};
+    } else {
+        args = {QStringLiteral("-e"), QStringLiteral("sh"), QStringLiteral("-c"), updateCmd};
+    }
+
+    QProcess::startDetached(term, args);
 }

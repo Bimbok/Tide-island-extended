@@ -716,6 +716,8 @@ FocusScope {
 
                         Row {
                             anchors.left: parent.left
+                            anchors.right: vpnBadge.visible ? vpnBadge.left : parent.right
+                            anchors.rightMargin: vpnBadge.visible ? 6 : 0
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 6
 
@@ -732,10 +734,13 @@ FocusScope {
                                 font.pixelSize: 11
                                 font.weight: Font.Bold
                                 color: StyleTokens.textPrimaryBright
+                                elide: Text.ElideRight
+                                width: Math.min(implicitWidth, parent.width - 20)
                             }
                         }
 
                         Rectangle {
+                            id: vpnBadge
                             visible: !!SystemGlance.vpnActive
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
