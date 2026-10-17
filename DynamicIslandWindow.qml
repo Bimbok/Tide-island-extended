@@ -1962,7 +1962,14 @@ PanelWindow {
                 rawAppIcon = appIcon || "";
                 rawSummary = summary || "";
                 rawBody = body || "";
-                rawActions = Array.isArray(actions) ? actions : [];
+                rawActions = [];
+                if (actions && typeof actions.length === "number") {
+                    for (let i = 0; i < actions.length; i++) {
+                        rawActions.push(actions[i]);
+                    }
+                } else if (Array.isArray(actions)) {
+                    rawActions = actions;
+                }
                 rawImagePath = imagePath || "";
                 rawUrgency = typeof urgency === "number" ? urgency : 1;
             }
@@ -2013,7 +2020,8 @@ PanelWindow {
                 return false;
 
             if (notificationExpanded) {
-                smartRestoreState();
+                notificationExpanded = false;
+                restartAutoHideTimer(notificationAutoHideInterval);
                 return true;
             }
 
@@ -3114,7 +3122,11 @@ PanelWindow {
                             islandContainer.toggleNotificationExpansionIfNeeded();
                         }
                         onActionTriggered: function(actionKey) {
-                            SystemServices.invokeNotificationAction(islandContainer.notificationId, actionKey);
+                            if (actionKey === "focus") {
+                                SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
+                            } else {
+                                SystemServices.invokeNotificationAction(islandContainer.notificationId, actionKey);
+                            }
                             islandContainer.smartRestoreState();
                         }
                         onCloseRequested: islandContainer.smartRestoreState()

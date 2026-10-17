@@ -206,7 +206,11 @@ Item {
                 readonly property string bodyText: model.body !== "" && model.body !== model.summary
                     ? model.body
                     : ""
+                readonly property bool hasAvatar: (model.imagePath && (model.imagePath.startsWith("/") || model.imagePath.startsWith("file://")))
+                    || (model.appIcon && (model.appIcon.startsWith("/") || model.appIcon.startsWith("file://")))
                 readonly property string resolvedAppIcon: {
+                    if (model.imagePath && (model.imagePath.startsWith("/") || model.imagePath.startsWith("file://")))
+                        return model.imagePath;
                     if (model.appIcon) {
                         const p = Quickshell.iconPath(model.appIcon, true);
                         if (p !== "") return p;
@@ -248,20 +252,29 @@ Item {
                     anchors.bottomMargin: 4
                     spacing: 10
 
-                    // App icon
+                    // App icon or circular avatar
                     Item {
                         width: 28
                         height: 28
                         anchors.verticalCenter: parent.verticalCenter
 
-                        Image {
+                        Rectangle {
                             anchors.fill: parent
+                            radius: delegateItem.hasAvatar ? 14 : 7
+                            color: StyleTokens.cardFillActive
+                            clip: true
                             visible: delegateItem.resolvedAppIcon !== ""
-                            source: delegateItem.resolvedAppIcon
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            smooth: true
-                            mipmap: true
+                            border.color: StyleTokens.withAlpha(StyleTokens.white, 0.15)
+                            border.width: 1
+
+                            Image {
+                                anchors.fill: parent
+                                source: delegateItem.resolvedAppIcon
+                                fillMode: delegateItem.hasAvatar ? Image.PreserveAspectCrop : Image.PreserveAspectFit
+                                asynchronous: true
+                                smooth: true
+                                mipmap: true
+                            }
                         }
 
                         Text {

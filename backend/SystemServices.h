@@ -110,6 +110,8 @@ public:
     Q_INVOKABLE void ensureUserConfigAvailable();
     Q_INVOKABLE void invokeNotificationAction(uint id, const QString &actionKey);
     Q_INVOKABLE void closeNotification(uint id, uint reason = 2);
+    Q_INVOKABLE void copyToClipboard(const QString &text);
+    Q_INVOKABLE void focusSenderWindow(const QString &appName, qint64 pid = 0);
     Q_INVOKABLE void requestBatteryThresholdState();
     Q_INVOKABLE void setBatteryConservationMode(bool enabled);
     Q_INVOKABLE void setBatteryThreshold(int threshold);
@@ -262,6 +264,7 @@ private:
     QString m_pendingNotificationActionKey;
     QString m_pendingNotificationImagePath;
     int m_pendingNotificationUrgency = 1;
+    qint64 m_pendingNotificationSenderPid = 0;
     QString m_pendingHintKey;
     bool m_pendingNotificationInString = false;
     QString m_pendingNotificationStringAccumulator;

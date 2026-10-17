@@ -81,6 +81,8 @@ private slots:
         // Verify invokable methods execute without crash
         services.invokeNotificationAction(42, QStringLiteral("default"));
         services.closeNotification(42, 2);
+        services.copyToClipboard(QStringLiteral("123456"));
+        services.focusSenderWindow(QStringLiteral("testapp"), 1234);
         QTest::qWait(200);
     }
 

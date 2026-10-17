@@ -22,6 +22,8 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QClipboard>
+#include <QGuiApplication>
 
 #ifdef Q_OS_UNIX
 #include <unistd.h>
@@ -608,6 +610,7 @@ void SystemServices::handleNotificationLine(const QString &line) {
         m_pendingNotificationActionKey.clear();
         m_pendingNotificationImagePath.clear();
         m_pendingNotificationUrgency = 1;
+        m_pendingNotificationSenderPid = 0;
         m_pendingHintKey.clear();
         m_pendingNotificationInString = false;
         m_pendingNotificationStringAccumulator.clear();
@@ -670,6 +673,11 @@ void SystemServices::handleNotificationLine(const QString &line) {
         return;
     case 6: // hints dictionary
         if (line.trimmed() == QStringLiteral("]")) {
+            if (m_pendingNotificationImagePath.isEmpty()
+                && (m_pendingNotificationAppIcon.startsWith(QLatin1Char('/'))
+                    || m_pendingNotificationAppIcon.startsWith(QStringLiteral("file://")))) {
+                m_pendingNotificationImagePath = m_pendingNotificationAppIcon;
+            }
             emit notificationReceived(m_pendingNotificationId,
                                       m_pendingNotificationAppName,
                                       m_pendingNotificationAppIcon,
@@ -684,9 +692,16 @@ void SystemServices::handleNotificationLine(const QString &line) {
         }
         if (line.contains(QStringLiteral("string \"image-path\""))
             || line.contains(QStringLiteral("string \"image_path\""))
+            || line.contains(QStringLiteral("string \"sender-avatar\""))
+            || line.contains(QStringLiteral("string \"x-kde-avatar\""))
+            || line.contains(QStringLiteral("string \"avatar-path\""))
             || line.contains(QStringLiteral("string \"image-data\""))
             || line.contains(QStringLiteral("string \"icon_data\""))) {
             m_pendingHintKey = QStringLiteral("image-path");
+            return;
+        }
+        if (line.contains(QStringLiteral("string \"sender-pid\""))) {
+            m_pendingHintKey = QStringLiteral("sender-pid");
             return;
         }
         if (line.contains(QStringLiteral("string \"urgency\""))) {
@@ -705,6 +720,14 @@ void SystemServices::handleNotificationLine(const QString &line) {
                     if (m.hasMatch()) {
                         m_pendingNotificationImagePath = decodeEscapedString(m.captured(1));
                     }
+                    m_pendingHintKey.clear();
+                }
+            } else if (m_pendingHintKey == QStringLiteral("sender-pid")) {
+                if (line.contains(QStringLiteral("int64 ")) || line.contains(QStringLiteral("uint32 ")) || line.contains(QStringLiteral("int32 "))) {
+                    const QString numStr = line.section(QLatin1Char(' '), -1, -1).trimmed();
+                    bool ok = false;
+                    const qint64 pidVal = numStr.toLongLong(&ok);
+                    if (ok && pidVal > 0) m_pendingNotificationSenderPid = pidVal;
                     m_pendingHintKey.clear();
                 }
             } else if (m_pendingHintKey == QStringLiteral("urgency")) {
@@ -761,6 +784,57 @@ void SystemServices::closeNotification(uint id, uint reason) {
     const QString dunstctl = findExecutable(QStringLiteral("dunstctl"));
     if (!dunstctl.isEmpty()) {
         startCommand(dunstctl, {QStringLiteral("close"), QString::number(id)}, 1000, nullptr);
+    }
+}
+
+void SystemServices::copyToClipboard(const QString &text) {
+    if (text.isEmpty()) return;
+
+    const QString wlCopy = findExecutable(QStringLiteral("wl-copy"));
+    if (!wlCopy.isEmpty()) {
+        startCommand(wlCopy, {}, 1000, nullptr, text.toUtf8());
+    }
+
+    if (qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
+        if (auto *cb = QGuiApplication::clipboard()) {
+            cb->setText(text, QClipboard::Clipboard);
+            cb->setText(text, QClipboard::Selection);
+        }
+    }
+}
+
+void SystemServices::focusSenderWindow(const QString &appName, qint64 pid) {
+    const QString hyprctl = findExecutable(QStringLiteral("hyprctl"));
+    if (hyprctl.isEmpty()) return;
+
+    QString script;
+    if (pid > 0) {
+        script += QStringLiteral(
+            "for _, w in ipairs(hl.get_windows()) do "
+            "  if w.pid == %1 then "
+            "    hl.dispatch(hl.dsp.focus({ window = w })); "
+            "    return; "
+            "  end "
+            "end\n"
+        ).arg(pid);
+    }
+    if (!appName.isEmpty()) {
+        const QString cleanApp = QString(appName).toLower().replace(QLatin1Char('"'), QStringLiteral("\\\""));
+        script += QStringLiteral(
+            "for _, w in ipairs(hl.get_windows()) do "
+            "  local c = (w.class or \"\"):lower() "
+            "  local ic = (w.initialClass or \"\"):lower() "
+            "  local t = (w.title or \"\"):lower() "
+            "  if c:find(\"%1\", 1, true) or ic:find(\"%1\", 1, true) or t:find(\"%1\", 1, true) then "
+            "    hl.dispatch(hl.dsp.focus({ window = w })); "
+            "    return; "
+            "  end "
+            "end\n"
+        ).arg(cleanApp);
+    }
+
+    if (!script.isEmpty()) {
+        startCommand(hyprctl, {QStringLiteral("repl")}, 1500, nullptr, script.toUtf8());
     }
 }
 
