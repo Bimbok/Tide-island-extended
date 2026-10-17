@@ -186,22 +186,28 @@ Item {
         if (lower.startsWith("no") || lower.startsWith("deny") || lower.startsWith("reject") || lower.startsWith("cancel") || lower.startsWith("abort") || lower.startsWith("block") || lower.startsWith("decline")) {
             return "Deny";
         }
-        // 3. Explicit Focus / Open / Activate / Default / Unknown category
-        if (lower === "default" || lower === "" || lower === "activate" || lower === "open" || lower === "view" || lower === "focus" || lower.startsWith("focus") || lower.startsWith("open & focus") || lower === "show" || lower === "click" || lower === "action" || lower === "select") {
+        // 3. Explicit Focus / Default / Activate / Generic
+        if (lower === "default" || lower === "" || lower === "activate" || lower === "focus" || lower.startsWith("focus") || lower.startsWith("open & focus") || lower === "action" || lower === "click") {
             return "Focus";
         }
-        // 4. Reply
-        if (lower.startsWith("reply")) {
-            return "Reply";
-        }
-        // 5. Positive / Negative Hint
+        // 4. Positive / Negative Hint
         if (isPositiveHint === true) return "Allow";
         if (isPositiveHint === false) return "Deny";
 
-        // 6. Recognized short control verbs
-        const recognizedShortNames = ["retry", "snooze", "mute", "pause", "play", "skip", "call", "copy", "install", "update", "restart"];
-        if (recognizedShortNames.includes(lower)) {
-            return clean.charAt(0).toUpperCase() + clean.slice(1);
+        // 5. Common action verbs
+        if (lower.startsWith("reply")) return "Reply";
+        if (lower.startsWith("join")) return "Join";
+        if (lower.startsWith("snooze")) return "Snooze";
+        if (lower.startsWith("view") || lower.startsWith("open") || lower.startsWith("show")) return "View";
+        if (lower.startsWith("call")) return "Call";
+        if (lower.startsWith("play")) return "Play";
+        if (lower.startsWith("pause")) return "Pause";
+        if (lower.startsWith("mute")) return "Mute";
+        if (lower.startsWith("copy")) return "Copy";
+
+        // 6. Clean concise labels (<= 12 chars)
+        if (clean.length > 0 && clean.length <= 12 && lower !== "default") {
+            return clean;
         }
 
         // 7. Unknown category fallback -> "Focus"
