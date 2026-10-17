@@ -168,7 +168,102 @@ Item {
         return [];
     }
     readonly property bool hasEffectiveActions: effectiveActions.length > 0
-    readonly property bool hasInlineActions: hasOtp || (hasEffectiveActions && effectiveActions.length <= 2)
+
+    function cleanActionText(rawText) {
+        if (!rawText) return "";
+        return rawText.replace(/^[0-9]+[\.\)\s\-]+/, "").trim();
+    }
+
+    function shortenActionText(rawText, isPositiveHint) {
+        const clean = cleanActionText(rawText);
+        const lower = clean.toLowerCase();
+
+        if (lower.startsWith("yes") || lower.startsWith("allow") || lower.startsWith("approve") || lower.startsWith("proceed") || lower.startsWith("run")) {
+            return "Allow";
+        }
+        if (lower.startsWith("no") || lower.startsWith("deny") || lower.startsWith("reject") || lower.startsWith("cancel") || lower.startsWith("abort")) {
+            return "Deny";
+        }
+        if (lower.startsWith("open & focus") || lower.startsWith("focus")) {
+            return "Focus";
+        }
+        if (lower.startsWith("open") || lower.startsWith("view")) {
+            return "Open";
+        }
+        if (clean.length > 14) {
+            if (isPositiveHint === true) return "Allow";
+            if (isPositiveHint === false) return "Deny";
+            return clean.substring(0, 11) + "…";
+        }
+        return clean;
+    }
+
+    readonly property var compactActions: {
+        if (!hasEffectiveActions) return [];
+
+        if (effectiveActions.length <= 2) {
+            const list = [];
+            for (let i = 0; i < effectiveActions.length; i++) {
+                const a = effectiveActions[i];
+                const raw = a.text || a.id || "";
+                list.push({
+                    id: a.id,
+                    text: shortenActionText(raw),
+                    rawText: raw
+                });
+            }
+            return list;
+        }
+
+        // More than 2 actions (e.g. Antigravity CLI with 4 permission choices)
+        let posAction = null;
+        let negAction = null;
+
+        for (let i = 0; i < effectiveActions.length; i++) {
+            const act = effectiveActions[i];
+            const t = cleanActionText(act.text || act.id || "").toLowerCase();
+            if (!posAction && (t.startsWith("yes") || t.startsWith("allow") || t.startsWith("approve") || t.startsWith("run") || t.startsWith("proceed") || t.includes("allow"))) {
+                posAction = act;
+            }
+            if (!negAction && (t.startsWith("no") || t.startsWith("deny") || t.startsWith("cancel") || t.startsWith("reject") || t.startsWith("abort") || t.includes("cancel") || t.includes("deny"))) {
+                negAction = act;
+            }
+        }
+
+        const res = [];
+        if (posAction) {
+            res.push({
+                id: posAction.id,
+                text: shortenActionText(posAction.text || posAction.id, true),
+                rawText: posAction.text || posAction.id
+            });
+        }
+        if (negAction) {
+            res.push({
+                id: negAction.id,
+                text: shortenActionText(negAction.text || negAction.id, false),
+                rawText: negAction.text || negAction.id
+            });
+        }
+        if (res.length > 0) return res;
+
+        // Fallback: take first 2 actions
+        const fallback = [];
+        const limit = Math.min(2, effectiveActions.length);
+        for (let i = 0; i < limit; i++) {
+            const a = effectiveActions[i];
+            const raw = a.text || a.id || "";
+            fallback.push({
+                id: a.id,
+                text: shortenActionText(raw),
+                rawText: raw
+            });
+        }
+        return fallback;
+    }
+
+    readonly property bool hasCompactActions: compactActions.length > 0
+    readonly property bool hasInlineActions: hasOtp || hasCompactActions
 
     // --- Content Texts & Sizing Probes ---
     readonly property string displayTitle: summary !== "" ? summary : (appName !== "" ? appName : "Notification")
@@ -184,8 +279,8 @@ Item {
     }
 
     readonly property real minimumWidth: 320
-    readonly property real compactMaximumWidth: 480
-    readonly property real expandedMaximumWidth: 520
+    readonly property real compactMaximumWidth: 520
+    readonly property real expandedMaximumWidth: 540
     readonly property real maximumWidth: expanded ? expandedMaximumWidth : compactMaximumWidth
 
     readonly property real horizontalPadding: 14
@@ -199,8 +294,8 @@ Item {
         let extraW = 38 + horizontalPadding * 2 + 12; // icon slot + padding + spacing
         if (hasOtp) {
             extraW += 120; // OTP pill button
-        } else if (hasEffectiveActions) {
-            extraW += Math.min(2, effectiveActions.length) * 75; // action buttons
+        } else if (hasCompactActions) {
+            extraW += compactActions.length * 80; // action buttons
         }
         return Math.max(minimumWidth, Math.min(compactMaximumWidth, textW + extraW));
     }
@@ -209,7 +304,7 @@ Item {
     readonly property real expandedPreferredWidth: expandedMaximumWidth
     readonly property real expandedPreferredHeight: Math.max(
         130,
-        Math.min(380, expandedColumn.implicitHeight + (hasEffectiveActions ? 40 : 0) + 48 + expandedVerticalPadding * 2)
+        Math.min(420, expandedColumn.implicitHeight + (hasEffectiveActions ? 48 : 0) + 48 + expandedVerticalPadding * 2)
     )
 
     readonly property real preferredWidth: expanded ? expandedPreferredWidth : compactPreferredWidth
@@ -464,21 +559,21 @@ Item {
 
                     // Compact Action Buttons (Allow / Deny or Focus)
                     Repeater {
-                        model: (!root.hasOtp && root.hasEffectiveActions && root.effectiveActions.length <= 2) ? root.effectiveActions : []
+                        model: (!root.hasOtp && root.hasCompactActions) ? root.compactActions : []
                         delegate: Rectangle {
                             id: inlineBtn
                             height: 28
-                            width: inlineLabel.implicitWidth + 16
+                            width: inlineLabel.implicitWidth + 18
                             radius: 14
 
                             readonly property string btnText: modelData.text || modelData.id
                             readonly property bool isPositive: {
-                                const t = btnText.toLowerCase();
-                                return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed");
+                                const t = (modelData.rawText || btnText).toLowerCase();
+                                return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
                             }
                             readonly property bool isNegative: {
-                                const t = btnText.toLowerCase();
-                                return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel");
+                                const t = (modelData.rawText || btnText).toLowerCase();
+                                return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
                             }
 
                             color: inlineMouse.pressed
@@ -523,24 +618,6 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.actionTriggered(modelData.id)
                             }
-                        }
-                    }
-
-                    // Subtle Expand Indicator (if overflow exists and no action pill is displayed)
-                    Rectangle {
-                        visible: !root.hasOtp && (!root.hasEffectiveActions || root.effectiveActions.length > 2) && root.hasOverflowContent
-                        width: 22
-                        height: 22
-                        radius: 11
-                        color: StyleTokens.withAlpha(StyleTokens.white, 0.08)
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "⌄"
-                            font.pixelSize: 13
-                            font.family: root.textFontFamily
-                            color: StyleTokens.textMuted
                         }
                     }
                 }
@@ -819,9 +896,8 @@ Item {
             }
 
             // --- Bottom Action Bar ---
-            Row {
+            Flow {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 32
                 spacing: 8
                 visible: root.hasEffectiveActions
 
@@ -835,12 +911,12 @@ Item {
 
                         readonly property string btnText: modelData.text || modelData.id
                         readonly property bool isPositive: {
-                            const t = btnText.toLowerCase();
-                            return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed");
+                            const t = (modelData.rawText || btnText).toLowerCase();
+                            return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
                         }
                         readonly property bool isNegative: {
-                            const t = btnText.toLowerCase();
-                            return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel");
+                            const t = (modelData.rawText || btnText).toLowerCase();
+                            return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
                         }
 
                         color: expandedActionMouse.pressed
