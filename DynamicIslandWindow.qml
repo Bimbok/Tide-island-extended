@@ -3126,6 +3126,9 @@ PanelWindow {
                                 SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
                             } else {
                                 SystemServices.invokeNotificationAction(islandContainer.notificationId, actionKey);
+                                if (actionKey === "default") {
+                                    SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
+                                }
                             }
                             islandContainer.smartRestoreState();
                         }

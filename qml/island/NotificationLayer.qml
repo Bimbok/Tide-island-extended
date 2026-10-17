@@ -163,7 +163,7 @@ Item {
     readonly property var effectiveActions: {
         if (hasActions) return actions;
         if (isAgentNotification) {
-            return [{ id: "focus", text: "Open & Focus" }];
+            return [{ id: "focus", text: "Focus" }];
         }
         return [];
     }
@@ -178,24 +178,34 @@ Item {
         const clean = cleanActionText(rawText);
         const lower = clean.toLowerCase();
 
-        if (lower.startsWith("yes") || lower.startsWith("allow") || lower.startsWith("approve") || lower.startsWith("proceed") || lower.startsWith("run")) {
+        // 1. Permission / Allow
+        if (lower.startsWith("yes") || lower.startsWith("allow") || lower.startsWith("approve") || lower.startsWith("proceed") || lower.startsWith("run") || lower.startsWith("grant") || lower.startsWith("accept") || lower.startsWith("confirm")) {
             return "Allow";
         }
-        if (lower.startsWith("no") || lower.startsWith("deny") || lower.startsWith("reject") || lower.startsWith("cancel") || lower.startsWith("abort")) {
+        // 2. Deny / Cancel
+        if (lower.startsWith("no") || lower.startsWith("deny") || lower.startsWith("reject") || lower.startsWith("cancel") || lower.startsWith("abort") || lower.startsWith("block") || lower.startsWith("decline")) {
             return "Deny";
         }
-        if (lower.startsWith("open & focus") || lower.startsWith("focus")) {
+        // 3. Explicit Focus / Open / Activate / Default / Unknown category
+        if (lower === "default" || lower === "" || lower === "activate" || lower === "open" || lower === "view" || lower === "focus" || lower.startsWith("focus") || lower.startsWith("open & focus") || lower === "show" || lower === "click" || lower === "action" || lower === "select") {
             return "Focus";
         }
-        if (lower.startsWith("open") || lower.startsWith("view")) {
-            return "Open";
+        // 4. Reply
+        if (lower.startsWith("reply")) {
+            return "Reply";
         }
-        if (clean.length > 14) {
-            if (isPositiveHint === true) return "Allow";
-            if (isPositiveHint === false) return "Deny";
-            return clean.substring(0, 11) + "…";
+        // 5. Positive / Negative Hint
+        if (isPositiveHint === true) return "Allow";
+        if (isPositiveHint === false) return "Deny";
+
+        // 6. Recognized short control verbs
+        const recognizedShortNames = ["retry", "snooze", "mute", "pause", "play", "skip", "call", "copy", "install", "update", "restart"];
+        if (recognizedShortNames.includes(lower)) {
+            return clean.charAt(0).toUpperCase() + clean.slice(1);
         }
-        return clean;
+
+        // 7. Unknown category fallback -> "Focus"
+        return "Focus";
     }
 
     readonly property var compactActions: {
@@ -569,11 +579,11 @@ Item {
                             readonly property string btnText: modelData.text || modelData.id
                             readonly property bool isPositive: {
                                 const t = (modelData.rawText || btnText).toLowerCase();
-                                return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
+                                return btnText === "Focus" || btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
                             }
                             readonly property bool isNegative: {
                                 const t = (modelData.rawText || btnText).toLowerCase();
-                                return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
+                                return btnText === "Deny" || t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
                             }
 
                             color: inlineMouse.pressed
@@ -909,14 +919,14 @@ Item {
                         width: expandedActionLabel.implicitWidth + 24
                         radius: 15
 
-                        readonly property string btnText: modelData.text || modelData.id
+                        readonly property string btnText: root.shortenActionText(modelData.text || modelData.id)
                         readonly property bool isPositive: {
-                            const t = (modelData.rawText || btnText).toLowerCase();
-                            return t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
+                            const t = (modelData.rawText || modelData.text || btnText).toLowerCase();
+                            return btnText === "Focus" || btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
                         }
                         readonly property bool isNegative: {
-                            const t = (modelData.rawText || btnText).toLowerCase();
-                            return t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
+                            const t = (modelData.rawText || modelData.text || btnText).toLowerCase();
+                            return btnText === "Deny" || t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
                         }
 
                         color: expandedActionMouse.pressed

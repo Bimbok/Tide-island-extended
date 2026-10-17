@@ -812,25 +812,39 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid) {
         script += QStringLiteral(
             "for _, w in ipairs(hl.get_windows()) do "
             "  if w.pid == %1 then "
-            "    hl.dispatch(hl.dsp.focus({ window = w })); "
-            "    return; "
+            "    hl.dispatch(hl.dsp.focus({ window = w })) "
+            "    return "
             "  end "
             "end\n"
         ).arg(pid);
     }
     if (!appName.isEmpty()) {
         const QString cleanApp = QString(appName).toLower().replace(QLatin1Char('"'), QStringLiteral("\\\""));
+        QString extraMatches;
+        if (cleanApp.contains(QStringLiteral("antigravity")) || cleanApp.contains(QStringLiteral("agy"))) {
+            extraMatches += QStringLiteral(" or t:find(\"agy\", 1, true) or t:find(\"antigravity\", 1, true)");
+        }
+        if (cleanApp.contains(QStringLiteral("claude"))) {
+            extraMatches += QStringLiteral(" or t:find(\"claude\", 1, true)");
+        }
+        if (cleanApp.contains(QStringLiteral("cursor"))) {
+            extraMatches += QStringLiteral(" or c:find(\"cursor\", 1, true) or t:find(\"cursor\", 1, true)");
+        }
+        if (cleanApp.contains(QStringLiteral("codex"))) {
+            extraMatches += QStringLiteral(" or t:find(\"codex\", 1, true)");
+        }
+
         script += QStringLiteral(
             "for _, w in ipairs(hl.get_windows()) do "
             "  local c = (w.class or \"\"):lower() "
             "  local ic = (w.initialClass or \"\"):lower() "
             "  local t = (w.title or \"\"):lower() "
-            "  if c:find(\"%1\", 1, true) or ic:find(\"%1\", 1, true) or t:find(\"%1\", 1, true) then "
-            "    hl.dispatch(hl.dsp.focus({ window = w })); "
-            "    return; "
+            "  if c:find(\"%1\", 1, true) or ic:find(\"%1\", 1, true) or t:find(\"%1\", 1, true)%2 then "
+            "    hl.dispatch(hl.dsp.focus({ window = w })) "
+            "    return "
             "  end "
             "end\n"
-        ).arg(cleanApp);
+        ).arg(cleanApp, extraMatches);
     }
 
     if (!script.isEmpty()) {
