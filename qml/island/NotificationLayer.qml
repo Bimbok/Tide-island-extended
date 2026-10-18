@@ -18,6 +18,7 @@ Item {
     property var actions: []
     property string imagePath: ""
     property int urgency: 1
+    property var senderPid: 0
     property string iconText: ""
     property bool expanded: false
     property int toggleButton: Qt.LeftButton

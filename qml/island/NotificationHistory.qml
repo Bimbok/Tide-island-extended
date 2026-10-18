@@ -16,6 +16,8 @@ Item {
     property string textFontFamily: userConfig.textFontFamily
     property string heroFontFamily: userConfig.heroFontFamily
 
+    signal closeRequested()
+
     readonly property real headerHeight: 28
     readonly property real listTopGap: 9
     readonly property real cardHeight: 49
@@ -391,8 +393,10 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        SystemServices.focusSenderWindow(model.appName || "", model.senderPid || 0, model.summary || "", model.body || "");
                         if (root.notificationModel && index >= 0 && index < root.notificationModel.count)
                             root.notificationModel.remove(index);
+                        root.closeRequested();
                     }
                 }
             }

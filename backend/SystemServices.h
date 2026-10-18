@@ -111,7 +111,11 @@ public:
     Q_INVOKABLE void invokeNotificationAction(uint id, const QString &actionKey);
     Q_INVOKABLE void closeNotification(uint id, uint reason = 2);
     Q_INVOKABLE void copyToClipboard(const QString &text);
-    Q_INVOKABLE void focusSenderWindow(const QString &appName, qint64 pid = 0);
+    Q_INVOKABLE void focusSenderWindow(const QString &appName,
+                                       qint64 pid = 0,
+                                       const QString &summary = QString(),
+                                       const QString &body = QString());
+    Q_INVOKABLE QList<qint64> processAncestorPids(qint64 pid) const;
     Q_INVOKABLE void requestBatteryThresholdState();
     Q_INVOKABLE void setBatteryConservationMode(bool enabled);
     Q_INVOKABLE void setBatteryThreshold(int threshold);
@@ -126,7 +130,8 @@ signals:
                               const QString &body,
                               const QVariantList &actions,
                               const QString &imagePath,
-                              int urgency);
+                              int urgency,
+                              qint64 senderPid = 0);
     void screenRecordingActiveChanged();
     void privacyIndicatorsChanged();
     void hyprlandSnapshotReady(const QString &requestId,

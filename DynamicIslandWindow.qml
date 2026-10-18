@@ -680,8 +680,8 @@ PanelWindow {
             prewarmWallpaperCache();
     }
 
-    function showNotification(id, appName, appIcon, summary, body, actions, imagePath, urgency) {
-        islandContainer.showNotificationCapsule(id, appName, appIcon, summary, body, actions, imagePath, urgency);
+    function showNotification(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid) {
+        islandContainer.showNotificationCapsule(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid);
     }
 
     function showClockWindow() {
@@ -1134,6 +1134,7 @@ PanelWindow {
         property var notificationActions: []
         property string notificationImagePath: ""
         property int notificationUrgency: 1
+        property var notificationSenderPid: 0
         property bool notificationExpanded: false
         property bool isEmergencyAlert: false
         property real customCapsuleWidth: userConfig.islandWidth
@@ -1938,7 +1939,7 @@ PanelWindow {
             restartAutoHideTimer();
         }
 
-        function showNotificationCapsule(id, appName, appIcon, summary, body, actions, imagePath, urgency) {
+        function showNotificationCapsule(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid) {
             if (root.overviewVisible || islandState === "control_center"
                     || islandState === "expanded" || islandState === "file_shelf") return;
 
@@ -1950,6 +1951,7 @@ PanelWindow {
             let rawActions = [];
             let rawImagePath = "";
             let rawUrgency = 1;
+            let rawSenderPid = 0;
 
             if (typeof id === "string" && actions === undefined) {
                 // Legacy 3-arg call: (appName, summary, body)
@@ -1972,6 +1974,7 @@ PanelWindow {
                 }
                 rawImagePath = imagePath || "";
                 rawUrgency = typeof urgency === "number" ? urgency : 1;
+                rawSenderPid = (typeof senderPid === "number" && senderPid > 0) ? senderPid : 0;
             }
 
             const cleanedAppName = cleanNotificationText(rawAppName);
@@ -1991,6 +1994,7 @@ PanelWindow {
             notificationActions = rawActions;
             notificationImagePath = rawImagePath;
             notificationUrgency = rawUrgency;
+            notificationSenderPid = rawSenderPid;
             notificationExpanded = false;
             islandState = "notification";
 
@@ -2023,6 +2027,7 @@ PanelWindow {
                         actions: rawActions,
                         imagePath: rawImagePath,
                         urgency: rawUrgency,
+                        senderPid: rawSenderPid,
                         timestamp: new Date(),
                         count: newCount
                     });
@@ -2036,6 +2041,7 @@ PanelWindow {
                         actions: rawActions,
                         imagePath: rawImagePath,
                         urgency: rawUrgency,
+                        senderPid: rawSenderPid,
                         timestamp: new Date(),
                         count: 1
                     });
@@ -3152,6 +3158,7 @@ PanelWindow {
                         actions: islandContainer.notificationActions
                         imagePath: islandContainer.notificationImagePath
                         urgency: islandContainer.notificationUrgency
+                        senderPid: islandContainer.notificationSenderPid
                         expanded: islandContainer.notificationExpanded
                         toggleButton: userConfig.mouseButton(userConfig.dynamicIslandPrimaryButton)
                         iconText: root.notificationStatusIcon
@@ -3168,11 +3175,11 @@ PanelWindow {
                                 islandContainer.removeNotificationFromHistory(islandContainer.notificationId);
                                 SystemServices.closeNotification(islandContainer.notificationId, 2);
                             } else if (actionKey === "focus") {
-                                SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
+                                SystemServices.focusSenderWindow(islandContainer.notificationAppName, islandContainer.notificationSenderPid, islandContainer.notificationSummary, islandContainer.notificationBody);
                             } else {
                                 SystemServices.invokeNotificationAction(islandContainer.notificationId, actionKey);
                                 if (actionKey === "default") {
-                                    SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
+                                    SystemServices.focusSenderWindow(islandContainer.notificationAppName, islandContainer.notificationSenderPid, islandContainer.notificationSummary, islandContainer.notificationBody);
                                 }
                             }
                             islandContainer.smartRestoreState();

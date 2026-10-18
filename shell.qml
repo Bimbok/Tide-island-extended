@@ -46,13 +46,13 @@ Scope {
         }
     }
 
-    function showNotificationAll(id, appName, appIcon, summary, body, actions, imagePath, urgency) {
+    function showNotificationAll(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid) {
         if (focusEnabled)
             return;
 
         shellRoot.forEachWindow((window) => {
             if (window && window.showNotification)
-                window.showNotification(id, appName, appIcon, summary, body, actions, imagePath, urgency);
+                window.showNotification(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid);
         });
     }
 
@@ -843,8 +843,8 @@ Scope {
     Connections {
         target: SystemServices
 
-        function onNotificationReceived(id, appName, appIcon, summary, body, actions, imagePath, urgency) {
-            shellRoot.showNotificationAll(id, appName, appIcon, summary, body, actions, imagePath, urgency);
+        function onNotificationReceived(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid) {
+            shellRoot.showNotificationAll(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid);
         }
     }
 

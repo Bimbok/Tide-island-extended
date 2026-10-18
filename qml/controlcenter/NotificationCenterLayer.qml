@@ -47,6 +47,7 @@ Item {
         iconFontFamily: notificationCenter.iconFontFamily
         textFontFamily: notificationCenter.textFontFamily
         heroFontFamily: notificationCenter.heroFontFamily
+        onCloseRequested: notificationCenter.closeRequested()
     }
 
     // Keep the action inside the first notification card so it does not create

@@ -22,6 +22,8 @@
 #include <QTextStream>
 #include <QtConcurrent/QtConcurrent>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusReply>
 #include <QDBusMessage>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -615,6 +617,19 @@ void SystemServices::handleNotificationLine(const QString &line) {
         m_pendingHintKey.clear();
         m_pendingNotificationInString = false;
         m_pendingNotificationStringAccumulator.clear();
+
+        static const QRegularExpression senderPattern(QStringLiteral("\\bsender=(:[0-9\\.]+)"));
+        const QRegularExpressionMatch senderMatch = senderPattern.match(line);
+        if (senderMatch.hasMatch()) {
+            const QString senderBusName = senderMatch.captured(1);
+            QDBusConnectionInterface *iface = QDBusConnection::sessionBus().interface();
+            if (iface) {
+                QDBusReply<uint> reply = iface->servicePid(senderBusName);
+                if (reply.isValid() && reply.value() > 0) {
+                    m_pendingNotificationSenderPid = reply.value();
+                }
+            }
+        }
         return;
     }
 
@@ -700,7 +715,8 @@ void SystemServices::handleNotificationLine(const QString &line) {
                                       m_pendingNotificationBody,
                                       m_pendingNotificationActions,
                                       m_pendingNotificationImagePath,
-                                      m_pendingNotificationUrgency);
+                                      m_pendingNotificationUrgency,
+                                      m_pendingNotificationSenderPid);
             m_notificationCaptureActive = false;
             m_notificationCaptureStage = -1;
             return;
@@ -863,53 +879,147 @@ QString SystemServices::cacheNotificationImage(const QString &sourcePath, uint n
     return sourcePath;
 }
 
-void SystemServices::focusSenderWindow(const QString &appName, qint64 pid) {
+QList<qint64> SystemServices::processAncestorPids(qint64 pid) const {
+    QList<qint64> list;
+    qint64 curr = pid;
+    while (curr > 1 && list.size() < 12) {
+        list.append(curr);
+        QFile f(QStringLiteral("/proc/%1/status").arg(curr));
+        if (!f.open(QIODevice::ReadOnly)) break;
+        qint64 ppid = 0;
+        while (!f.atEnd()) {
+            const QByteArray l = f.readLine();
+            if (l.startsWith("PPid:")) {
+                ppid = l.mid(5).trimmed().toLongLong();
+                break;
+            }
+        }
+        if (ppid <= 1 || ppid == curr) break;
+        curr = ppid;
+    }
+    return list;
+}
+
+void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const QString &summary, const QString &body) {
     const QString hyprctl = findExecutable(QStringLiteral("hyprctl"));
     if (hyprctl.isEmpty()) return;
 
-    QString script;
+    // 1. Resolve ancestor PIDs if PID is known (e.g. notify-send -> bash -> kitty)
+    QList<qint64> ancestorPids;
     if (pid > 0) {
-        script += QStringLiteral(
-            "for _, w in ipairs(hl.get_windows()) do "
-            "  if w.pid == %1 then "
-            "    hl.dispatch(hl.dsp.focus({ window = w })) "
-            "    return "
-            "  end "
-            "end\n"
-        ).arg(pid);
-    }
-    if (!appName.isEmpty()) {
-        const QString cleanApp = QString(appName).toLower().replace(QLatin1Char('"'), QStringLiteral("\\\""));
-        QString extraMatches;
-        if (cleanApp.contains(QStringLiteral("antigravity")) || cleanApp.contains(QStringLiteral("agy"))) {
-            extraMatches += QStringLiteral(" or t:find(\"agy\", 1, true) or t:find(\"antigravity\", 1, true)");
-        }
-        if (cleanApp.contains(QStringLiteral("claude"))) {
-            extraMatches += QStringLiteral(" or t:find(\"claude\", 1, true)");
-        }
-        if (cleanApp.contains(QStringLiteral("cursor"))) {
-            extraMatches += QStringLiteral(" or c:find(\"cursor\", 1, true) or t:find(\"cursor\", 1, true)");
-        }
-        if (cleanApp.contains(QStringLiteral("codex"))) {
-            extraMatches += QStringLiteral(" or t:find(\"codex\", 1, true)");
-        }
-
-        script += QStringLiteral(
-            "for _, w in ipairs(hl.get_windows()) do "
-            "  local c = (w.class or \"\"):lower() "
-            "  local ic = (w.initialClass or \"\"):lower() "
-            "  local t = (w.title or \"\"):lower() "
-            "  if c:find(\"%1\", 1, true) or ic:find(\"%1\", 1, true) or t:find(\"%1\", 1, true)%2 then "
-            "    hl.dispatch(hl.dsp.focus({ window = w })) "
-            "    return "
-            "  end "
-            "end\n"
-        ).arg(cleanApp, extraMatches);
+        ancestorPids = processAncestorPids(pid);
     }
 
-    if (!script.isEmpty()) {
-        startCommand(hyprctl, {QStringLiteral("repl")}, 1500, nullptr, script.toUtf8());
+    // 2. Extract agent keywords (antigravity, codex, cursor, claude, opencode, etc.)
+    QString agentKeyword;
+    const QString combinedText = (appName + QLatin1Char(' ') + summary + QLatin1Char(' ') + body).toLower();
+    if (combinedText.contains(QStringLiteral("antigravity")) || combinedText.contains(QStringLiteral("agy"))) {
+        agentKeyword = QStringLiteral("agy");
+    } else if (combinedText.contains(QStringLiteral("codex"))) {
+        agentKeyword = QStringLiteral("codex");
+    } else if (combinedText.contains(QStringLiteral("cursor"))) {
+        agentKeyword = QStringLiteral("cursor");
+    } else if (combinedText.contains(QStringLiteral("claude"))) {
+        agentKeyword = QStringLiteral("claude");
+    } else if (combinedText.contains(QStringLiteral("opencode"))) {
+        agentKeyword = QStringLiteral("opencode");
+    } else if (combinedText.contains(QStringLiteral("copilot"))) {
+        agentKeyword = QStringLiteral("copilot");
+    } else if (combinedText.contains(QStringLiteral("aider"))) {
+        agentKeyword = QStringLiteral("aider");
     }
+
+    // Extract significant directory or project words from summary/body
+    QStringList extraKeywords;
+    static const QRegularExpression wordPattern(QStringLiteral("[a-zA-Z0-9_-]{4,}"));
+    QRegularExpressionMatchIterator it = wordPattern.globalMatch(summary + QLatin1Char(' ') + body);
+    int kwCount = 0;
+    while (it.hasNext() && kwCount < 6) {
+        const QString w = it.next().captured(0).toLower();
+        if (w != QStringLiteral("needs") && w != QStringLiteral("tool") && w != QStringLiteral("confirmation")
+            && w != QStringLiteral("permission") && w != QStringLiteral("request") && w != QStringLiteral("running")) {
+            extraKeywords.append(w);
+            kwCount++;
+        }
+    }
+
+    // 3. Format Lua tables
+    QString pidsTable;
+    for (qint64 p : ancestorPids) {
+        pidsTable += QStringLiteral("[%1] = true, ").arg(p);
+    }
+
+    QString kwTable;
+    for (const QString &kw : extraKeywords) {
+        kwTable += QStringLiteral("\"%1\", ").arg(QString(kw).replace(QLatin1Char('"'), QStringLiteral("\\\"")));
+    }
+
+    const QString cleanApp = QString(appName).toLower().replace(QLatin1Char('"'), QStringLiteral("\\\""));
+
+    // 4. Construct Lua script for Hyprland: Phase 1 (PID) then Phase 2 (Score/Title)
+    const QString script = QStringLiteral(
+        "local windows = hl.get_windows()\n"
+        "local function activateTarget(targetW)\n"
+        "  if not targetW then return false end\n"
+        "  local curWs = hl.get_active_workspace()\n"
+        "  if targetW.workspace and targetW.workspace.name and targetW.workspace.name:find(\"^special:\") then\n"
+        "    hl.dispatch(hl.dsp.workspace.toggle_special(targetW.workspace.name:gsub(\"^special:\", \"\")))\n"
+        "  elseif targetW.workspace and curWs and targetW.workspace.id ~= curWs.id then\n"
+        "    hl.dispatch(hl.dsp.focus({ workspace = targetW.workspace.id }))\n"
+        "  end\n"
+        "  hl.dispatch(hl.dsp.focus({ window = targetW }))\n"
+        "  local active = hl.get_active_window()\n"
+        "  if not active or active.address ~= targetW.address then\n"
+        "    for i = 1, 12 do\n"
+        "      active = hl.get_active_window()\n"
+        "      if not active or active.address == targetW.address then break end\n"
+        "      local dir = (targetW.at and active.at and targetW.at[1] < active.at[1]) and \"left\" or \"right\"\n"
+        "      hl.dispatch(hl.dsp.focus({ direction = dir }))\n"
+        "    end\n"
+        "  end\n"
+        "  return true\n"
+        "end\n"
+        "local pids = { %1 }\n"
+        "for _, w in ipairs(windows) do\n"
+        "  if pids[w.pid] then\n"
+        "    activateTarget(w)\n"
+        "    return\n"
+        "  end\n"
+        "end\n"
+        "local app = \"%2\"\n"
+        "local agentKw = \"%3\"\n"
+        "local kws = { %4 }\n"
+        "local bestW = nil\n"
+        "local bestScore = 0\n"
+        "for _, w in ipairs(windows) do\n"
+        "  local c = (w.class or \"\"):lower()\n"
+        "  local ic = (w.initialClass or \"\"):lower()\n"
+        "  local t = (w.title or \"\"):lower()\n"
+        "  local it = (w.initialTitle or \"\"):lower()\n"
+        "  local classMatch = (app == \"\" or c:find(app, 1, true) or ic:find(app, 1, true))\n"
+        "  if classMatch then\n"
+        "    local score = 1\n"
+        "    if agentKw ~= \"\" and (t:find(agentKw, 1, true) or it:find(agentKw, 1, true)) then\n"
+        "      score = score + 20\n"
+        "    end\n"
+        "    for _, kw in ipairs(kws) do\n"
+        "      if kw ~= \"\" and (t:find(kw, 1, true) or it:find(kw, 1, true)) then\n"
+        "        score = score + 5\n"
+        "      end\n"
+        "    end\n"
+        "    if score > bestScore then\n"
+        "      bestScore = score\n"
+        "      bestW = w\n"
+        "    end\n"
+        "  end\n"
+        "end\n"
+        "if bestW then\n"
+        "  activateTarget(bestW)\n"
+        "  return\n"
+        "end\n"
+    ).arg(pidsTable, cleanApp, agentKeyword, kwTable);
+
+    startCommand(hyprctl, {QStringLiteral("eval"), script}, 1500, nullptr);
 }
 
 QString SystemServices::extractHeaderPath(const QString &line) const {

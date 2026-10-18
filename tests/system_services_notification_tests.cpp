@@ -82,8 +82,14 @@ private slots:
         services.invokeNotificationAction(42, QStringLiteral("default"));
         services.closeNotification(42, 2);
         services.copyToClipboard(QStringLiteral("123456"));
-        services.focusSenderWindow(QStringLiteral("testapp"), 1234);
+        services.focusSenderWindow(QStringLiteral("testapp"), 1234, QStringLiteral("Antigravity CLI needs tool confirmation"), QStringLiteral("body"));
         QTest::qWait(200);
+
+        // Test processAncestorPids on our own PID
+        const qint64 myPid = QCoreApplication::applicationPid();
+        const QList<qint64> ancestors = services.processAncestorPids(myPid);
+        QVERIFY(!ancestors.isEmpty());
+        QCOMPARE(ancestors.first(), myPid);
     }
 
     void testSettingsActionFilteredOut()
