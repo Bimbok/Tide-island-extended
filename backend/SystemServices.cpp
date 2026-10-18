@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QUrl>
 #include <QFutureWatcher>
 #include <QImage>
 #include <QImageReader>
@@ -678,6 +679,13 @@ void SystemServices::handleNotificationLine(const QString &line) {
                     || m_pendingNotificationAppIcon.startsWith(QStringLiteral("file://")))) {
                 m_pendingNotificationImagePath = m_pendingNotificationAppIcon;
             }
+
+            m_pendingNotificationImagePath = cacheNotificationImage(m_pendingNotificationImagePath, m_pendingNotificationId);
+            if (m_pendingNotificationAppIcon.startsWith(QLatin1Char('/'))
+                || m_pendingNotificationAppIcon.startsWith(QStringLiteral("file://"))) {
+                m_pendingNotificationAppIcon = cacheNotificationImage(m_pendingNotificationAppIcon, m_pendingNotificationId);
+            }
+
             emit notificationReceived(m_pendingNotificationId,
                                       m_pendingNotificationAppName,
                                       m_pendingNotificationAppIcon,
@@ -801,6 +809,51 @@ void SystemServices::copyToClipboard(const QString &text) {
             cb->setText(text, QClipboard::Selection);
         }
     }
+}
+
+QString SystemServices::cacheNotificationImage(const QString &sourcePath, uint notifId)
+{
+    if (sourcePath.isEmpty()) return QString();
+
+    QString localPath = sourcePath;
+    if (localPath.startsWith(QLatin1String("file://"))) {
+        localPath = QUrl(sourcePath).toLocalFile();
+    }
+    if (!localPath.startsWith(QLatin1Char('/'))) {
+        return sourcePath;
+    }
+
+    QFileInfo fi(localPath);
+    if (!fi.exists() || !fi.isFile()) {
+        return sourcePath;
+    }
+
+    // Cache temporary notification files (e.g. from browsers in /tmp or /var/tmp) so they persist in history
+    if (localPath.startsWith(QLatin1String("/tmp/"))
+        || localPath.startsWith(QLatin1String("/var/tmp/"))
+        || localPath.contains(QLatin1String("scoped_dir"))) {
+        const QString cacheDir = QDir::homePath() + QStringLiteral("/.cache/tide-island/notification-icons");
+        QDir().mkpath(cacheDir);
+
+        const QString ext = fi.suffix().isEmpty() ? QStringLiteral("png") : fi.suffix();
+        const QString destPath = QStringLiteral("%1/%2_%3.%4")
+            .arg(cacheDir)
+            .arg(notifId)
+            .arg(QDateTime::currentMSecsSinceEpoch())
+            .arg(ext);
+
+        if (QFile::copy(localPath, destPath)) {
+            // Keep directory bounded to ~100 files
+            QDir cDir(cacheDir);
+            QFileInfoList list = cDir.entryInfoList(QDir::Files, QDir::Time);
+            while (list.size() > 100) {
+                QFile::remove(list.takeLast().absoluteFilePath());
+            }
+            return destPath;
+        }
+    }
+
+    return sourcePath;
 }
 
 void SystemServices::focusSenderWindow(const QString &appName, qint64 pid) {

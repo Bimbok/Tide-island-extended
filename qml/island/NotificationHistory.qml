@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Shapes
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import IslandBackend
 import "../controlcenter"
@@ -226,6 +227,17 @@ Item {
                     }
                     return "";
                 }
+                readonly property string fallbackAppIcon: {
+                    if (model.appIcon && !model.appIcon.startsWith("/") && !model.appIcon.startsWith("file://")) {
+                        const p = Quickshell.iconPath(model.appIcon, true);
+                        if (p !== "") return p;
+                    }
+                    if (model.appName) {
+                        const p = Quickshell.iconPath(model.appName.toLowerCase(), true);
+                        if (p !== "") return p;
+                    }
+                    return "";
+                }
                 readonly property bool hasImage: model.imagePath !== undefined && model.imagePath !== "" && (model.imagePath.startsWith("/") || model.imagePath.startsWith("file://"))
                 readonly property bool isCritical: model.urgency === 2
 
@@ -259,42 +271,80 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
 
                         Rectangle {
+                            id: historyAvatarMask
                             anchors.fill: parent
                             radius: 14
-                            color: StyleTokens.cardFillActive
-                            clip: true
-                            visible: delegateItem.resolvedAppIcon !== ""
-                            border.color: StyleTokens.withAlpha(StyleTokens.white, 0.15)
-                            border.width: 1
-
-                            Image {
-                                anchors.centerIn: parent
-                                width: delegateItem.hasAvatar ? 28 : 18
-                                height: delegateItem.hasAvatar ? 28 : 18
-                                source: delegateItem.resolvedAppIcon
-                                fillMode: delegateItem.hasAvatar ? Image.PreserveAspectCrop : Image.PreserveAspectFit
-                                asynchronous: true
-                                smooth: true
-                                mipmap: true
-                            }
+                            visible: false
+                            layer.enabled: true
                         }
 
                         Rectangle {
                             anchors.fill: parent
                             radius: 14
                             color: StyleTokens.cardFillActive
-                            clip: true
-                            visible: delegateItem.resolvedAppIcon === ""
+                        }
+
+                        // Avatar image with circular OpacityMask
+                        Image {
+                            id: historyAvatarImg
+                            anchors.fill: parent
+                            visible: delegateItem.hasAvatar && status === Image.Ready
+                            source: delegateItem.resolvedAppIcon
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                            layer.enabled: true
+                            layer.effect: OpacityMask {
+                                maskSource: historyAvatarMask
+                            }
+                        }
+
+                        // Standard App icon (fit 18x18 inside 28x28 circle)
+                        Image {
+                            id: historyAppIconImg
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 18
+                            visible: !delegateItem.hasAvatar && delegateItem.resolvedAppIcon !== "" && status === Image.Ready
+                            source: delegateItem.resolvedAppIcon
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                        }
+
+                        // Fallback app icon if avatar failed to load (e.g. temporary file deleted)
+                        Image {
+                            id: historyFallbackAppIconImg
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 18
+                            visible: delegateItem.hasAvatar && historyAvatarImg.status !== Image.Ready && delegateItem.fallbackAppIcon !== "" && status === Image.Ready
+                            source: delegateItem.fallbackAppIcon
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                        }
+
+                        // Fallback bell icon
+                        Text {
+                            anchors.centerIn: parent
+                            visible: (!historyAvatarImg.visible) && (!historyAppIconImg.visible) && (!historyFallbackAppIconImg.visible)
+                            text: "\uf0f3"
+                            color: delegateItem.isCritical ? StyleTokens.danger : StyleTokens.textSecondary
+                            font.pixelSize: 13
+                            font.family: root.iconFontFamily
+                        }
+
+                        // Crisp circular border
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 14
+                            color: StyleTokens.transparent
                             border.color: StyleTokens.withAlpha(StyleTokens.white, 0.15)
                             border.width: 1
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "\uf0f3"
-                                color: delegateItem.isCritical ? StyleTokens.danger : StyleTokens.textSecondary
-                                font.pixelSize: 13
-                                font.family: root.iconFontFamily
-                            }
                         }
                     }
 

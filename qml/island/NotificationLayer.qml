@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import IslandBackend
 
@@ -405,24 +406,67 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
 
                 // Circular contact avatar
-                Rectangle {
+                Item {
                     anchors.centerIn: parent
                     width: 34
                     height: 34
-                    radius: 17
-                    color: StyleTokens.cardFillActive
-                    clip: true
                     visible: root.hasSenderAvatar
-                    border.color: StyleTokens.withAlpha(StyleTokens.white, 0.22)
-                    border.width: 1
+
+                    Rectangle {
+                        id: compactAvatarMask
+                        anchors.fill: parent
+                        radius: 17
+                        visible: false
+                        layer.enabled: true
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 17
+                        color: StyleTokens.cardFillActive
+                    }
 
                     Image {
+                        id: compactAvatarImg
                         anchors.fill: parent
                         source: root.resolvedSenderAvatar
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: true
                         mipmap: true
+                        visible: status === Image.Ready
+                        layer.enabled: true
+                        layer.effect: OpacityMask {
+                            maskSource: compactAvatarMask
+                        }
+                    }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: 20
+                        height: 20
+                        visible: compactAvatarImg.status !== Image.Ready && root.hasResolvedAppIcon
+                        source: root.resolvedAppIcon
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        smooth: true
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: compactAvatarImg.status !== Image.Ready && !root.hasResolvedAppIcon
+                        text: root.iconText
+                        color: StyleTokens.textSecondary
+                        font.pixelSize: 13
+                        font.family: root.iconFontFamily
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 17
+                        color: StyleTokens.transparent
+                        border.color: StyleTokens.withAlpha(StyleTokens.white, 0.22)
+                        border.width: 1
                     }
                 }
 
@@ -721,16 +765,26 @@ Item {
                             ? StyleTokens.withAlpha(StyleTokens.accent, 0.45)
                             : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.withAlpha(StyleTokens.white, 0.15))
                         border.width: 1
-                        clip: true
+                        Rectangle {
+                            id: expandedAvatarMask
+                            anchors.fill: parent
+                            radius: 12
+                            visible: false
+                            layer.enabled: true
+                        }
 
                         Image {
                             anchors.fill: parent
-                            visible: root.hasSenderAvatar
+                            visible: root.hasSenderAvatar && status === Image.Ready
                             source: root.resolvedSenderAvatar
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             smooth: true
                             mipmap: true
+                            layer.enabled: true
+                            layer.effect: OpacityMask {
+                                maskSource: expandedAvatarMask
+                            }
                         }
 
                         Image {

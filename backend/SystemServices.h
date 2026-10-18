@@ -204,6 +204,7 @@ private:
     QString decodeDbusMonitorString(const QString &line) const;
     QString extractHeaderPath(const QString &line) const;
     QString extractObjectPath(const QString &line) const;
+    QString cacheNotificationImage(const QString &sourcePath, uint notifId);
     bool screenCastMemberHasSessionArgument(const QString &memberName) const;
     bool pipeWireBlockLooksLikeScreenCast(const QString &blockText) const;
 
