@@ -86,6 +86,44 @@ private slots:
         QTest::qWait(200);
     }
 
+    void testSettingsActionFilteredOut()
+    {
+        SystemServices services;
+        QSignalSpy spy(&services, &SystemServices::notificationReceived);
+        QVERIFY(spy.isValid());
+
+        const QStringList lines = {
+            QStringLiteral("method call time=1790772252.726897 sender=:1.1067 -> destination=:1.98 serial=9 path=/org/freedesktop/Notifications; interface=org.freedesktop.Notifications; member=Notify"),
+            QStringLiteral("   string \"Helium\""),
+            QStringLiteral("   uint32 0"),
+            QStringLiteral("   string \"chrome-icon\""),
+            QStringLiteral("   string \"WhatsApp\""),
+            QStringLiteral("   string \"New message\""),
+            QStringLiteral("   array ["),
+            QStringLiteral("      string \"default\""),
+            QStringLiteral("      string \"\""),
+            QStringLiteral("      string \"settings\""),
+            QStringLiteral("      string \"Settings\""),
+            QStringLiteral("   ]"),
+            QStringLiteral("   array ["),
+            QStringLiteral("   ]"),
+            QStringLiteral("   int32 -1")
+        };
+
+        for (const QString &line : lines) {
+            QMetaObject::invokeMethod(&services, "handleNotificationLine",
+                                      Qt::DirectConnection,
+                                      Q_ARG(QString, line));
+        }
+
+        QCOMPARE(spy.count(), 1);
+        const QList<QVariant> args = spy.takeFirst();
+        const QVariantList actions = args.at(5).toList();
+        // The "settings" action must be filtered out, leaving only "default"
+        QCOMPARE(actions.size(), 1);
+        QCOMPARE(actions.at(0).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("default"));
+    }
+
     void testAudioDevicesAndAppStreamsInvokables()
     {
         SystemServices services;

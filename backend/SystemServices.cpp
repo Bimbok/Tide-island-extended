@@ -664,10 +664,17 @@ void SystemServices::handleNotificationLine(const QString &line) {
             if (m_pendingNotificationActionKey.isEmpty()) {
                 m_pendingNotificationActionKey = parsedString;
             } else {
-                QVariantMap act;
-                act.insert(QStringLiteral("id"), m_pendingNotificationActionKey);
-                act.insert(QStringLiteral("text"), parsedString);
-                m_pendingNotificationActions.append(act);
+                const QString lowerKey = m_pendingNotificationActionKey.toLower();
+                const QString lowerText = parsedString.toLower();
+                if (lowerKey != QStringLiteral("settings")
+                    && lowerKey != QStringLiteral("app-settings")
+                    && lowerText != QStringLiteral("settings")
+                    && lowerText != QStringLiteral("configure")) {
+                    QVariantMap act;
+                    act.insert(QStringLiteral("id"), m_pendingNotificationActionKey);
+                    act.insert(QStringLiteral("text"), parsedString);
+                    m_pendingNotificationActions.append(act);
+                }
                 m_pendingNotificationActionKey.clear();
             }
         }

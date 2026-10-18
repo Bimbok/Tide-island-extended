@@ -30,6 +30,7 @@ Item {
     signal expansionToggleRequested()
     signal actionTriggered(string actionKey)
     signal closeRequested()
+    signal dismissRequested()
 
     focus: true
     Keys.onEscapePressed: function(event) {
@@ -160,9 +161,24 @@ Item {
     readonly property bool hasImageAttachment: imagePath !== "" && (imagePath.startsWith("/") || imagePath.startsWith("file://")) && imagePath !== resolvedSenderAvatar
 
     // --- Actions Handling ---
-    readonly property bool hasActions: actions && actions.length > 0
+    readonly property var filteredActions: {
+        if (!actions || actions.length === 0) return [];
+        const result = [];
+        for (let i = 0; i < actions.length; i++) {
+            const a = actions[i];
+            const aid = (a.id || "").toLowerCase();
+            const atext = (a.text || "").toLowerCase();
+            if (aid === "settings" || aid === "app-settings" || atext === "settings" || atext === "configure") {
+                continue;
+            }
+            result.push(a);
+        }
+        return result;
+    }
+
+    readonly property bool hasActions: filteredActions.length > 0
     readonly property var effectiveActions: {
-        if (hasActions) return actions;
+        if (hasActions) return filteredActions;
         if (isAgentNotification) {
             return [{ id: "focus", text: "Focus" }];
         }
@@ -848,30 +864,7 @@ Item {
                     }
                 }
 
-                // Explicit Close Button [✕]
-                Rectangle {
-                    Layout.preferredWidth: 24
-                    Layout.preferredHeight: 24
-                    radius: 12
-                    color: closeMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.15) : StyleTokens.withAlpha(StyleTokens.white, 0.06)
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "✕"
-                        font.pixelSize: 11
-                        font.family: root.textFontFamily
-                        font.weight: Font.Bold
-                        color: closeMouse.containsMouse ? StyleTokens.white : StyleTokens.textMuted
-                    }
-
-                    MouseArea {
-                        id: closeMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.closeRequested()
-                    }
-                }
             }
 
             // Divider Line
@@ -1134,7 +1127,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.closeRequested()
+                        onClicked: root.dismissRequested()
                     }
                 }
             }

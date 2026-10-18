@@ -238,7 +238,6 @@ Item {
                     }
                     return "";
                 }
-                readonly property bool hasImage: model.imagePath !== undefined && model.imagePath !== "" && (model.imagePath.startsWith("/") || model.imagePath.startsWith("file://"))
                 readonly property bool isCritical: model.urgency === 2
 
                 MatteSurface {
@@ -350,7 +349,7 @@ Item {
 
                     // Content text
                     Item {
-                        width: parent.width - 28 - (delegateItem.hasImage ? 42 : 0) - (parent.spacing * (delegateItem.hasImage ? 2 : 1))
+                        width: parent.width - 28 - parent.spacing
                         height: parent.height
 
                         Text {
@@ -381,24 +380,6 @@ Item {
                             font.family: root.textFontFamily
                             verticalAlignment: Text.AlignVCenter
                             elide: Text.ElideRight
-                        }
-                    }
-
-                    // Thumbnail image if present
-                    Rectangle {
-                        visible: delegateItem.hasImage
-                        width: 34
-                        height: 34
-                        radius: 6
-                        color: StyleTokens.clearBlack
-                        anchors.verticalCenter: parent.verticalCenter
-                        clip: true
-
-                        Image {
-                            anchors.fill: parent
-                            source: model.imagePath || ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
                         }
                     }
                 }

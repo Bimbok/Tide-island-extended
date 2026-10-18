@@ -2046,6 +2046,17 @@ PanelWindow {
             }
         }
 
+        function removeNotificationFromHistory(notifId) {
+            if (!notificationHistoryModel) return;
+            for (let i = 0; i < notificationHistoryModel.count; i++) {
+                const item = notificationHistoryModel.get(i);
+                if (item && (item.id === notifId || (item.summary === notificationSummary && item.appName === notificationAppName))) {
+                    notificationHistoryModel.remove(i);
+                    break;
+                }
+            }
+        }
+
         function toggleNotificationExpansionIfNeeded() {
             if (islandState !== "notification" || !notificationLoader.item || !notificationLoader.item.hasOverflowContent)
                 return false;
@@ -3153,7 +3164,10 @@ PanelWindow {
                             islandContainer.toggleNotificationExpansionIfNeeded();
                         }
                         onActionTriggered: function(actionKey) {
-                            if (actionKey === "focus") {
+                            if (actionKey === "dismiss" || actionKey === "close") {
+                                islandContainer.removeNotificationFromHistory(islandContainer.notificationId);
+                                SystemServices.closeNotification(islandContainer.notificationId, 2);
+                            } else if (actionKey === "focus") {
                                 SystemServices.focusSenderWindow(islandContainer.notificationAppName, 0);
                             } else {
                                 SystemServices.invokeNotificationAction(islandContainer.notificationId, actionKey);
@@ -3164,6 +3178,11 @@ PanelWindow {
                             islandContainer.smartRestoreState();
                         }
                         onCloseRequested: islandContainer.smartRestoreState()
+                        onDismissRequested: {
+                            islandContainer.removeNotificationFromHistory(islandContainer.notificationId);
+                            SystemServices.closeNotification(islandContainer.notificationId, 2);
+                            islandContainer.smartRestoreState();
+                        }
                     }
                 }
             }
