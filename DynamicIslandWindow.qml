@@ -1997,19 +1997,50 @@ PanelWindow {
             const timeout = (rawUrgency === 2) ? 10000 : ((rawUrgency === 0) ? 3000 : notificationAutoHideInterval);
             restartAutoHideTimer(timeout);
 
-            // Store in notification history
+            // Store in notification history (with duplicate aggregation inspired by ChillPill)
             if (notificationHistoryModel) {
-                notificationHistoryModel.insert(0, {
-                    id: resolvedId,
-                    appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
-                    appIcon: rawAppIcon,
-                    summary: resolvedSummary,
-                    body: cleanedSummary !== "" ? cleanedBody : "",
-                    actions: rawActions,
-                    imagePath: rawImagePath,
-                    urgency: rawUrgency,
-                    timestamp: new Date()
-                });
+                let existingIndex = -1;
+                for (let i = 0; i < notificationHistoryModel.count; i++) {
+                    const item = notificationHistoryModel.get(i);
+                    if (item && item.appName === (cleanedAppName !== "" ? cleanedAppName : "Notification")
+                        && item.summary === resolvedSummary
+                        && item.body === (cleanedSummary !== "" ? cleanedBody : "")) {
+                        existingIndex = i;
+                        break;
+                    }
+                }
+
+                if (existingIndex !== -1) {
+                    const existing = notificationHistoryModel.get(existingIndex);
+                    const newCount = (existing.count || 1) + 1;
+                    notificationHistoryModel.remove(existingIndex);
+                    notificationHistoryModel.insert(0, {
+                        id: resolvedId,
+                        appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
+                        appIcon: rawAppIcon,
+                        summary: resolvedSummary,
+                        body: cleanedSummary !== "" ? cleanedBody : "",
+                        actions: rawActions,
+                        imagePath: rawImagePath,
+                        urgency: rawUrgency,
+                        timestamp: new Date(),
+                        count: newCount
+                    });
+                } else {
+                    notificationHistoryModel.insert(0, {
+                        id: resolvedId,
+                        appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
+                        appIcon: rawAppIcon,
+                        summary: resolvedSummary,
+                        body: cleanedSummary !== "" ? cleanedBody : "",
+                        actions: rawActions,
+                        imagePath: rawImagePath,
+                        urgency: rawUrgency,
+                        timestamp: new Date(),
+                        count: 1
+                    });
+                }
+
                 if (notificationHistoryModel.count > 50)
                     notificationHistoryModel.remove(50, notificationHistoryModel.count - 50);
             }

@@ -252,7 +252,7 @@ Item {
                     anchors.bottomMargin: 4
                     spacing: 10
 
-                    // App icon or circular avatar
+                    // Circular App icon or avatar
                     Item {
                         width: 28
                         height: 28
@@ -260,7 +260,7 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            radius: delegateItem.hasAvatar ? 14 : 7
+                            radius: 14
                             color: StyleTokens.cardFillActive
                             clip: true
                             visible: delegateItem.resolvedAppIcon !== ""
@@ -268,7 +268,9 @@ Item {
                             border.width: 1
 
                             Image {
-                                anchors.fill: parent
+                                anchors.centerIn: parent
+                                width: delegateItem.hasAvatar ? 28 : 18
+                                height: delegateItem.hasAvatar ? 28 : 18
                                 source: delegateItem.resolvedAppIcon
                                 fillMode: delegateItem.hasAvatar ? Image.PreserveAspectCrop : Image.PreserveAspectFit
                                 asynchronous: true
@@ -277,13 +279,22 @@ Item {
                             }
                         }
 
-                        Text {
-                            anchors.centerIn: parent
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 14
+                            color: StyleTokens.cardFillActive
+                            clip: true
                             visible: delegateItem.resolvedAppIcon === ""
-                            text: "\uf0f3"
-                            color: delegateItem.isCritical ? StyleTokens.danger : StyleTokens.textSecondary
-                            font.pixelSize: 14
-                            font.family: root.iconFontFamily
+                            border.color: StyleTokens.withAlpha(StyleTokens.white, 0.15)
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\uf0f3"
+                                color: delegateItem.isCritical ? StyleTokens.danger : StyleTokens.textSecondary
+                                font.pixelSize: 13
+                                font.family: root.iconFontFamily
+                            }
                         }
                     }
 
@@ -297,7 +308,7 @@ Item {
                             anchors.topMargin: delegateItem.bodyText !== "" ? 1 : 8
                             width: parent.width
                             height: 18
-                            text: delegateItem.titleText
+                            text: (model.count && model.count > 1) ? (delegateItem.titleText + "  (" + model.count + ")") : delegateItem.titleText
                             textFormat: Text.PlainText
                             color: StyleTokens.textPrimaryBright
                             font.pixelSize: 14
@@ -313,7 +324,7 @@ Item {
                             anchors.bottomMargin: 2
                             width: parent.width
                             height: 16
-                            text: delegateItem.bodyText
+                            text: delegateItem.bodyText.replace(/\[([^\]]+)\]\(["']?([^)"']+)["']?\)/g, "$1")
                             textFormat: Text.PlainText
                             color: StyleTokens.textSecondary
                             font.pixelSize: 12

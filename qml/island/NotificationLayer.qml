@@ -287,6 +287,13 @@ Item {
         if (body !== "" && body !== summary) return body;
         return "";
     }
+
+    function formatNotificationBody(rawText) {
+        if (!rawText) return "";
+        let formatted = rawText.replace(/\[([^\]]+)\]\(["']?([^)"']+)["']?\)/g, '<a href="$2">$1</a>');
+        formatted = formatted.replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, '$1<a href="$2">$2</a>');
+        return formatted;
+    }
     readonly property string combinedPreviewText: {
         if (summary !== "" && body !== "" && body !== summary) return summary + "  •  " + body;
         if (summary !== "") return summary;
@@ -311,7 +318,14 @@ Item {
         if (hasOtp) {
             extraW += 120; // OTP pill button
         } else if (hasCompactActions) {
-            extraW += compactActions.length * 80; // action buttons
+            for (let i = 0; i < compactActions.length; i++) {
+                const a = compactActions[i];
+                if (a.text === "Focus" || a.id === "focus" || a.id === "default") {
+                    extraW += 36;
+                } else {
+                    extraW += 82;
+                }
+            }
         }
         return Math.max(minimumWidth, Math.min(compactMaximumWidth, textW + extraW));
     }
@@ -439,15 +453,16 @@ Item {
                 // Standard App Icon slot (when no avatar photo is present)
                 Rectangle {
                     anchors.centerIn: parent
-                    width: 32
-                    height: 32
-                    radius: 9
+                    width: 34
+                    height: 34
+                    radius: 17
+                    clip: true
                     visible: !root.hasSenderAvatar
                     color: root.isAgentNotification
-                        ? StyleTokens.withAlpha("#6366f1", 0.25)
+                        ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
                         : (root.urgency === 2 ? StyleTokens.withAlpha(StyleTokens.danger, 0.2) : StyleTokens.cardFillActive)
                     border.color: root.isAgentNotification
-                        ? StyleTokens.withAlpha("#818cf8", 0.5)
+                        ? StyleTokens.withAlpha(StyleTokens.accent, 0.5)
                         : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.withAlpha(StyleTokens.white, 0.14))
                     border.width: 1
 
@@ -469,7 +484,7 @@ Item {
                         visible: !root.hasResolvedAppIcon || appIconImage.status === Image.Error
                         text: root.isAgentNotification ? "✦" : (root.urgency === 2 ? "" : root.iconText)
                         color: root.isAgentNotification
-                            ? "#a5b4fc"
+                            ? StyleTokens.accent
                             : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.textPrimaryBright)
                         font.pixelSize: 13
                         font.family: root.isAgentNotification ? root.textFontFamily : root.iconFontFamily
@@ -501,7 +516,7 @@ Item {
                     id: compactBodyText
                     width: parent.width
                     visible: root.displayBody !== ""
-                    text: root.displayBody
+                    text: root.displayBody.replace(/\[([^\]]+)\]\(["']?([^)"']+)["']?\)/g, "$1")
                     color: StyleTokens.textSecondary
                     font.pixelSize: 11
                     font.family: root.textFontFamily
@@ -530,13 +545,13 @@ Item {
                         width: otpBtnLayout.implicitWidth + 18
                         radius: 14
                         color: root.otpCopied
-                            ? StyleTokens.withAlpha("#10b981", 0.3)
+                            ? StyleTokens.withAlpha(StyleTokens.success, 0.25)
                             : (otpMouse.pressed
                                 ? StyleTokens.accentPressed
-                                : (otpMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFillActive))
+                                : (otpMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.28) : StyleTokens.withAlpha(StyleTokens.accent, 0.16)))
                         border.color: root.otpCopied
-                            ? "#10b981"
-                            : StyleTokens.withAlpha(StyleTokens.accent, 0.45)
+                            ? StyleTokens.success
+                            : StyleTokens.withAlpha(StyleTokens.accent, 0.5)
                         border.width: 1
 
                         Row {
@@ -548,7 +563,7 @@ Item {
                                 text: root.otpCopied ? "✓" : "📋"
                                 font.pixelSize: 11
                                 font.family: root.textFontFamily
-                                color: root.otpCopied ? "#10b981" : StyleTokens.textPrimaryBright
+                                color: root.otpCopied ? StyleTokens.success : StyleTokens.accent
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
@@ -557,7 +572,7 @@ Item {
                                 font.pixelSize: 11
                                 font.family: root.textFontFamily
                                 font.weight: Font.Bold
-                                color: root.otpCopied ? "#10b981" : StyleTokens.textPrimaryBright
+                                color: root.otpCopied ? StyleTokens.success : StyleTokens.textPrimaryBright
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -573,38 +588,63 @@ Item {
                         }
                     }
 
-                    // Compact Action Buttons (Allow / Deny or Focus)
+                    // Compact Action Buttons (Allow / Deny or Circular Focus Icon Button)
                     Repeater {
                         model: (!root.hasOtp && root.hasCompactActions) ? root.compactActions : []
                         delegate: Rectangle {
                             id: inlineBtn
-                            height: 28
-                            width: inlineLabel.implicitWidth + 18
-                            radius: 14
-
                             readonly property string btnText: modelData.text || modelData.id
+                            readonly property bool isFocusAction: btnText === "Focus" || modelData.id === "focus" || modelData.id === "default"
                             readonly property bool isPositive: {
                                 const t = (modelData.rawText || btnText).toLowerCase();
-                                return btnText === "Focus" || btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
+                                return btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("proceed") || t.includes("run");
                             }
                             readonly property bool isNegative: {
                                 const t = (modelData.rawText || btnText).toLowerCase();
                                 return btnText === "Deny" || t.includes("deny") || t.includes("reject") || t.includes("no") || t.includes("cancel") || t.includes("abort");
                             }
 
+                            height: 28
+                            width: isFocusAction ? 28 : (inlineLabel.implicitWidth + 18)
+                            radius: 14
+
                             color: inlineMouse.pressed
                                 ? StyleTokens.accentPressed
                                 : (inlineMouse.containsMouse
-                                    ? (isPositive ? StyleTokens.withAlpha("#10b981", 0.28) : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.28) : StyleTokens.cardFillHover))
-                                    : (isPositive ? StyleTokens.withAlpha("#10b981", 0.18) : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.14) : StyleTokens.cardFillActive)))
-                            border.color: isPositive
-                                ? StyleTokens.withAlpha("#10b981", 0.5)
-                                : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.45) : StyleTokens.withAlpha(StyleTokens.white, 0.18))
+                                    ? (isFocusAction ? StyleTokens.withAlpha(StyleTokens.accent, 0.32)
+                                        : (isPositive ? StyleTokens.withAlpha(StyleTokens.success, 0.30)
+                                        : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.28)
+                                        : StyleTokens.cardFillHover)))
+                                    : (isFocusAction ? StyleTokens.withAlpha(StyleTokens.accent, 0.18)
+                                        : (isPositive ? StyleTokens.withAlpha(StyleTokens.success, 0.18)
+                                        : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.14)
+                                        : StyleTokens.cardFillActive))))
+
+                            border.color: isFocusAction
+                                ? (inlineMouse.containsMouse ? StyleTokens.accent : StyleTokens.withAlpha(StyleTokens.accent, 0.55))
+                                : (isPositive
+                                    ? StyleTokens.withAlpha(StyleTokens.success, 0.55)
+                                    : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.5) : StyleTokens.withAlpha(StyleTokens.textMuted, 0.35)))
                             border.width: 1
 
+                            // Circular Focus Icon (↗)
+                            Text {
+                                anchors.centerIn: parent
+                                visible: inlineBtn.isFocusAction
+                                text: "↗"
+                                font.pixelSize: 14
+                                font.family: root.textFontFamily
+                                font.weight: Font.Bold
+                                color: inlineMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+                                scale: inlineMouse.pressed ? 0.90 : (inlineMouse.containsMouse ? 1.12 : 1.0)
+                                Behavior on scale { NumberAnimation { duration: 120 } }
+                            }
+
+                            // Action Pill Label (Allow, Deny, etc.)
                             Row {
                                 id: inlineLabel
                                 anchors.centerIn: parent
+                                visible: !inlineBtn.isFocusAction
                                 spacing: 4
 
                                 Text {
@@ -613,7 +653,7 @@ Item {
                                     font.pixelSize: 10
                                     font.family: root.textFontFamily
                                     font.weight: Font.Bold
-                                    color: inlineBtn.isPositive ? "#34d399" : (inlineBtn.isNegative ? StyleTokens.danger : StyleTokens.textPrimaryBright)
+                                    color: inlineBtn.isPositive ? StyleTokens.success : (inlineBtn.isNegative ? StyleTokens.danger : StyleTokens.textPrimaryBright)
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
 
@@ -663,42 +703,57 @@ Item {
                 Layout.preferredHeight: 28
                 spacing: 8
 
-                // Header icon
+                // Header icon (circular 24x24)
                 Item {
-                    Layout.preferredWidth: 22
-                    Layout.preferredHeight: 22
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
                     Layout.alignment: Qt.AlignVCenter
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 11
-                        color: StyleTokens.cardFillActive
+                        radius: 12
+                        color: root.hasSenderAvatar
+                            ? StyleTokens.cardFillActive
+                            : (root.isAgentNotification
+                                ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
+                                : (root.urgency === 2 ? StyleTokens.withAlpha(StyleTokens.danger, 0.2) : StyleTokens.cardFillActive))
+                        border.color: root.isAgentNotification
+                            ? StyleTokens.withAlpha(StyleTokens.accent, 0.45)
+                            : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.withAlpha(StyleTokens.white, 0.15))
+                        border.width: 1
                         clip: true
-                        visible: root.hasSenderAvatar
 
                         Image {
                             anchors.fill: parent
+                            visible: root.hasSenderAvatar
                             source: root.resolvedSenderAvatar
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
+                            smooth: true
+                            mipmap: true
                         }
-                    }
 
-                    Image {
-                        anchors.fill: parent
-                        visible: !root.hasSenderAvatar && root.hasResolvedAppIcon
-                        source: root.resolvedAppIcon
-                        fillMode: Image.PreserveAspectFit
-                        asynchronous: true
-                    }
+                        Image {
+                            id: appIconHeaderImage
+                            anchors.centerIn: parent
+                            width: 16
+                            height: 16
+                            visible: !root.hasSenderAvatar && root.hasResolvedAppIcon && status !== Image.Error
+                            source: root.resolvedAppIcon
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                        }
 
-                    Text {
-                        anchors.centerIn: parent
-                        visible: !root.hasSenderAvatar && !root.hasResolvedAppIcon
-                        text: root.isAgentNotification ? "✦" : root.iconText
-                        color: root.isAgentNotification ? "#818cf8" : StyleTokens.textSecondary
-                        font.pixelSize: 12
-                        font.family: root.isAgentNotification ? root.textFontFamily : root.iconFontFamily
+                        Text {
+                            anchors.centerIn: parent
+                            visible: !root.hasSenderAvatar && (!root.hasResolvedAppIcon || appIconHeaderImage.status === Image.Error)
+                            text: root.isAgentNotification ? "✦" : (root.urgency === 2 ? "" : root.iconText)
+                            color: root.isAgentNotification ? StyleTokens.accent : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.textSecondary)
+                            font.pixelSize: 11
+                            font.family: root.isAgentNotification ? root.textFontFamily : root.iconFontFamily
+                        }
                     }
                 }
 
@@ -730,7 +785,7 @@ Item {
                                 ? "Agent Prompt"
                                 : (root.isMessagingApp ? "Message" : (root.urgency === 2 ? "High Priority" : "Just now"))
                             color: root.isAgentNotification
-                                ? "#a5b4fc"
+                                ? StyleTokens.accent
                                 : (root.urgency === 2 ? StyleTokens.danger : StyleTokens.textMuted)
                             font.pixelSize: 11
                             font.family: root.textFontFamily
@@ -806,7 +861,12 @@ Item {
                         id: expandedBodyText
                         visible: root.displayBody !== ""
                         width: parent.width
-                        text: root.displayBody
+                        text: root.formatNotificationBody(root.displayBody)
+                        textFormat: Text.StyledText
+                        linkColor: StyleTokens.accent
+                        onLinkActivated: function(link) {
+                            Qt.openUrlExternally(link);
+                        }
                         color: StyleTokens.textSecondary
                         font.pixelSize: 12
                         font.family: root.textFontFamily
@@ -821,8 +881,8 @@ Item {
                         width: parent.width
                         height: 52
                         radius: 10
-                        color: root.otpCopied ? StyleTokens.withAlpha("#10b981", 0.16) : StyleTokens.withAlpha(StyleTokens.accent, 0.12)
-                        border.color: root.otpCopied ? "#10b981" : StyleTokens.withAlpha(StyleTokens.accent, 0.4)
+                        color: root.otpCopied ? StyleTokens.withAlpha(StyleTokens.success, 0.16) : StyleTokens.withAlpha(StyleTokens.accent, 0.12)
+                        border.color: root.otpCopied ? StyleTokens.success : StyleTokens.withAlpha(StyleTokens.accent, 0.4)
                         border.width: 1
 
                         RowLayout {
@@ -847,7 +907,7 @@ Item {
 
                                 Text {
                                     text: root.otpCopied ? "✓ Copied to clipboard!" : "Verification code detected"
-                                    color: root.otpCopied ? "#10b981" : StyleTokens.textMuted
+                                    color: root.otpCopied ? StyleTokens.success : StyleTokens.textMuted
                                     font.pixelSize: 11
                                     font.family: root.textFontFamily
                                 }
@@ -858,16 +918,16 @@ Item {
                                 Layout.preferredWidth: otpCardBtnText.implicitWidth + 20
                                 radius: 14
                                 color: root.otpCopied
-                                    ? "#10b981"
-                                    : (otpCardMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFillActive)
-                                border.color: root.otpCopied ? "#10b981" : StyleTokens.withAlpha(StyleTokens.white, 0.2)
+                                    ? StyleTokens.success
+                                    : (otpCardMouse.containsMouse ? StyleTokens.accent : StyleTokens.accentSoft)
+                                border.color: root.otpCopied ? StyleTokens.success : StyleTokens.withAlpha(StyleTokens.accent, 0.6)
                                 border.width: 1
 
                                 Text {
                                     id: otpCardBtnText
                                     anchors.centerIn: parent
                                     text: root.otpCopied ? "Copied" : "Copy Code"
-                                    color: root.otpCopied ? StyleTokens.white : StyleTokens.textPrimaryBright
+                                    color: root.otpCopied ? StyleTokens.textPrimaryBright : StyleTokens.textOnAccent
                                     font.pixelSize: 11
                                     font.family: root.textFontFamily
                                     font.weight: Font.Bold
@@ -926,9 +986,10 @@ Item {
                         radius: 15
 
                         readonly property string btnText: root.shortenActionText(modelData.text || modelData.id)
+                        readonly property bool isFocusAction: btnText === "Focus" || modelData.id === "focus" || modelData.id === "default"
                         readonly property bool isPositive: {
                             const t = (modelData.rawText || modelData.text || btnText).toLowerCase();
-                            return btnText === "Focus" || btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("focus") || t.includes("proceed") || t.includes("run");
+                            return btnText === "Allow" || t.includes("allow") || t.includes("approve") || t.includes("yes") || t.includes("proceed") || t.includes("run");
                         }
                         readonly property bool isNegative: {
                             const t = (modelData.rawText || modelData.text || btnText).toLowerCase();
@@ -938,11 +999,20 @@ Item {
                         color: expandedActionMouse.pressed
                             ? StyleTokens.accentPressed
                             : (expandedActionMouse.containsMouse
-                                ? (isPositive ? "#059669" : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.35) : StyleTokens.cardFillHover))
-                                : (isPositive ? "#10b981" : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.2) : StyleTokens.cardFillActive)))
+                                ? (isPositive ? StyleTokens.withAlpha(StyleTokens.success, 0.35)
+                                    : (isFocusAction ? StyleTokens.withAlpha(StyleTokens.accent, 0.35)
+                                    : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.30)
+                                    : StyleTokens.cardFillHover)))
+                                : (isPositive ? StyleTokens.withAlpha(StyleTokens.success, 0.22)
+                                    : (isFocusAction ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
+                                    : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.16)
+                                    : StyleTokens.cardFillActive))))
+
                         border.color: isPositive
-                            ? "#10b981"
-                            : (isNegative ? StyleTokens.danger : StyleTokens.withAlpha(StyleTokens.white, 0.2))
+                            ? StyleTokens.withAlpha(StyleTokens.success, 0.6)
+                            : (isFocusAction
+                                ? StyleTokens.withAlpha(StyleTokens.accent, 0.6)
+                                : (isNegative ? StyleTokens.withAlpha(StyleTokens.danger, 0.55) : StyleTokens.withAlpha(StyleTokens.textMuted, 0.3)))
                         border.width: 1
 
                         Row {
@@ -951,18 +1021,22 @@ Item {
                             spacing: 5
 
                             Text {
-                                visible: expandedActionBtn.isPositive || expandedActionBtn.isNegative
-                                text: expandedActionBtn.isPositive ? "✓" : "✕"
-                                font.pixelSize: 11
+                                visible: expandedActionBtn.isPositive || expandedActionBtn.isNegative || expandedActionBtn.isFocusAction
+                                text: expandedActionBtn.isFocusAction ? "↗" : (expandedActionBtn.isPositive ? "✓" : "✕")
+                                font.pixelSize: expandedActionBtn.isFocusAction ? 13 : 11
                                 font.family: root.textFontFamily
                                 font.weight: Font.Bold
-                                color: StyleTokens.white
+                                color: expandedActionBtn.isPositive
+                                    ? StyleTokens.success
+                                    : (expandedActionBtn.isFocusAction ? StyleTokens.accent : (expandedActionBtn.isNegative ? StyleTokens.danger : StyleTokens.textPrimaryBright))
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Text {
-                                text: expandedActionBtn.btnText
-                                color: StyleTokens.white
+                                text: expandedActionBtn.isFocusAction ? "Focus Window" : expandedActionBtn.btnText
+                                color: expandedActionBtn.isPositive
+                                    ? StyleTokens.success
+                                    : (expandedActionBtn.isFocusAction ? StyleTokens.accent : (expandedActionBtn.isNegative ? StyleTokens.danger : StyleTokens.textPrimaryBright))
                                 font.pixelSize: 11
                                 font.family: root.textFontFamily
                                 font.weight: Font.Bold
@@ -985,15 +1059,17 @@ Item {
                     height: 30
                     width: dismissLabel.implicitWidth + 20
                     radius: 15
-                    color: dismissMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFillActive
-                    border.color: StyleTokens.withAlpha(StyleTokens.white, 0.16)
+                    color: dismissMouse.pressed
+                        ? StyleTokens.accentPressed
+                        : (dismissMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFillActive)
+                    border.color: StyleTokens.withAlpha(StyleTokens.textMuted, 0.3)
                     border.width: 1
 
                     Text {
                         id: dismissLabel
                         anchors.centerIn: parent
                         text: "Dismiss"
-                        color: StyleTokens.textSecondary
+                        color: dismissMouse.containsMouse ? StyleTokens.textPrimaryBright : StyleTokens.textSecondary
                         font.pixelSize: 11
                         font.family: root.textFontFamily
                         font.weight: Font.DemiBold
