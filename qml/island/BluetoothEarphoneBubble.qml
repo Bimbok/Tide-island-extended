@@ -48,8 +48,15 @@ Item {
     onBatteryColorChanged: ringCanvas.requestPaint()
 
     readonly property color batteryColor: {
-        if (!batteryAvailable || batteryPercent < 0) return StyleTokens.accent;
-        return StyleTokens.batteryColor(batteryPercent, false);
+        if (!batteryAvailable || batteryPercent < 0)
+            return StyleTokens.accent;
+        if (batteryPercent >= 60)
+            return StyleTokens.batteryHigh;
+        if (batteryPercent >= 30)
+            return StyleTokens.batteryMedium;
+        if (batteryPercent >= 15)
+            return StyleTokens.batteryLow;
+        return StyleTokens.batteryCritical;
     }
 
     signal entered
