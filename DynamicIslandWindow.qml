@@ -1153,7 +1153,6 @@ PanelWindow {
         property string restingState: normalizeRestingState(userConfig.dynamicIslandRestingState)
         property string workspaceOriginSide: "none"
         property string splitOriginSide: "none"
-        property var bluetoothExpandedDevice: null
         property var notificationHistoryModel: ListModel {}
         readonly property var cavaLevels: systemState.cavaLevels
         property real swipeTransitionProgress: 0
@@ -1174,7 +1173,6 @@ PanelWindow {
         property bool fileShelfOpenedManually: false
         readonly property int defaultAutoHideInterval: 1250
         readonly property int notificationAutoHideInterval: 4200
-        readonly property int bluetoothExpandedAutoHideInterval: 2500
         readonly property int swipeAnimationDuration: 220
         readonly property bool showsMediaInNormal: restingState === "lyrics"
             || (restingState === "normal" && !!currentTrack)
@@ -1220,7 +1218,6 @@ PanelWindow {
         readonly property bool fileShelfCanAutoOpen: !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool blocksTransientSplit: islandState === "expanded"
-            || islandState === "bluetooth_expanded"
             || islandState === "control_center"
             || islandState === "notification"
             || islandState === "wallpaper_picker"
@@ -1268,7 +1265,6 @@ PanelWindow {
             )
         )
         readonly property bool expandedLayerVisible: !root.overviewVisible && islandState === "expanded"
-        readonly property bool bluetoothExpandedLayerVisible: !root.overviewVisible && islandState === "bluetooth_expanded"
         readonly property bool notificationLayerVisible: !root.overviewVisible && islandState === "notification"
         readonly property bool controlCenterLayerVisible: !root.overviewVisible && islandState === "control_center"
         readonly property bool notificationCenterLayerVisible: !root.overviewVisible && islandState === "notification_center"
@@ -1343,12 +1339,6 @@ PanelWindow {
 
         BluetoothConnectionTracker {
             id: bluetoothConnectionTracker
-
-            onAdapterChanged: islandContainer.bluetoothExpandedDevice = null
-
-            onNewConnection: function(device) {
-                islandContainer.showBluetoothExpanded(device);
-            }
         }
 
         IslandSystemState {
@@ -1701,7 +1691,6 @@ PanelWindow {
             notificationSummary = "";
             notificationBody = "";
             notificationExpanded = false;
-            bluetoothExpandedDevice = null;
         }
 
         function cleanNotificationText(text) {
@@ -2151,21 +2140,6 @@ PanelWindow {
             else stopAutoHideTimer();
         }
 
-        function showBluetoothExpanded(device) {
-            if (!device || root.overviewVisible || islandState === "control_center"
-                    || islandState === "notification" || islandState === "file_shelf")
-                return;
-
-            cancelSideSwipeSettle();
-            abortSideTransientMode();
-            clearTransientCapsule();
-            bluetoothExpandedDevice = device;
-            islandState = "bluetooth_expanded";
-            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-            expandedByPlayerAutoOpen = false;
-            restartAutoHideTimer(bluetoothExpandedAutoHideInterval);
-        }
-
         function showControlCenter() {
             cancelSideSwipeSettle();
             abortSideTransientMode();
@@ -2393,7 +2367,6 @@ PanelWindow {
             if (currentTrack !== ""
                     && islandState !== "control_center"
                     && islandState !== "notification"
-                    && islandState !== "bluetooth_expanded"
                     && islandState !== "file_shelf") {
                 if (root.autoHideSuppressesTransientReveal) return;
                 if (islandState === "expanded" && !expandedByPlayerAutoOpen) return;
@@ -2457,7 +2430,6 @@ PanelWindow {
                 case "glance":
                     return 500;
                 case "expanded":
-                case "bluetooth_expanded":
                     return 410;
                 case "notification":
                     if (!notificationLoader.item) return 272;
@@ -2493,7 +2465,6 @@ PanelWindow {
                 case "glance":
                     return glanceLoader.item ? glanceLoader.item.contentHeight : 292;
                 case "expanded":
-                case "bluetooth_expanded":
                     return 165;
                 case "notification":
                     return notificationLoader.item
@@ -2522,7 +2493,6 @@ PanelWindow {
                 case "glance":
                     return 34;
                 case "expanded":
-                case "bluetooth_expanded":
                     return 40;
                 case "notification":
                     return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
@@ -3135,25 +3105,6 @@ PanelWindow {
             }
 
             Loader {
-                id: bluetoothExpandedLoader
-                anchors.fill: parent
-                active: islandContainer.bluetoothExpandedLayerVisible
-                asynchronous: false
-                visible: active
-
-                sourceComponent: Component {
-                    BluetoothExpandedLayer {
-                        device: islandContainer.bluetoothExpandedDevice
-                        volumeLevel: islandContainer.currentVolume
-                        iconText: ""
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        showCondition: islandContainer.bluetoothExpandedLayerVisible
-                    }
-                }
-            }
-
-            Loader {
                 id: notificationLoader
                 anchors.fill: parent
                 active: islandContainer.notificationLayerVisible
@@ -3550,10 +3501,6 @@ PanelWindow {
             centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
             autoHideProgress: root.autoHideProgress
             autoHideEnabled: root.autoHideEnabled
-            onClicked: {
-                if (device) islandContainer.showBluetoothExpanded(device);
-                root.showAutoHiddenIsland("state");
-            }
             onEntered: {
                 if (root.autoHideEnabled) {
                     root.autoHidePointerInside = true;

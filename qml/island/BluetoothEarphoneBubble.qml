@@ -45,15 +45,13 @@ Item {
 
     onAnimatedProgressChanged: ringCanvas.requestPaint()
     onBatteryPercentChanged: ringCanvas.requestPaint()
+    onBatteryColorChanged: ringCanvas.requestPaint()
 
     readonly property color batteryColor: {
-        if (!batteryAvailable || batteryPercent < 0) return "#0a84ff";
-        if (batteryPercent > 40) return "#30d158";
-        if (batteryPercent > 20) return "#ff9f0a";
-        return "#ff453a";
+        if (!batteryAvailable || batteryPercent < 0) return StyleTokens.accent;
+        return StyleTokens.batteryColor(batteryPercent, false);
     }
 
-    signal clicked
     signal entered
     signal exited
 
@@ -107,6 +105,15 @@ Item {
         onStopped: {
             if (!root.active && root.reveal <= 0.001)
                 root.mounted = false;
+        }
+    }
+
+    Connections {
+        target: StyleTokens
+        ignoreUnknownSignals: true
+
+        function onColorsChanged() {
+            ringCanvas.requestPaint();
         }
     }
 
@@ -195,10 +202,10 @@ Item {
             const lineWidth = 2.5;
             const radius = cx - lineWidth / 2 - 0.5;
 
-            // Faint track background ring
+            // Faint track background ring harmonized with matugen theme
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2, false);
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
+            ctx.strokeStyle = StyleTokens.withAlpha(root.batteryColor, 0.20);
             ctx.lineWidth = lineWidth;
             ctx.stroke();
 
@@ -223,9 +230,8 @@ Item {
         anchors.fill: parent
         enabled: root.mounted && root.autoHideProgress > 0.5
         hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: Qt.ArrowCursor
 
-        onClicked: root.clicked()
         onEntered: root.entered()
         onExited: root.exited()
     }
