@@ -127,6 +127,14 @@ PanelWindow {
 
         Region {
             intersection: Intersection.Combine
+            x: Math.floor(bluetoothEarphoneBubble.x)
+            y: Math.floor(bluetoothEarphoneBubble.y)
+            width: bluetoothEarphoneBubble.visible ? Math.ceil(bluetoothEarphoneBubble.width) : 0
+            height: bluetoothEarphoneBubble.visible ? Math.ceil(bluetoothEarphoneBubble.height) : 0
+        }
+
+        Region {
+            intersection: Intersection.Combine
             x: Math.floor(cameraBubble.x)
             y: Math.floor(cameraBubble.y)
             width: cameraBubble.visible ? Math.ceil(cameraBubble.width) : 0
@@ -1190,6 +1198,10 @@ PanelWindow {
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool fileShelfBubbleWanted: FileShelf.count > 0
+            && !root.overviewVisible
+            && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property var connectedEarphoneDevice: bluetoothConnectionTracker.activeEarphoneDevice
+        readonly property bool bluetoothEarphoneBubbleWanted: !!connectedEarphoneDevice
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property int privacyBubbleSize: 36
@@ -3525,6 +3537,37 @@ PanelWindow {
 
         }
 
+        BluetoothEarphoneBubble {
+            id: bluetoothEarphoneBubble
+
+            device: islandContainer.connectedEarphoneDevice
+            active: islandContainer.bluetoothEarphoneBubbleWanted
+            iconFontFamily: root.iconFontFamily
+            textFontFamily: root.textFontFamily
+            bubbleSize: 36
+            shownX: mainCapsule.x - bubbleSize - 8
+            hiddenX: mainCapsule.x + 8
+            centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
+            autoHideProgress: root.autoHideProgress
+            autoHideEnabled: root.autoHideEnabled
+            onClicked: {
+                if (device) islandContainer.showBluetoothExpanded(device);
+                root.showAutoHiddenIsland("state");
+            }
+            onEntered: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = true;
+                    root.showAutoHiddenIsland();
+                }
+            }
+            onExited: {
+                if (root.autoHideEnabled) {
+                    root.autoHidePointerInside = false;
+                    root.scheduleAutoHide();
+                }
+            }
+        }
+
         Item {
             id: fileShelfBubble
 
@@ -3532,7 +3575,13 @@ PanelWindow {
 
             width: bubbleSize
             height: bubbleSize
-            x: mainCapsule.x - width - 8
+            x: mainCapsule.x - width - 8 - (bluetoothEarphoneBubble.mounted ? (bluetoothEarphoneBubble.bubbleSize + 6) : 0)
+            Behavior on x {
+                NumberAnimation {
+                    duration: 320
+                    easing.type: Easing.OutQuint
+                }
+            }
             y: mainCapsule.y + mainCapsule.height / 2 - height / 2
             z: 6
             visible: islandContainer.fileShelfBubbleWanted

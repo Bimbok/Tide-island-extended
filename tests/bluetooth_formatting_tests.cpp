@@ -69,6 +69,28 @@ private slots:
             QStringLiteral("aa-bb-cc-dd-ee-ff")
         }).toString(), QStringLiteral("AA:BB:CC:DD:EE:FF"));
     }
+
+    void identifiesEarphonesAndHeadsets()
+    {
+        QVERIFY(call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("audio-headphones"), QStringLiteral("Sony WH-1000XM5")
+        }).toBool());
+        QVERIFY(call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("audio-headset"), QStringLiteral("itel BudsAir Pro")
+        }).toBool());
+        QVERIFY(call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("unknown"), QStringLiteral("Galaxy Buds Live")
+        }).toBool());
+        QVERIFY(call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("unknown"), QStringLiteral("AirPods Pro")
+        }).toBool());
+        QVERIFY(!call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("phone"), QStringLiteral("Galaxy S23")
+        }).toBool());
+        QVERIFY(!call(QStringLiteral("isEarphoneOrHeadset"), {
+            QStringLiteral("input-mouse"), QStringLiteral("Logitech MX Master")
+        }).toBool());
+    }
 };
 
 QTEST_MAIN(BluetoothFormattingTests)

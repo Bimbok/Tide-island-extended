@@ -80,3 +80,19 @@ function displayName(alias, advertisedName, address, icon) {
 function addressLabel(address) {
     return normalizedAddress(address);
 }
+
+function isEarphoneOrHeadset(icon, name) {
+    const iconText = cleanText(icon).toLocaleLowerCase();
+    if (iconText === "audio-headphones" || iconText === "audio-headset")
+        return true;
+    if (iconText === "audio-card" || iconText === "audio-speakers")
+        return true;
+
+    const lowerName = cleanText(name).toLocaleLowerCase();
+    const keywords = ["buds", "ear", "pods", "airpods", "headphone", "headset", "wireless", "audio", "sound"];
+    for (let i = 0; i < keywords.length; i++) {
+        if (lowerName.indexOf(keywords[i]) !== -1)
+            return true;
+    }
+    return false;
+}

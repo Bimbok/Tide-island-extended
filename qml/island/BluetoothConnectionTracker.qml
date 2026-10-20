@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Bluetooth
+import "../common/BluetoothFormatting.js" as BTFormatting
 
 Item {
     id: root
@@ -16,6 +17,7 @@ Item {
     property string connectedSignature: ""
     property bool baselineReady: false
     property bool delayedSyncShowsConnection: false
+    property var activeEarphoneDevice: null
 
     function scheduleSync(showNewConnection) {
         delayedSyncShowsConnection = delayedSyncShowsConnection || showNewConnection;
@@ -103,9 +105,25 @@ Item {
         return sourceDevices.length > 0 ? sourceDevices[0] : null;
     }
 
+    function isEarphoneDevice(device) {
+        if (!device) return false;
+        return BTFormatting.isEarphoneOrHeadset(deviceText(device.icon), deviceName(device));
+    }
+
+    function connectedEarphoneDevice() {
+        const connected = connectedDevices();
+        for (let i = 0; i < connected.length; i++) {
+            if (isEarphoneDevice(connected[i]))
+                return connected[i];
+        }
+        return null;
+    }
+
     function sync(showNewConnection) {
         const connected = connectedDevices();
         const nextSignature = connectedDevicesSignature(connected);
+
+        root.activeEarphoneDevice = connectedEarphoneDevice();
 
         if (!baselineReady || baselineTimer.running) {
             connectedSignature = nextSignature;
@@ -178,6 +196,14 @@ Item {
 
                 function onConnectedChanged() {
                     root.sync(true);
+                }
+
+                function onBatteryChanged() {
+                    root.sync(false);
+                }
+
+                function onBatteryAvailableChanged() {
+                    root.sync(false);
                 }
             }
         }
