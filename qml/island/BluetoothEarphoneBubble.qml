@@ -132,24 +132,18 @@ Item {
         anchors.margins: 2.5
         radius: width / 2
         color: StyleTokens.black
-        border.width: 1
-        border.color: mouseArea.containsMouse
-            ? StyleTokens.withAlpha(root.batteryColor, 0.45)
-            : StyleTokens.withAlpha(StyleTokens.white, 0.12)
         antialiasing: true
 
-        Behavior on border.color {
-            ColorAnimation { duration: 150 }
-        }
-
-        // 1. Headphone icon (shown normally)
+        // 1. Headphone icon (optically and mathematically centered)
         Text {
             id: earphoneIcon
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: -2.5
+            anchors.verticalCenterOffset: 0.5
             text: "\uf025" // FontAwesome Headphones
             color: mouseArea.containsMouse ? root.batteryColor : StyleTokens.textPrimary
             font.family: root.iconFontFamily
-            font.pixelSize: 13
+            font.pixelSize: 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             opacity: (mouseArea.containsMouse && root.batteryPercent >= 0) ? 0 : 1
@@ -170,7 +164,7 @@ Item {
             text: root.batteryPercent + "%"
             color: root.batteryColor
             font.family: root.textFontFamily
-            font.pixelSize: root.batteryPercent === 100 ? 8.5 : 9.5
+            font.pixelSize: root.batteryPercent === 100 ? 9 : 10
             font.weight: Font.Bold
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -178,30 +172,6 @@ Item {
 
             Behavior on opacity {
                 NumberAnimation { duration: 140 }
-            }
-        }
-
-        // 3. Mini Bluetooth indicator badge dot on bottom right
-        Rectangle {
-            id: btBadge
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.rightMargin: -1
-            anchors.bottomMargin: -1
-            width: 11
-            height: 11
-            radius: width / 2
-            color: root.batteryColor
-            border.width: 2
-            border.color: StyleTokens.black
-            antialiasing: true
-
-            Text {
-                anchors.centerIn: parent
-                text: ""
-                font.family: root.iconFontFamily
-                font.pixelSize: 7
-                color: StyleTokens.black
             }
         }
     }
