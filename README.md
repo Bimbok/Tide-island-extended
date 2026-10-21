@@ -66,11 +66,14 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 
 <table>
   <tr>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <img src="docs/preview/island_music_pill.png" width="100%" alt="Compact Music Pill" />
     </td>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <img src="docs/preview/notification.png" width="100%" alt="System Notification Preview" />
+    </td>
+    <td width="33%" align="center">
+      <img src="docs/preview/notification_action.png" width="100%" alt="Interactive Notification Preview" />
     </td>
   </tr>
 </table>
