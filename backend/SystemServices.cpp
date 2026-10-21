@@ -27,6 +27,7 @@
 #include <QDBusMessage>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QLocalSocket>
 
 #ifdef Q_OS_UNIX
 #include <unistd.h>
@@ -901,9 +902,6 @@ QList<qint64> SystemServices::processAncestorPids(qint64 pid) const {
 }
 
 void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const QString &summary, const QString &body) {
-    const QString hyprctl = findExecutable(QStringLiteral("hyprctl"));
-    if (hyprctl.isEmpty()) return;
-
     // 1. Resolve ancestor PIDs if PID is known (e.g. notify-send -> bash -> kitty)
     QList<qint64> ancestorPids;
     if (pid > 0) {
@@ -942,6 +940,99 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
             kwCount++;
         }
     }
+
+    // Check for Niri compositor support
+    const QString niriSocketPath = QString::fromLocal8Bit(qgetenv("NIRI_SOCKET"));
+    const QString niriCmd = findExecutable(QStringLiteral("niri"));
+    const bool isNiri = !niriSocketPath.isEmpty()
+        || QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP")).contains(QStringLiteral("niri"), Qt::CaseInsensitive)
+        || QString::fromLocal8Bit(qgetenv("TIDE_ISLAND_COMPOSITOR")).contains(QStringLiteral("niri"), Qt::CaseInsensitive);
+
+    if (isNiri) {
+        QByteArray responseBytes;
+        if (!niriSocketPath.isEmpty()) {
+            QLocalSocket socket;
+            socket.connectToServer(niriSocketPath);
+            if (socket.waitForConnected(300)) {
+                socket.write("\"Windows\"\n");
+                socket.flush();
+                if (socket.waitForReadyRead(800)) {
+                    responseBytes = socket.readAll();
+                }
+            }
+        }
+        if (responseBytes.isEmpty() && !niriCmd.isEmpty()) {
+            QProcess proc;
+            proc.start(niriCmd, {QStringLiteral("msg"), QStringLiteral("--json"), QStringLiteral("windows")});
+            if (proc.waitForFinished(800)) {
+                responseBytes = proc.readAllStandardOutput();
+            }
+        }
+
+        QJsonArray windowList;
+        const QJsonDocument doc = QJsonDocument::fromJson(responseBytes);
+        if (doc.isArray()) {
+            windowList = doc.array();
+        } else if (doc.isObject() && doc.object().contains(QStringLiteral("Ok"))) {
+            windowList = doc.object().value(QStringLiteral("Ok")).toArray();
+        }
+
+        quint64 bestId = 0;
+        int bestScore = 0;
+        const QString cleanAppLower = appName.trimmed().toLower();
+
+        for (const QJsonValue &val : windowList) {
+            if (!val.isObject()) continue;
+            const QJsonObject w = val.toObject();
+            const quint64 wid = static_cast<quint64>(w.value(QStringLiteral("id")).toDouble(0));
+            const qint64 wpid = static_cast<qint64>(w.value(QStringLiteral("pid")).toDouble(0));
+            const QString wAppId = w.value(QStringLiteral("app_id")).toString().toLower();
+            const QString wTitle = w.value(QStringLiteral("title")).toString().toLower();
+
+            // Phase 1: Direct PID or ancestor PID match
+            if (wpid > 0 && (wpid == pid || ancestorPids.contains(wpid))) {
+                bestId = wid;
+                break;
+            }
+
+            // Phase 2: Scoring by app_id, agentKeyword, and extra keywords
+            bool classMatch = cleanAppLower.isEmpty() || wAppId.contains(cleanAppLower);
+            if (classMatch) {
+                int score = 1;
+                if (!agentKeyword.isEmpty() && wTitle.contains(agentKeyword)) {
+                    score += 20;
+                }
+                for (const QString &kw : extraKeywords) {
+                    if (!kw.isEmpty() && wTitle.contains(kw)) {
+                        score += 5;
+                    }
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestId = wid;
+                }
+            }
+        }
+
+        if (bestId > 0) {
+            if (!niriSocketPath.isEmpty()) {
+                QLocalSocket socket;
+                socket.connectToServer(niriSocketPath);
+                if (socket.waitForConnected(300)) {
+                    const QString actionJson = QStringLiteral("{\"Action\":{\"FocusWindow\":{\"id\":%1}}}\n").arg(bestId);
+                    socket.write(actionJson.toUtf8());
+                    socket.flush();
+                    socket.waitForBytesWritten(300);
+                }
+            } else if (!niriCmd.isEmpty()) {
+                startCommand(niriCmd, {QStringLiteral("msg"), QStringLiteral("action"), QStringLiteral("focus-window"), QStringLiteral("--id"), QString::number(bestId)}, 1000, nullptr);
+            }
+            return;
+        }
+    }
+
+    const QString hyprctl = findExecutable(QStringLiteral("hyprctl"));
+    if (hyprctl.isEmpty()) return;
 
     // 3. Format Lua tables
     QString pidsTable;
