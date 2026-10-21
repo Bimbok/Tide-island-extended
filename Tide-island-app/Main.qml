@@ -93,28 +93,40 @@ ApplicationWindow {
         width: mainSplitLine.x
         height:window.height
         
-        Text{
-            id: title
+        Column {
+            id: titleBlock
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 80
-            color: Theme.textColor
-            text: tideIslandText.width > mainSplitLine.x ? "T" : "Tide Island Extended"
-            font.pixelSize: 21
-            font.family: Theme.titleFontFamily
+            y: 70
+            spacing: 2
 
-            TextMetrics {
-                id: tideIslandText
-                font: islandButton.font
-                text: "Tide Island Extended"
+            Text {
+                id: title
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: titleMouse.containsMouse ? Theme.selectedColor : Theme.textColor
+                text: mainSplitLine.x < 110 ? "T" : "Tide Island"
+                font.pixelSize: 22
+                font.family: Theme.titleFontFamily
+
+                Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
             }
 
-            Behavior on color {ColorAnimation{ duration:Theme.animationDuration}}
+            Text {
+                id: subTitle
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: mainSplitLine.x >= 110
+                color: Theme.selectedColor
+                text: "Extended"
+                font.pixelSize: 13
+                font.family: Theme.titleFontFamily
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1.5
+            }
 
-            MouseArea{
+            MouseArea {
+                id: titleMouse
                 hoverEnabled: true
                 anchors.fill: parent
-                onEntered: title.color = Theme.selectedColor
-                onExited: title.color = Theme.textColor
+                cursorShape: Qt.PointingHandCursor
                 onClicked: Qt.openUrlExternally("https://github.com/Bimbok/Tide-island-extended")
             }
         }
