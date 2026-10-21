@@ -139,6 +139,14 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 
 ### Extended Enhancements
 
+- **MacBook Top Notch & Dynamic Island Style Switcher**:
+  - **Fluid Dual-Style Morphing**: Freely toggle between the classic floating **Dynamic Island** (floating pill capsule with customizable top margin) and top-attached **MacBook-Style Notch** (flush with the top bezel at `y: 0`, flat 0px top corners, 16px bottom rounded corners, and smooth 10px concave transition ears curving naturally into the screen bezel).
+  - **Full Workspace & Panel Harmony**: Seamlessly applied across resting island states, expanded panels, notifications, and the workspace overview switcher.
+  - **In-App Toggle & Direct Shortcut**: Switch on the fly via the **Island Style** selector in **Tide Island Extended Settings** (`[ Island ]` / `[ Notch ]`), pressing `SUPER+ALT+N`, or via Quickshell IPC.
+- **Bluetooth Earphone & Headset Satellite Bubble**:
+  - **Instant Connection Pop-Out**: A sleek satellite circular bubble automatically emerges alongside the island whenever Bluetooth earphones, headphones, or audio headsets connect.
+  - **Live Circular Battery Gauge**: Circular progress ring framing the centered device icon that smoothly depletes and dynamically shifts color based on battery level (`batteryHigh`, `batteryMedium`, `batteryLow` from your active Matugen theme).
+  - **Zero Clutter**: Automatically dismisses smoothly when the device disconnects.
 - **Redesigned Control Center 2×2 Drawer Grid**: Symmetrical 2-column drawer layout featuring:
   - **Row 1**: Battery power profile selector + quick Silent and Night mode toggles.
   - **Row 2**: Sleek modern **System Tray** + compact **Screen Recorder** companion card side-by-side.
@@ -193,7 +201,9 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 ### Core Features
 
 - Clock
+- Dynamic Island & MacBook Top Notch styles (Super + Alt + N, Settings, or IPC)
 - System Glance & Dashboard (Super + G, swipe down, or IPC)
+- Bluetooth earphone connection bubble with dynamic battery gauge ring
 - Music player
 - Control Center
 - Audio device switcher & per-app volume mixer
@@ -428,6 +438,10 @@ You can control Tide Island remotely using `quickshell ipc call`:
 | `quickshell ipc call island toggle` | Toggle dynamic island capsules |
 | `quickshell ipc call island show` | Show dynamic island capsules |
 | `quickshell ipc call island hide` | Hide dynamic island capsules |
+| `quickshell ipc call island toggleStyle` | Toggle between Dynamic Island and Top Notch styles |
+| `quickshell ipc call island setStyle [island\|notch]` | Set island style explicitly to `island` or `notch` |
+| `quickshell ipc call tide toggleStyle` | Toggle between Dynamic Island and Top Notch styles |
+| `quickshell ipc call tide setStyle [island\|notch]` | Set island style explicitly to `island` or `notch` |
 | `quickshell ipc call recorder toggle` | Start or stop screen recording |
 | `quickshell ipc call recorder start` | Start screen recording |
 | `quickshell ipc call recorder stop` | Stop screen recording |

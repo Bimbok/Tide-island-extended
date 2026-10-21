@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=Tide Island Settings
-Comment=Configure Tide Island
+Name=Tide Island Extended Settings
+Comment=Configure Tide Island Extended
 Exec=/usr/bin/tide-island-config-app
 Icon=preferences-system
 Terminal=false

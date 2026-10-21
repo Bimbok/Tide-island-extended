@@ -7,7 +7,7 @@ ApplicationWindow {
     visible: true
     width: 1000
     height: 600
-    title: "Tide Island Config Application"
+    title: "Tide Island Extended Settings"
     color: Theme.totalBgColor
     palette.window: Theme.totalBgColor
     palette.windowText: Theme.textColor
@@ -98,14 +98,14 @@ ApplicationWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 80
             color: Theme.textColor
-            text: tideIslandText.width > mainSplitLine.x ? "T" : "Tide Island"
-            font.pixelSize: 23
+            text: tideIslandText.width > mainSplitLine.x ? "T" : "Tide Island Extended"
+            font.pixelSize: 21
             font.family: Theme.titleFontFamily
 
             TextMetrics {
                 id: tideIslandText
                 font: islandButton.font
-                text: "Tide Island"
+                text: "Tide Island Extended"
             }
 
             Behavior on color {ColorAnimation{ duration:Theme.animationDuration}}
