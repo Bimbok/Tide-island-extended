@@ -93,39 +93,46 @@ ApplicationWindow {
         width: mainSplitLine.x
         height:window.height
         
-        Column {
+        Item {
             id: titleBlock
             anchors.horizontalCenter: parent.horizontalCenter
             y: 70
-            spacing: 2
+            width: mainSplitLine.x
+            height: 60
 
-            Text {
-                id: title
-                anchors.horizontalCenter: parent.horizontalCenter
-                color: titleMouse.containsMouse ? Theme.selectedColor : Theme.textColor
-                text: mainSplitLine.x < 110 ? "T" : "Tide Island"
-                font.pixelSize: 22
-                font.family: Theme.titleFontFamily
+            Column {
+                id: titleCol
+                anchors.centerIn: parent
+                spacing: 2
 
-                Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
-            }
+                Text {
+                    id: title
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    color: titleMouse.containsMouse ? Theme.selectedColor : Theme.textColor
+                    text: mainSplitLine.x < 110 ? "T" : "Tide Island"
+                    font.pixelSize: 22
+                    font.family: Theme.titleFontFamily
 
-            Text {
-                id: subTitle
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: mainSplitLine.x >= 110
-                color: Theme.selectedColor
-                text: "Extended"
-                font.pixelSize: 13
-                font.family: Theme.titleFontFamily
-                font.weight: Font.DemiBold
-                font.letterSpacing: 1.5
+                    Behavior on color { ColorAnimation { duration: Theme.animationDuration } }
+                }
+
+                Text {
+                    id: subTitle
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: mainSplitLine.x >= 110
+                    color: Theme.selectedColor
+                    text: "Extended"
+                    font.pixelSize: 13
+                    font.family: Theme.titleFontFamily
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 1.5
+                }
             }
 
             MouseArea {
                 id: titleMouse
-                hoverEnabled: true
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: Qt.openUrlExternally("https://github.com/Bimbok/Tide-island-extended")
             }
