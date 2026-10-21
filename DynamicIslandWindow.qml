@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
@@ -1202,10 +1203,12 @@ PanelWindow {
         readonly property bool bluetoothEarphoneBubbleWanted: !!connectedEarphoneDevice
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property bool isNotchMode: !root.overviewVisible && userConfig.islandStyle === "notch"
+        readonly property real effectiveTopMargin: isNotchMode ? 0 : userConfig.islandTopMargin
         readonly property int privacyBubbleSize: 36
         readonly property int privacyBubbleGap: 8
         readonly property int privacyBubbleStep: privacyBubbleSize + privacyBubbleGap
-        readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap
+        readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap + (isNotchMode ? 10 : 0)
         readonly property bool cameraBubbleWanted: userConfig.privacyCameraBubbleEnabled
             && cameraActive
             && !root.overviewVisible
@@ -2497,7 +2500,7 @@ PanelWindow {
                 case "notification":
                     return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
                 default:
-                    return userConfig.islandHeight / 2;
+                    return islandContainer.isNotchMode ? 16 : userConfig.islandHeight / 2;
                 }
             }
             function sideSwipeWidthForProgress(progressValue) {
@@ -2516,15 +2519,19 @@ PanelWindow {
             color: root.overviewContentVisible
                 ? root.overviewCapsuleColor
                 : Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, userConfig.islandBackgroundOpacity / 100.0)
-            y: userConfig.islandTopMargin
-                - (1 - root.autoHideProgress) * (targetHeight + userConfig.islandTopMargin + 8)
+            y: islandContainer.effectiveTopMargin
+                - (1 - root.autoHideProgress) * (targetHeight + islandContainer.effectiveTopMargin + 8)
             x: parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0
             clip: true
             width: displayedWidth
             height: targetHeight
             radius: targetRadius
+            topLeftRadius: islandContainer.isNotchMode ? 0 : targetRadius
+            topRightRadius: islandContainer.isNotchMode ? 0 : targetRadius
+            bottomLeftRadius: targetRadius
+            bottomRightRadius: targetRadius
             opacity: root.autoHideProgress
-            scale: 0.96 + root.autoHideProgress * 0.04
+            scale: islandContainer.isNotchMode ? 1.0 : (0.96 + root.autoHideProgress * 0.04)
             transformOrigin: Item.Top
 
             onBaseTargetWidthChanged: {
@@ -2547,6 +2554,10 @@ PanelWindow {
                 }
             }
             Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on topLeftRadius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on topRightRadius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on bottomLeftRadius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on bottomRightRadius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
             Behavior on outlineWidth { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
@@ -2557,6 +2568,10 @@ PanelWindow {
                 anchors.fill: parent
                 anchors.margins: 1
                 radius: Math.max(parent.radius - 1, 0)
+                topLeftRadius: islandContainer.isNotchMode ? 0 : Math.max(parent.topLeftRadius - 1, 0)
+                topRightRadius: islandContainer.isNotchMode ? 0 : Math.max(parent.topRightRadius - 1, 0)
+                bottomLeftRadius: Math.max(parent.bottomLeftRadius - 1, 0)
+                bottomRightRadius: Math.max(parent.bottomRightRadius - 1, 0)
                 color: StyleTokens.transparent
                 border.width: 1
                 border.color: StyleTokens.overviewInnerBorder
@@ -3488,6 +3503,58 @@ PanelWindow {
 
         }
 
+        // Left concave wing for MacBook Notch mode
+        Shape {
+            id: notchLeftEar
+            z: 5
+            visible: islandContainer.isNotchMode && root.autoHideProgress > 0.05
+            opacity: root.autoHideProgress
+            x: mainCapsule.x - width
+            y: mainCapsule.y
+            width: 10
+            height: 10
+
+            ShapePath {
+                fillColor: mainCapsule.color
+                strokeColor: StyleTokens.transparent
+                startX: 0
+                startY: 0
+                PathLine { x: notchLeftEar.width; y: 0 }
+                PathLine { x: notchLeftEar.width; y: notchLeftEar.height }
+                PathArc {
+                    x: 0; y: 0
+                    radiusX: notchLeftEar.width; radiusY: notchLeftEar.height
+                    direction: PathArc.Clockwise
+                }
+            }
+        }
+
+        // Right concave wing for MacBook Notch mode
+        Shape {
+            id: notchRightEar
+            z: 5
+            visible: islandContainer.isNotchMode && root.autoHideProgress > 0.05
+            opacity: root.autoHideProgress
+            x: mainCapsule.x + mainCapsule.width
+            y: mainCapsule.y
+            width: 10
+            height: 10
+
+            ShapePath {
+                fillColor: mainCapsule.color
+                strokeColor: StyleTokens.transparent
+                startX: 0
+                startY: 0
+                PathLine { x: notchRightEar.width; y: 0 }
+                PathArc {
+                    x: 0; y: notchRightEar.height
+                    radiusX: notchRightEar.width; radiusY: notchRightEar.height
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: 0; y: 0 }
+            }
+        }
+
         BluetoothEarphoneBubble {
             id: bluetoothEarphoneBubble
 
@@ -3496,7 +3563,7 @@ PanelWindow {
             iconFontFamily: root.iconFontFamily
             textFontFamily: root.textFontFamily
             bubbleSize: 36
-            shownX: mainCapsule.x - bubbleSize - 8
+            shownX: mainCapsule.x - bubbleSize - 8 - (islandContainer.isNotchMode ? 10 : 0)
             hiddenX: mainCapsule.x + 8
             centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
             autoHideProgress: root.autoHideProgress
