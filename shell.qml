@@ -229,10 +229,26 @@ Scope {
             shellRoot.islandAutoHideRuntimeEnabled = false;
             shellRoot.showIslandAll();
         }
+
+        function toggleStyle() {
+            shellRoot.userConfig.toggleIslandStyle();
+        }
+
+        function setStyle(styleName) {
+            shellRoot.userConfig.setIslandStyle(styleName);
+        }
     }
 
     IpcHandler {
         target: "tide"
+
+        function toggleStyle() {
+            shellRoot.userConfig.toggleIslandStyle();
+        }
+
+        function setStyle(styleName) {
+            shellRoot.userConfig.setIslandStyle(styleName);
+        }
 
         function showClock() {
             shellRoot.forFocusedWindow((window) => window.showClockWindow());

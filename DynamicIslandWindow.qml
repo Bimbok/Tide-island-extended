@@ -200,13 +200,13 @@ PanelWindow {
         }
     }
     readonly property real capsuleWindowHeight: Math.ceil(
-        userConfig.islandTopMargin + mainCapsule.targetHeight + 12
+        islandContainer.effectiveTopMargin + mainCapsule.targetHeight + 12
     )
     readonly property real connectivityDetailWindowHeight: root.anyConnectivityDetailMounted
-        ? Math.ceil(userConfig.islandTopMargin + root.connectivityDetailHeight + 12)
+        ? Math.ceil(islandContainer.effectiveTopMargin + root.connectivityDetailHeight + 12)
         : 0
     readonly property real overviewWindowHeight: root.overviewVisible
-        ? Math.ceil(userConfig.islandTopMargin + root.overviewCapsuleHeight + 8)
+        ? Math.ceil(islandContainer.effectiveTopMargin + root.overviewCapsuleHeight + 8)
         : 0
     readonly property real requestedWindowHeight: Math.max(
         root.notificationCenterWindowHeight,
@@ -372,11 +372,11 @@ PanelWindow {
         ? controlCenterLoader.item.controlCenterMaximumExtraHeight
         : root.defaultControlCenterMaximumExtraHeight
     readonly property real controlCenterWindowHeight: islandContainer.controlCenterLayerVisible
-        ? userConfig.islandTopMargin + 406 + root.controlCenterMaximumExtraHeight + 12
+        ? islandContainer.effectiveTopMargin + 406 + root.controlCenterMaximumExtraHeight + 12
         : 0
 
     readonly property real notificationCenterWindowHeight: islandContainer.notificationCenterLayerVisible
-        ? userConfig.islandTopMargin + (notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 400) + 6
+        ? islandContainer.effectiveTopMargin + (notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 400) + 6
         : 0
     readonly property real connectivityDetailGap: 16
     readonly property int connectivityDetailAnimationDuration: 360
@@ -1203,7 +1203,7 @@ PanelWindow {
         readonly property bool bluetoothEarphoneBubbleWanted: !!connectedEarphoneDevice
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
-        readonly property bool isNotchMode: !root.overviewVisible && userConfig.islandStyle === "notch"
+        readonly property bool isNotchMode: userConfig.islandStyle === "notch"
         readonly property real effectiveTopMargin: isNotchMode ? 0 : userConfig.islandTopMargin
         readonly property int privacyBubbleSize: 36
         readonly property int privacyBubbleGap: 8
@@ -2384,10 +2384,10 @@ PanelWindow {
             property int morphDuration: 400
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
             readonly property bool isCriticalNotification: islandContainer.islandState === "notification" && islandContainer.notificationUrgency === 2
-            property real outlineWidth: root.overviewContentVisible || notificationHistorySurface || isCriticalNotification ? 1 : 0
+            property real outlineWidth: (root.overviewContentVisible && !islandContainer.isNotchMode) || isCriticalNotification ? 1 : 0
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
-                : (isCriticalNotification ? StyleTokens.danger : (notificationHistorySurface ? StyleTokens.withAlpha(StyleTokens.track, 0.4) : StyleTokens.clearBlack))
+                : (isCriticalNotification ? StyleTokens.danger : StyleTokens.clearBlack)
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
@@ -2573,7 +2573,7 @@ PanelWindow {
                 bottomLeftRadius: Math.max(parent.bottomLeftRadius - 1, 0)
                 bottomRightRadius: Math.max(parent.bottomRightRadius - 1, 0)
                 color: StyleTokens.transparent
-                border.width: 1
+                border.width: islandContainer.isNotchMode ? 0 : 1
                 border.color: StyleTokens.overviewInnerBorder
                 opacity: root.overviewContentVisible ? 1 : 0
 

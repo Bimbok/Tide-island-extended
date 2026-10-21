@@ -150,6 +150,8 @@ public:
     Q_INVOKABLE int mouseButton(const QVariant &button) const;
     Q_INVOKABLE int mouseButtonsMask(const QVariant &buttons) const;
     Q_INVOKABLE void reload();
+    Q_INVOKABLE void toggleIslandStyle();
+    Q_INVOKABLE void setIslandStyle(const QString &style);
 
 signals:
     void configErrorChanged();

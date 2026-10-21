@@ -132,6 +132,13 @@ PagePanel {
                 "method": "toggle"
             },
             {
+                "action": "Toggle island / notch style",
+                "mods": "SUPER+ALT",
+                "key": "N",
+                "target": "island",
+                "method": "toggleStyle"
+            },
+            {
                 "action": "Privacy & media activity",
                 "mods": "SUPER+SHIFT",
                 "key": "P",

@@ -464,6 +464,38 @@ void UserConfigBackend::setAvatarPath(const QString &path)
     }
 }
 
+void UserConfigBackend::setIslandStyle(const QString &style)
+{
+    QString normalized = style.trimmed().toLower();
+    if (normalized != QLatin1String("notch"))
+        normalized = QLatin1String("island");
+
+    if (m_islandStyle == normalized)
+        return;
+
+    m_islandStyle = normalized;
+    emit islandStyleChanged();
+
+    // Persist to userconfig.json
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("islandStyle"), normalized);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+void UserConfigBackend::toggleIslandStyle()
+{
+    setIslandStyle(m_islandStyle == QLatin1String("notch") ? QStringLiteral("island") : QStringLiteral("notch"));
+}
+
 void UserConfigBackend::setDefaultWallpaperPath(const QString &path)
 {
     if (m_defaultWallpaperPath == path)

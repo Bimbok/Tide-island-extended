@@ -12,6 +12,7 @@ Item {
     id: root
 
     readonly property var userConfig: UserConfig
+    readonly property bool isNotchMode: userConfig && userConfig.islandStyle === "notch"
 
     HyprlandDispatch { id: hyprDispatch }
 
@@ -302,13 +303,22 @@ Item {
         implicitWidth: workspaceStage.implicitWidth + root.outerPadding*2
         implicitHeight: workspaceStage.implicitHeight + root.outerPadding*2
         radius: root.largeWorkspaceRadius + root.outerPadding
+        topLeftRadius: root.isNotchMode ? 0 : radius
+        topRightRadius: root.isNotchMode ? 0 : radius
+        bottomLeftRadius: radius
+        bottomRightRadius: radius
         color: root.cardColor
-        border.width: 1; border.color: root.cardBorderColor
+        border.width: root.isNotchMode ? 0 : 1; border.color: root.cardBorderColor
 
         Rectangle {
             anchors.fill: parent; anchors.margins: 1
-            radius: parent.radius-1; color: StyleTokens.transparent
-            border.width: 1; border.color: StyleTokens.overviewInnerBorder
+            radius: Math.max(parent.radius-1, 0)
+            topLeftRadius: root.isNotchMode ? 0 : radius
+            topRightRadius: root.isNotchMode ? 0 : radius
+            bottomLeftRadius: radius
+            bottomRightRadius: radius
+            color: StyleTokens.transparent
+            border.width: root.isNotchMode ? 0 : 1; border.color: StyleTokens.overviewInnerBorder
         }
 
         Item {
