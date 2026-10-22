@@ -42,6 +42,18 @@ add_test(
     COMMAND "${PYTHON3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/wallpaper_apply_tests.py"
 )
 
+add_executable(battery_status_utils_tests
+    tests/battery_status_utils_tests.cpp
+)
+target_include_directories(battery_status_utils_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend
+)
+target_link_libraries(battery_status_utils_tests PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+add_test(NAME battery_status_utils COMMAND battery_status_utils_tests)
+
 add_executable(application_search_tests
     tests/application_search_tests.cpp
 )
@@ -274,6 +286,7 @@ qt_add_qml_module(IslandBackend
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/IslandBackend
     SOURCES
         backend/SysBackend.h
+        backend/BatteryStatusUtils.h
         backend/SysBackend.cpp
         backend/SystemServices.h
         backend/SystemServices.cpp

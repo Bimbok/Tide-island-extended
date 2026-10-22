@@ -1,5 +1,6 @@
 #include "SysBackend.h"
 #include "SystemServices.h"
+#include "BatteryStatusUtils.h"
 #include <QFile>
 #include <QDir>
 #include <QDebug>
@@ -261,13 +262,18 @@ void SysBackend::updateBatterySysfs() {
         }
     }
 
-    if ((currentStatus.isEmpty() || currentStatus == "Unknown") && !m_acPath.isEmpty()) {
-        QFile acFile(m_acPath + "/online");
-        if (acFile.open(QIODevice::ReadOnly)) {
-            int isPlugged = acFile.readAll().trimmed().toInt();
-            currentStatus = (isPlugged > 0) ? "Charging" : "Discharging";
-            acFile.close();
+    if (currentStatus.isEmpty() || currentStatus == "Unknown") {
+        if (!m_acPath.isEmpty()) {
+            QFile acFile(m_acPath + "/online");
+            if (acFile.open(QIODevice::ReadOnly)) {
+                currentStatus = BatteryStatusUtils::fallbackStatusFromAcOnline(
+                    QString::fromUtf8(acFile.readAll()));
+                acFile.close();
+            }
         }
+
+        if (currentStatus.isEmpty())
+            currentStatus = "Unknown";
     }
 
     updateBatteryState(currentCap, currentStatus);
