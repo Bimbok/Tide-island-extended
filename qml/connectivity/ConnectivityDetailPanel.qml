@@ -711,6 +711,15 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 10
 
+                        readonly property int effectiveCap: (root.provider && root.provider.batteryCapacity > 0)
+                            ? root.provider.batteryCapacity
+                            : ((typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+                                ? SysBackend.batteryCapacity
+                                : ((typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0) ? SystemGlance.batteryCapacity : 0))
+                        readonly property bool effectiveCharging: (root.provider && root.provider.isCharging)
+                            || (typeof SysBackend !== "undefined" && (SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"))
+                            || (typeof SystemGlance !== "undefined" && (SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"))
+
                         Rectangle {
                             id: batteryIconCircle
                             width: 38
@@ -722,10 +731,10 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: (root.provider && root.provider.isCharging) ? (root.provider.chargingIconGlyph || "\uf0e7") : "\uf240"
-                                color: (root.provider && root.provider.isCharging)
+                                text: effectiveCharging ? (root.provider ? root.provider.chargingIconGlyph || "\uf0e7" : "\uf0e7") : "\uf240"
+                                color: effectiveCharging
                                     ? StyleTokens.accent
-                                    : ((root.provider && root.provider.batteryCapacity <= 20) ? StyleTokens.warning : StyleTokens.textPrimary)
+                                    : (effectiveCap <= 20 ? StyleTokens.warning : StyleTokens.textPrimary)
                                 font.pixelSize: 15
                                 font.family: root.iconFontFamily
                             }
@@ -743,7 +752,7 @@ Item {
                                 spacing: 6
 
                                 Text {
-                                    text: (root.provider ? root.provider.batteryCapacity : 0) + "%"
+                                    text: effectiveCap + "%"
                                     color: StyleTokens.textPrimary
                                     font.pixelSize: 15
                                     font.family: root.heroFontFamily
@@ -753,7 +762,7 @@ Item {
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: {
-                                        if (root.provider && root.provider.isCharging) return "Charging";
+                                        if (effectiveCharging) return "Charging";
                                         if (SystemServices.batteryChargeState === "Not charging") return "Plugged In";
                                         if (SystemServices.batteryChargeState === "Full") return "Full";
                                         return "Discharging";

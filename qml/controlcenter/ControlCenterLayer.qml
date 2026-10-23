@@ -1909,17 +1909,26 @@ Item {
                     anchors.centerIn: parent
                     spacing: 5
 
+                    readonly property int effectiveBatteryCap: (controlCenter.batteryCapacity > 0)
+                        ? controlCenter.batteryCapacity
+                        : ((typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+                            ? SysBackend.batteryCapacity
+                            : ((typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0) ? SystemGlance.batteryCapacity : 0))
+                    readonly property bool effectiveCharging: controlCenter.isCharging
+                        || (typeof SysBackend !== "undefined" && (SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"))
+                        || (typeof SystemGlance !== "undefined" && (SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"))
+
                     Text {
                         text: controlCenter.chargingIconGlyph
                         color: StyleTokens.white
                         font.pixelSize: 13
                         font.family: iconFontFamily
-                        visible: isCharging
+                        visible: effectiveCharging
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
                     Text {
-                        text: batteryCapacity + "%"
+                        text: effectiveBatteryCap + "%"
                         color: StyleTokens.white
                         font.pixelSize: 13
                         font.family: textFontFamily
@@ -1946,10 +1955,10 @@ Item {
                                 anchors.bottom: parent.bottom
                                 anchors.margins: 2
                                 radius: 2
-                                width: (parent.width - 4) * (batteryCapacity / 100.0)
+                                width: (parent.width - 4) * (Math.max(0, Math.min(100, effectiveBatteryCap)) / 100.0)
                                 color: {
-                                    if (batteryCapacity <= 10) return StyleTokens.danger;
-                                    if (batteryCapacity <= 20) return StyleTokens.warning;
+                                    if (effectiveBatteryCap <= 10) return StyleTokens.danger;
+                                    if (effectiveBatteryCap <= 20) return StyleTokens.warning;
                                     return StyleTokens.success;
                                 }
 

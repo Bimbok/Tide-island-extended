@@ -58,6 +58,9 @@ SysBackend::~SysBackend() {
 }
 
 int SysBackend::batteryCapacity() const {
+    if (m_batteryCap <= 0 && hasBattery()) {
+        const_cast<SysBackend *>(this)->updateBatterySysfs();
+    }
     return m_batteryCap;
 }
 

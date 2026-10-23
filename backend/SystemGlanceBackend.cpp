@@ -96,6 +96,7 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
     connect(&m_pacmanWatcher, &QFileSystemWatcher::directoryChanged, this, onPacmanTransaction);
 
     initStaticInfo();
+    updateBatteryStats();
 }
 
 SystemGlanceBackend::~SystemGlanceBackend()

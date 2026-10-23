@@ -74,10 +74,21 @@ Scope {
     readonly property bool showLockscreenMedia: userConfig ? userConfig.lockscreenMedia : true
     readonly property bool showBatteryPill: userConfig ? userConfig.lockscreenShowBattery : true
 
-    // Battery straight from SystemGlance
-    readonly property int batPct: SystemGlance.batteryCapacity
-    readonly property bool batCharging: SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"
-    readonly property bool hasBattery: showBatteryPill && batPct >= 0
+    // Live battery from SysBackend & SystemGlance
+    readonly property int batPct: {
+        if (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+            return SysBackend.batteryCapacity;
+        if (typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0)
+            return SystemGlance.batteryCapacity;
+        return -1;
+    }
+    readonly property bool batCharging: {
+        const s = (typeof SysBackend !== "undefined" && SysBackend.batteryStatus !== "" && SysBackend.batteryStatus !== "Unknown")
+            ? SysBackend.batteryStatus
+            : (typeof SystemGlance !== "undefined" ? SystemGlance.batteryStatus : "");
+        return s === "Charging" || s === "Full";
+    }
+    readonly property bool hasBattery: showBatteryPill && batPct > 0
 
     readonly property var batGlyphs: [0xf007a, 0xf007b, 0xf007c, 0xf007d, 0xf007e, 0xf007f, 0xf0080, 0xf0081, 0xf0082, 0xf0079]
 

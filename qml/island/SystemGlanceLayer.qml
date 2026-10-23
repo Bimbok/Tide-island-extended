@@ -303,8 +303,12 @@ FocusScope {
                 Behavior on border.color { ColorAnimation { duration: 150 } }
                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                readonly property int effectiveCap: SystemGlance.hasBattery ? SystemGlance.batteryCapacity : root.batteryCapacity
-                readonly property bool effectiveCharging: root.isCharging || (SystemGlance.batteryStatus === "Charging")
+                readonly property int effectiveCap: (SystemGlance && SystemGlance.batteryCapacity > 0)
+                    ? SystemGlance.batteryCapacity
+                    : (root.batteryCapacity > 0 ? root.batteryCapacity : ((typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0) ? SysBackend.batteryCapacity : 0))
+                readonly property bool effectiveCharging: root.isCharging
+                    || (SystemGlance && SystemGlance.batteryStatus === "Charging")
+                    || (typeof SysBackend !== "undefined" && (SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"))
                 readonly property bool isConservation: SystemGlance.batteryConservationActive || (SystemServices.batteryConservationMode ?? false)
                 readonly property int effectiveHealth: SystemGlance.batteryHealthPercent > 0 ? SystemGlance.batteryHealthPercent : (SystemServices.batteryHealthPercent || 100)
 

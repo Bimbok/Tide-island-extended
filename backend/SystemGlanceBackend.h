@@ -153,7 +153,12 @@ public:
     QString cpuGovernor() const { return m_cpuGovernor; }
 
     bool hasBattery() const { return m_hasBattery; }
-    int batteryCapacity() const { return m_batteryCapacity; }
+    int batteryCapacity() const {
+        if (m_batteryCapacity <= 0) {
+            const_cast<SystemGlanceBackend *>(this)->updateBatteryStats();
+        }
+        return m_batteryCapacity;
+    }
     QString batteryStatus() const { return m_batteryStatus; }
     double batteryPowerWatts() const { return m_batteryPowerWatts; }
     QString batteryRateText() const { return m_batteryRateText; }

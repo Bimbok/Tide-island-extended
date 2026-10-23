@@ -43,8 +43,15 @@ Item {
     readonly property string micStatusIcon: "\uf130"
     readonly property string micMuteStatusIcon: "\uf131"
 
-    property int batteryCapacity: SysBackend.batteryCapacity
-    property bool isCharging: SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"
+    property int batteryCapacity: (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+        ? SysBackend.batteryCapacity
+        : (typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0 ? SystemGlance.batteryCapacity : 0)
+    property bool isCharging: {
+        const s = (typeof SysBackend !== "undefined" && SysBackend.batteryStatus !== "" && SysBackend.batteryStatus !== "Unknown")
+            ? SysBackend.batteryStatus
+            : (typeof SystemGlance !== "undefined" ? SystemGlance.batteryStatus : "");
+        return s === "Charging" || s === "Full";
+    }
     property real currentVolume: -1
     property bool isMuted: false
     property real currentMicVolume: -1
@@ -505,6 +512,14 @@ Item {
             root.currentMicVolume = nextMicValue;
             root.isMicMuted = isMuted;
             micDebounce.restart();
+        }
+
+        function onBatteryCapacityChanged(capacity) {
+            root.batteryCapacity = capacity;
+        }
+
+        function onBatteryStatusChanged(statusString) {
+            root.isCharging = (statusString === "Charging" || statusString === "Full");
         }
 
         function onBatteryChanged(capacity, statusString) {

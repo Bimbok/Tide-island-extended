@@ -19,6 +19,7 @@ class SysBackend : public QObject {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
+    Q_PROPERTY(bool hasBattery READ hasBattery NOTIFY batteryChanged FINAL)
     Q_PROPERTY(int batteryCapacity READ batteryCapacity NOTIFY batteryCapacityChanged FINAL)
     Q_PROPERTY(QString batteryStatus READ batteryStatus NOTIFY batteryStatusChanged FINAL)
     Q_PROPERTY(QString lyricsCurrentLyric READ lyricsCurrentLyric NOTIFY lyricsCurrentLyricChanged FINAL)
@@ -29,6 +30,7 @@ public:
     explicit SysBackend(QObject *parent = nullptr);
     ~SysBackend() override;
 
+    bool hasBattery() const { return !m_batteryPath.isEmpty() || (!m_upowerBatteryPath.isEmpty() && m_upowerBatteryPath != "/"); }
     int batteryCapacity() const;
     QString batteryStatus() const;
     QString lyricsCurrentLyric() const;
