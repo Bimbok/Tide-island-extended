@@ -541,6 +541,10 @@ QString Backend::userConfigPath() const{
     return m_userConfigPath;
 }
 
+QString Backend::homeDirectory() const{
+    return QDir::homePath();
+}
+
 QString Backend::errorString() const{
     return m_errorString;
 }

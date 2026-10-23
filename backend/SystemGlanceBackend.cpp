@@ -47,6 +47,9 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
         m_configWatcher.addPath(cfgPath);
     }
     const QString cfgDir = resolveUserConfigDir();
+    if (!QDir(cfgDir).exists()) {
+        QDir().mkpath(cfgDir);
+    }
     if (QDir(cfgDir).exists()) {
         m_configWatcher.addPath(cfgDir);
     }
@@ -55,6 +58,10 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
         const QString p = resolveUserConfigPath();
         if (QFile::exists(p) && !m_configWatcher.files().contains(p)) {
             m_configWatcher.addPath(p);
+        }
+        const QString d = resolveUserConfigDir();
+        if (QDir(d).exists() && !m_configWatcher.directories().contains(d)) {
+            m_configWatcher.addPath(d);
         }
     };
     connect(&m_configWatcher, &QFileSystemWatcher::fileChanged, this, onConfigChanged);
@@ -597,6 +604,10 @@ void SystemGlanceBackend::setAvatarPath(const QString &path)
 
     // Persist to userconfig.json
     const QString cfgPath = resolveUserConfigPath();
+    const QString cfgDir = resolveUserConfigDir();
+    if (!QDir(cfgDir).exists()) {
+        QDir().mkpath(cfgDir);
+    }
     QFile file(cfgPath);
     QJsonObject obj;
     if (file.open(QIODevice::ReadOnly)) {
@@ -604,7 +615,11 @@ void SystemGlanceBackend::setAvatarPath(const QString &path)
         if (doc.isObject()) obj = doc.object();
         file.close();
     }
-    obj.insert(QStringLiteral("avatarPath"), clean);
+    if (clean.isEmpty()) {
+        obj.remove(QStringLiteral("avatarPath"));
+    } else {
+        obj.insert(QStringLiteral("avatarPath"), clean);
+    }
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
         file.close();

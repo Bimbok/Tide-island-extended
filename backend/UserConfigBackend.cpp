@@ -503,7 +503,11 @@ void UserConfigBackend::setAvatarPath(const QString &path)
         if (doc.isObject()) obj = doc.object();
         file.close();
     }
-    obj.insert(QStringLiteral("avatarPath"), clean);
+    if (clean.isEmpty()) {
+        obj.remove(QStringLiteral("avatarPath"));
+    } else {
+        obj.insert(QStringLiteral("avatarPath"), clean);
+    }
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
         file.close();
@@ -847,10 +851,16 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_privacyCameraBubbleEnabled, jsonBool(configObject, QLatin1String("privacyCameraBubbleEnabled"), true), &UserConfigBackend::privacyCameraBubbleEnabledChanged);
     updateField(this, m_privacyMicBubbleEnabled, jsonBool(configObject, QLatin1String("privacyMicBubbleEnabled"), true), &UserConfigBackend::privacyMicBubbleEnabledChanged);
 
-    QString nextAvatarPath = jsonString(configObject, QLatin1String("avatarPath"), jsonString(configObject, QLatin1String("displayPicture"), QString()));
+    QString nextAvatarPath = jsonString(configObject, QLatin1String("avatarPath"), jsonString(configObject, QLatin1String("displayPicture"), QString())).trimmed();
     const QString home = QDir::homePath();
     if (nextAvatarPath.startsWith(QLatin1String("~"))) {
         nextAvatarPath.replace(0, 1, home);
+    }
+    if (nextAvatarPath.startsWith(QLatin1String("file://"))) {
+        nextAvatarPath = QUrl(nextAvatarPath).toLocalFile();
+    }
+    if (!nextAvatarPath.isEmpty() && !QFileInfo::exists(nextAvatarPath)) {
+        nextAvatarPath.clear();
     }
     if (nextAvatarPath.isEmpty()) {
         // Check ChillPill-Shell config for fallback
@@ -858,14 +868,16 @@ void UserConfigBackend::loadConfig()
         if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
             const QJsonDocument cpDoc = QJsonDocument::fromJson(stripJsonComments(cpFile.readAll()));
             if (cpDoc.isObject()) {
-                const QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString();
+                QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString().trimmed();
                 if (!cpPic.isEmpty()) {
-                    QString resolved = cpPic;
-                    if (resolved.startsWith(QLatin1String("~"))) {
-                        resolved.replace(0, 1, home);
+                    if (cpPic.startsWith(QLatin1String("~"))) {
+                        cpPic.replace(0, 1, home);
                     }
-                    if (QFileInfo::exists(resolved)) {
-                        nextAvatarPath = resolved;
+                    if (cpPic.startsWith(QLatin1String("file://"))) {
+                        cpPic = QUrl(cpPic).toLocalFile();
+                    }
+                    if (QFileInfo::exists(cpPic)) {
+                        nextAvatarPath = cpPic;
                     }
                 }
             }
@@ -875,10 +887,14 @@ void UserConfigBackend::loadConfig()
         const QStringList candidates = {
             home + QStringLiteral("/.config/tide-island/avatar.png"),
             home + QStringLiteral("/.config/tide-island/avatar.jpg"),
+            home + QStringLiteral("/.config/tide-island/avatar.jpeg"),
             home + QStringLiteral("/.pfp.png"),
             home + QStringLiteral("/.pfp.jpg"),
+            home + QStringLiteral("/.pfp.jpeg"),
             home + QStringLiteral("/.face"),
-            home + QStringLiteral("/.face.icon")
+            home + QStringLiteral("/.face.icon"),
+            home + QStringLiteral("/.avatar.png"),
+            home + QStringLiteral("/.avatar.jpg")
         };
         for (const QString &cand : candidates) {
             if (QFileInfo::exists(cand)) {

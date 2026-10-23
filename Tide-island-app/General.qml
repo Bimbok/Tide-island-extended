@@ -716,9 +716,12 @@ PagePanel {
         height: 64
 
         function cleanHome() {
-            let h = String(StandardPaths.writableLocation(StandardPaths.HomeLocation) || "");
-            if (h.startsWith("file://"))
-                h = h.substring(7);
+            let h = backend.homeDirectory || "";
+            if (!h) {
+                h = String(StandardPaths.writableLocation(StandardPaths.HomeLocation) || "");
+                if (h.startsWith("file://"))
+                    h = h.substring(7);
+            }
             return h.replace(/\/+$/, "");
         }
 
@@ -737,7 +740,8 @@ PagePanel {
 
         function effectiveAvatarSource() {
             const dummy = avatarVersion;
-            const custom = ConfigStore.value(row.keyName, "");
+            const currentFieldText = (typeof field !== "undefined" && field && field.text) ? field.text.trim() : "";
+            const custom = currentFieldText.length > 0 ? currentFieldText : ConfigStore.value(row.keyName, "");
             if (custom && String(custom).trim().length > 0)
                 return resolveAvatarUrl(String(custom));
 
@@ -746,6 +750,26 @@ PagePanel {
                 return resolveAvatarUrl(String(disp));
 
             return "file://" + cleanHome() + "/.config/tide-island/avatar.png";
+        }
+
+        DropArea {
+            id: rowDropArea
+            anchors.fill: parent
+            onDropped: function(drop) {
+                let p = "";
+                if (drop.hasUrls && drop.urls && drop.urls.length > 0) {
+                    let u = drop.urls[0];
+                    p = (typeof u.toLocalFile === "function") ? u.toLocalFile() : String(u);
+                } else if (drop.hasText) {
+                    p = drop.text.trim();
+                }
+                if (p.length > 0) {
+                    if (p.startsWith("file://")) {
+                        p = decodeURIComponent(p.substring(7));
+                    }
+                    row.setPath(p);
+                }
+            }
         }
 
         Item {
@@ -761,7 +785,7 @@ PagePanel {
                 radius: 26
                 color: Theme.componentBgColor
                 border.width: 1
-                border.color: avatarMouseArea.containsMouse ? Theme.accentColor : Theme.inputBorderColor
+                border.color: (rowDropArea.containsDrag || avatarMouseArea.containsMouse) ? Theme.accentColor : Theme.inputBorderColor
                 Behavior on border.color { ColorAnimation { duration: 150 } }
             }
 
@@ -812,13 +836,13 @@ PagePanel {
                 anchors.fill: parent
                 radius: 26
                 color: Qt.rgba(0, 0, 0, 0.45)
-                opacity: avatarMouseArea.containsMouse ? 1 : 0
+                opacity: (rowDropArea.containsDrag || avatarMouseArea.containsMouse) ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
 
                 Text {
                     anchors.centerIn: parent
-                    text: "Change"
+                    text: rowDropArea.containsDrag ? "Drop" : "Change"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 10
                     font.weight: Font.Bold
@@ -832,24 +856,6 @@ PagePanel {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: avatarFileDialog.openForPath(field.text)
-            }
-
-            DropArea {
-                anchors.fill: parent
-                onDropped: function(drop) {
-                    let p = "";
-                    if (drop.hasUrls && drop.urls.length > 0) {
-                        p = drop.urls[0].toString();
-                    } else if (drop.hasText) {
-                        p = drop.text.trim();
-                    }
-                    if (p.length > 0) {
-                        if (p.startsWith("file://")) {
-                            p = decodeURIComponent(p.substring(7));
-                        }
-                        row.setPath(p);
-                    }
-                }
             }
         }
 
@@ -900,14 +906,22 @@ PagePanel {
             }
 
             ButtonLike {
-                text: "Browse"
+                id: saveBtn
+                text: "Save"
                 primary: true
+                visible: field.text.trim() !== String(ConfigStore.value(row.keyName, ""))
+                onClicked: row.commit()
+            }
+
+            ButtonLike {
+                text: "Browse"
+                primary: !saveBtn.visible
                 onClicked: avatarFileDialog.openForPath(field.text)
             }
 
             ButtonLike {
                 text: "Clear"
-                enabled: field.text.length > 0
+                enabled: field.text.length > 0 || (ConfigStore.value(row.keyName, "") !== "")
                 onClicked: row.clear()
             }
         }
@@ -1049,7 +1063,8 @@ PagePanel {
 
         function effectiveSource() {
             wallpaperVersion;
-            const explicit = String(ConfigStore.value(row.keyName, "")).trim();
+            const currentFieldText = (typeof field !== "undefined" && field && field.text) ? field.text.trim() : "";
+            const explicit = currentFieldText.length > 0 ? currentFieldText : String(ConfigStore.value(row.keyName, "")).trim();
             if (explicit.length > 0 && explicit !== "null" && explicit !== "undefined") {
                 return explicit.startsWith("/") ? "file://" + explicit : explicit;
             }
@@ -1064,6 +1079,26 @@ PagePanel {
             return "";
         }
 
+        DropArea {
+            id: wpDropArea
+            anchors.fill: parent
+            onDropped: function(drop) {
+                let p = "";
+                if (drop.hasUrls && drop.urls && drop.urls.length > 0) {
+                    let u = drop.urls[0];
+                    p = (typeof u.toLocalFile === "function") ? u.toLocalFile() : String(u);
+                } else if (drop.hasText) {
+                    p = drop.text.trim();
+                }
+                if (p.length > 0) {
+                    if (p.startsWith("file://")) {
+                        p = decodeURIComponent(p.substring(7));
+                    }
+                    row.setPath(p);
+                }
+            }
+        }
+
         Item {
             id: wpContainer
             width: 80
@@ -1076,7 +1111,7 @@ PagePanel {
                 radius: 8
                 color: Theme.componentBgColor
                 border.width: 1
-                border.color: wpMouseArea.containsMouse ? Theme.accentColor : Theme.inputBorderColor
+                border.color: (wpDropArea.containsDrag || wpMouseArea.containsMouse) ? Theme.accentColor : Theme.inputBorderColor
                 Behavior on border.color { ColorAnimation { duration: 150 } }
                 clip: true
 
@@ -1111,13 +1146,13 @@ PagePanel {
                 Rectangle {
                     anchors.fill: parent
                     color: Qt.rgba(0, 0, 0, 0.40)
-                    opacity: wpMouseArea.containsMouse ? 1 : 0
+                    opacity: (wpDropArea.containsDrag || wpMouseArea.containsMouse) ? 1 : 0
                     visible: opacity > 0
                     Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Change"
+                        text: wpDropArea.containsDrag ? "Drop" : "Change"
                         font.family: Theme.textFontFamily
                         font.pixelSize: 10
                         font.weight: Font.Bold
@@ -1132,24 +1167,6 @@ PagePanel {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: lockscreenWallpaperFileDialog.openForPath(field.text)
-            }
-
-            DropArea {
-                anchors.fill: parent
-                onDropped: function(drop) {
-                    let p = "";
-                    if (drop.hasUrls && drop.urls.length > 0) {
-                        p = drop.urls[0].toString();
-                    } else if (drop.hasText) {
-                        p = drop.text.trim();
-                    }
-                    if (p.length > 0) {
-                        if (p.startsWith("file://")) {
-                            p = decodeURIComponent(p.substring(7));
-                        }
-                        row.setPath(p);
-                    }
-                }
             }
         }
 
@@ -1203,14 +1220,22 @@ PagePanel {
             }
 
             ButtonLike {
-                text: "Browse"
+                id: saveBtn
+                text: "Save"
                 primary: true
+                visible: field.text.trim() !== String(ConfigStore.value(row.keyName, ""))
+                onClicked: row.commit()
+            }
+
+            ButtonLike {
+                text: "Browse"
+                primary: !saveBtn.visible
                 onClicked: lockscreenWallpaperFileDialog.openForPath(field.text)
             }
 
             ButtonLike {
                 text: "Clear"
-                enabled: field.text.length > 0
+                enabled: field.text.length > 0 || (ConfigStore.value(row.keyName, "") !== "")
                 onClicked: row.clear()
             }
         }

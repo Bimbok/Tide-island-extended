@@ -1,11 +1,30 @@
 #include <QTest>
 #include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QFile>
 #include "SystemGlanceBackend.h"
 
 class SystemGlanceTests : public QObject {
     Q_OBJECT
 
+    QTemporaryDir m_tempConfigDir;
+    QByteArray m_origXdgConfig;
+
 private slots:
+    void initTestCase() {
+        m_origXdgConfig = qgetenv("XDG_CONFIG_HOME");
+        QVERIFY(m_tempConfigDir.isValid());
+        qputenv("XDG_CONFIG_HOME", m_tempConfigDir.path().toLocal8Bit());
+    }
+
+    void cleanupTestCase() {
+        if (!m_origXdgConfig.isEmpty()) {
+            qputenv("XDG_CONFIG_HOME", m_origXdgConfig);
+        } else {
+            qunsetenv("XDG_CONFIG_HOME");
+        }
+    }
+
     void testFormattingHelpers() {
         // Speed formatting
         QCOMPARE(SystemGlanceBackend::formatSpeed(0), QStringLiteral("0 B/s"));
@@ -70,11 +89,16 @@ private slots:
         SystemGlanceBackend glance;
         QSignalSpy avatarSpy(&glance, &SystemGlanceBackend::avatarPathChanged);
 
-        // Setting a custom avatar path
-        const QString testPath = QStringLiteral("/tmp/test_avatar.png");
+        // Setting a custom avatar path using the isolated temporary config directory
+        const QString testPath = m_tempConfigDir.filePath(QStringLiteral("test_avatar.png"));
+        QFile file(testPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("dummy avatar data");
+        file.close();
+
         glance.setAvatarPath(testPath);
         QCOMPARE(avatarSpy.count(), 1);
-        QCOMPARE(glance.avatarPath(), QStringLiteral("file:///tmp/test_avatar.png"));
+        QCOMPARE(glance.avatarPath(), QStringLiteral("file://") + testPath);
     }
 
     void testKernelAndBatteryTelemetry() {

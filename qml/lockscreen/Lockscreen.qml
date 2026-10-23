@@ -60,6 +60,8 @@ Scope {
     readonly property string avatarPath: {
         if (userConfig && userConfig.avatarPath !== "")
             return expandHome(userConfig.avatarPath);
+        if (SystemGlance && SystemGlance.avatarPath !== "")
+            return SystemGlance.avatarPath;
         return "";
     }
 
@@ -891,7 +893,12 @@ Scope {
                                                 Image {
                                                     id: avatarImg
                                                     anchors.fill: parent
-                                                    source: root.avatarPath !== "" ? (root.avatarPath.startsWith("/") || root.avatarPath.startsWith("file://") ? (root.avatarPath.startsWith("file://") ? root.avatarPath : "file://" + encodeURI(root.avatarPath)) : root.avatarPath) : ""
+                                                    source: {
+                                                        if (root.avatarPath === "") return "";
+                                                        if (root.avatarPath.startsWith("file://")) return root.avatarPath;
+                                                        if (root.avatarPath.startsWith("/")) return "file://" + encodeURI(root.avatarPath);
+                                                        return root.avatarPath;
+                                                    }
                                                     fillMode: Image.PreserveAspectCrop
                                                     asynchronous: true
                                                     visible: status === Image.Ready

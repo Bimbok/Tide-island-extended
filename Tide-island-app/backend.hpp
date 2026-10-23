@@ -16,6 +16,7 @@ using UserConfigMap = std::unordered_map<QString, QVariant, QStringHash>;
 class Backend final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString userConfigPath READ userConfigPath CONSTANT)
+    Q_PROPERTY(QString homeDirectory READ homeDirectory CONSTANT)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
     Q_PROPERTY(QVariantMap userConfig READ userConfig CONSTANT)
     Q_PROPERTY(QString colorScheme READ colorScheme WRITE setColorScheme NOTIFY colorSchemeChanged)
@@ -24,6 +25,7 @@ public:
     explicit Backend(QObject *parent = nullptr);
 
     QString userConfigPath() const;
+    QString homeDirectory() const;
     QString errorString() const;
     QVariantMap userConfig() const;
     QString colorScheme() const;
