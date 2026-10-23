@@ -242,8 +242,82 @@ PagePanel {
                     AvatarRow {
                         id: avatarRow
                         title: "Profile Avatar"
-                        description: "Avatar shown in the System Glance dashboard"
+                        description: "Avatar shown in the System Glance dashboard and Lockscreen"
                         keyName: "avatarPath"
+                        width: parent.width
+                    }
+                }
+            }
+
+            Text {
+                id: lockscreenTitle
+                text: "Lockscreen"
+                anchors.top: profilePanel.bottom
+                anchors.topMargin: 34
+                anchors.left: parent.left
+                anchors.leftMargin: 32
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                font.family: Theme.titleFontFamily
+                font.pixelSize: 23
+                color: Theme.textColor
+            }
+
+            Rectangle {
+                id: lockscreenPanel
+                color: Theme.cardBgColor
+                radius: 16
+                border.width: 1
+                border.color: Theme.splitLineColor
+
+                anchors.top: lockscreenTitle.bottom
+                anchors.topMargin: 15
+                anchors.left: parent.left
+                anchors.leftMargin: 30
+                anchors.right: parent.right
+                anchors.rightMargin: 40
+                height: lockscreenColumn.implicitHeight + 36
+
+                Column {
+                    id: lockscreenColumn
+
+                    anchors.top: parent.top
+                    anchors.topMargin: 18
+                    anchors.left: parent.left
+                    anchors.leftMargin: 18
+                    anchors.right: parent.right
+                    anchors.rightMargin: 18
+                    spacing: 16
+
+                    SwitchRow {
+                        title: "Media Player"
+                        description: "Show active media player and track controls on the lockscreen"
+                        keyName: "lockscreenMedia"
+                        fallbackValue: true
+                        width: parent.width
+                    }
+
+                    SplitLine {
+                        width: parent.width
+                    }
+
+                    SwitchRow {
+                        title: "Power Actions"
+                        description: "Show sleep, restart, and power off buttons on the lockscreen"
+                        keyName: "lockscreenPowerActions"
+                        fallbackValue: true
+                        width: parent.width
+                    }
+
+                    SplitLine {
+                        width: parent.width
+                    }
+
+                    SwitchRow {
+                        title: "Battery Status"
+                        description: "Show live battery percentage and charging indicator"
+                        keyName: "lockscreenShowBattery"
+                        fallbackValue: true
                         width: parent.width
                     }
                 }
@@ -252,7 +326,7 @@ PagePanel {
             Text {
                 id: customPageTitle
                 text: "Custom Page"
-                anchors.top: profilePanel.bottom
+                anchors.top: lockscreenPanel.bottom
                 anchors.topMargin: 34
                 anchors.left: parent.left
                 anchors.leftMargin: 32
@@ -825,6 +899,102 @@ PagePanel {
                 ConfigStore.save();
                 avatarVersion++;
             }
+        }
+    }
+
+    component SwitchRow: Item {
+        id: row
+
+        property string title: ""
+        property string description: ""
+        property string keyName: ""
+        property bool fallbackValue: true
+
+        height: 49
+
+        Text {
+            id: switchTitle
+            text: row.title
+            font.family: Theme.textFontFamily
+            font.pixelSize: 18
+            color: Theme.textColor
+            anchors.top: parent.top
+            anchors.left: parent.left
+        }
+
+        Text {
+            text: row.description
+            font.family: Theme.textFontFamily
+            font.pixelSize: 14
+            anchors.top: switchTitle.bottom
+            anchors.topMargin: 5
+            anchors.left: switchTitle.left
+            width: Math.max(80, parent.width - sw.width - 28)
+            color: Theme.subtleTextColor
+            elide: Text.ElideRight
+        }
+
+        StyledSwitch {
+            id: sw
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.boolValue(row.keyName, row.fallbackValue)
+
+            onToggled: function(checked) {
+                ConfigStore.setValue(row.keyName, checked)
+                ConfigStore.save()
+            }
+        }
+    }
+
+    component StyledSwitch: Item {
+        id: control
+
+        signal toggled(bool checked)
+
+        property bool checked: false
+
+        width: 48
+        height: 26
+
+        Rectangle {
+            id: track
+
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 40
+            height: 24
+            radius: 12
+            color: control.checked ? Theme.accentColor : Theme.componentBgColor
+            border.width: 1
+            border.color: control.checked ? Theme.accentColor : Theme.inputBorderColor
+
+            Behavior on color {
+                ColorAnimation { duration: 180; easing.type: Easing.InOutQuad }
+            }
+        }
+
+        Rectangle {
+            id: knob
+
+            width: 18
+            height: 18
+            radius: 9
+            x: control.checked ? 22 : 6
+            y: 3
+            color: Theme.cardBgColor
+            border.width: 0
+
+            Behavior on x {
+                NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: control.toggled(!control.checked)
         }
     }
 

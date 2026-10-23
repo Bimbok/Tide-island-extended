@@ -16,6 +16,18 @@ export QUICKSHELL_LYRICS_BACKEND="${QUICKSHELL_LYRICS_BACKEND:-$QML_PATH/bin/lyr
 # background instead of keeping their high-water mark resident indefinitely.
 export MALLOC_CONF="${MALLOC_CONF:-narenas:2,background_thread:true,dirty_decay_ms:2000,muzzy_decay_ms:2000}"
 
+cmd_basename="$(basename "$0")"
+if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" || "$1" == "lock" ]]; then
+  if systemctl --user is-active --quiet "$SERVICE_NAME" \
+      || pgrep -u "$(id -u)" -f "/usr/bin/quickshell -p $QML_PATH" >/dev/null; then
+    /usr/bin/quickshell ipc --any-display -p "$QML_PATH" call lock lock >/dev/null 2>&1 || true
+    exit 0
+  else
+    export LOCK_NOW=1
+    exec /usr/bin/quickshell -p "$QML_PATH/qml/lockscreen/Lockscreen.qml"
+  fi
+fi
+
 if [[ "${SYSTEMD_EXEC_PID:-}" != "$$" ]]; then
   if systemctl --user is-active --quiet "$SERVICE_NAME" \
       || pgrep -u "$(id -u)" -f "/usr/bin/quickshell -p $QML_PATH" >/dev/null; then

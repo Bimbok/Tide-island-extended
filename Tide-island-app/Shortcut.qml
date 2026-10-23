@@ -172,6 +172,13 @@ PagePanel {
                 "key": "F10",
                 "target": "recorder",
                 "method": "saveReplay"
+            },
+            {
+                "action": "Lock screen",
+                "mods": "SUPER+ALT",
+                "key": "L",
+                "target": "lock",
+                "method": "lock"
             }
         ]
     }

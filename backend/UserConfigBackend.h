@@ -78,6 +78,11 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(bool privacyCameraBubbleEnabled READ privacyCameraBubbleEnabled NOTIFY privacyCameraBubbleEnabledChanged FINAL)
     Q_PROPERTY(bool privacyMicBubbleEnabled READ privacyMicBubbleEnabled NOTIFY privacyMicBubbleEnabledChanged FINAL)
     Q_PROPERTY(QString avatarPath READ avatarPath WRITE setAvatarPath NOTIFY avatarPathChanged FINAL)
+    Q_PROPERTY(bool lockscreenEnabled READ lockscreenEnabled WRITE setLockscreenEnabled NOTIFY lockscreenEnabledChanged FINAL)
+    Q_PROPERTY(bool lockscreenMedia READ lockscreenMedia WRITE setLockscreenMedia NOTIFY lockscreenMediaChanged FINAL)
+    Q_PROPERTY(bool lockscreenPowerActions READ lockscreenPowerActions WRITE setLockscreenPowerActions NOTIFY lockscreenPowerActionsChanged FINAL)
+    Q_PROPERTY(bool lockscreenShowBattery READ lockscreenShowBattery WRITE setLockscreenShowBattery NOTIFY lockscreenShowBatteryChanged FINAL)
+    Q_PROPERTY(QString lockscreenPamService READ lockscreenPamService WRITE setLockscreenPamService NOTIFY lockscreenPamServiceChanged FINAL)
 
 public:
     explicit UserConfigBackend(QObject *parent = nullptr);
@@ -144,6 +149,16 @@ public:
     bool privacyMicBubbleEnabled() const;
     QString avatarPath() const;
     void setAvatarPath(const QString &path);
+    bool lockscreenEnabled() const;
+    void setLockscreenEnabled(bool enabled);
+    bool lockscreenMedia() const;
+    void setLockscreenMedia(bool enabled);
+    bool lockscreenPowerActions() const;
+    void setLockscreenPowerActions(bool enabled);
+    bool lockscreenShowBattery() const;
+    void setLockscreenShowBattery(bool enabled);
+    QString lockscreenPamService() const;
+    void setLockscreenPamService(const QString &service);
     void setDefaultWallpaperPath(const QString &path);
     void setDefaultTlpSudoPassword(const QString &password);
 
@@ -214,6 +229,11 @@ signals:
     void privacyCameraBubbleEnabledChanged();
     void privacyMicBubbleEnabledChanged();
     void avatarPathChanged();
+    void lockscreenEnabledChanged();
+    void lockscreenMediaChanged();
+    void lockscreenPowerActionsChanged();
+    void lockscreenShowBatteryChanged();
+    void lockscreenPamServiceChanged();
 
 private:
     void scheduleReload();
@@ -282,6 +302,11 @@ private:
     bool m_privacyCameraBubbleEnabled = true;
     bool m_privacyMicBubbleEnabled = true;
     QString m_avatarPath;
+    bool m_lockscreenEnabled = true;
+    bool m_lockscreenMedia = true;
+    bool m_lockscreenPowerActions = true;
+    bool m_lockscreenShowBattery = true;
+    QString m_lockscreenPamService = QStringLiteral("login");
 
     QFileSystemWatcher m_watcher;
     QTimer m_reloadTimer;

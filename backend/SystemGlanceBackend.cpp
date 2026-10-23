@@ -543,7 +543,14 @@ QString SystemGlanceBackend::formatUptime(quint64 uptimeSeconds)
 
 void SystemGlanceBackend::lockScreen()
 {
-    // Try lock helpers
+    // Prefer Tide Island native lockscreen
+    const QString tideIsland = QStandardPaths::findExecutable(QStringLiteral("tide-island"));
+    if (!tideIsland.isEmpty()) {
+        QProcess::startDetached(tideIsland, {QStringLiteral("--lock")});
+        return;
+    }
+
+    // Try external lock helpers as fallback
     if (!QStandardPaths::findExecutable(QStringLiteral("hyprlock")).isEmpty()) {
         QProcess::startDetached(QStringLiteral("hyprlock"), {});
     } else if (!QStandardPaths::findExecutable(QStringLiteral("swaylock")).isEmpty()) {

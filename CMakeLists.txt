@@ -380,6 +380,7 @@ install(FILES
 # Install launcher
 configure_file(tide-island-launcher ${CMAKE_CURRENT_BINARY_DIR}/tide-island @ONLY)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/tide-island DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(CODE "execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink tide-island \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/tide-island-lock)")
 
 # Install helper executables and scripts
 install(TARGETS lyricsmpris
@@ -390,7 +391,7 @@ install(PROGRAMS scripts/cliphist-helper.sh
 )
 
 # Install desktop entry
-install(FILES tide-island.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES tide-island.desktop tide-island-lock.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
 # Install systemd user service
 install(FILES tide-island.service DESTINATION lib/systemd/user)

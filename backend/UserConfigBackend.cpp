@@ -491,6 +491,107 @@ void UserConfigBackend::setIslandStyle(const QString &style)
     }
 }
 
+bool UserConfigBackend::lockscreenEnabled() const { return m_lockscreenEnabled; }
+void UserConfigBackend::setLockscreenEnabled(bool enabled)
+{
+    if (m_lockscreenEnabled == enabled) return;
+    m_lockscreenEnabled = enabled;
+    emit lockscreenEnabledChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenEnabled"), enabled);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+bool UserConfigBackend::lockscreenMedia() const { return m_lockscreenMedia; }
+void UserConfigBackend::setLockscreenMedia(bool enabled)
+{
+    if (m_lockscreenMedia == enabled) return;
+    m_lockscreenMedia = enabled;
+    emit lockscreenMediaChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenMedia"), enabled);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+bool UserConfigBackend::lockscreenPowerActions() const { return m_lockscreenPowerActions; }
+void UserConfigBackend::setLockscreenPowerActions(bool enabled)
+{
+    if (m_lockscreenPowerActions == enabled) return;
+    m_lockscreenPowerActions = enabled;
+    emit lockscreenPowerActionsChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenPowerActions"), enabled);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+bool UserConfigBackend::lockscreenShowBattery() const { return m_lockscreenShowBattery; }
+void UserConfigBackend::setLockscreenShowBattery(bool enabled)
+{
+    if (m_lockscreenShowBattery == enabled) return;
+    m_lockscreenShowBattery = enabled;
+    emit lockscreenShowBatteryChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenShowBattery"), enabled);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+QString UserConfigBackend::lockscreenPamService() const { return m_lockscreenPamService; }
+void UserConfigBackend::setLockscreenPamService(const QString &service)
+{
+    const QString clean = service.trimmed();
+    if (clean.isEmpty() || m_lockscreenPamService == clean) return;
+    m_lockscreenPamService = clean;
+    emit lockscreenPamServiceChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenPamService"), clean);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
 void UserConfigBackend::toggleIslandStyle()
 {
     setIslandStyle(m_islandStyle == QLatin1String("notch") ? QStringLiteral("island") : QStringLiteral("notch"));
@@ -697,6 +798,12 @@ void UserConfigBackend::loadConfig()
         }
     }
     updateField(this, m_avatarPath, nextAvatarPath, &UserConfigBackend::avatarPathChanged);
+
+    updateField(this, m_lockscreenEnabled, jsonBool(configObject, QLatin1String("lockscreenEnabled"), true), &UserConfigBackend::lockscreenEnabledChanged);
+    updateField(this, m_lockscreenMedia, jsonBool(configObject, QLatin1String("lockscreenMedia"), true), &UserConfigBackend::lockscreenMediaChanged);
+    updateField(this, m_lockscreenPowerActions, jsonBool(configObject, QLatin1String("lockscreenPowerActions"), true), &UserConfigBackend::lockscreenPowerActionsChanged);
+    updateField(this, m_lockscreenShowBattery, jsonBool(configObject, QLatin1String("lockscreenShowBattery"), true), &UserConfigBackend::lockscreenShowBatteryChanged);
+    updateField(this, m_lockscreenPamService, jsonString(configObject, QLatin1String("lockscreenPamService"), QStringLiteral("login")), &UserConfigBackend::lockscreenPamServiceChanged);
 
     updateWatchedPaths();
 }

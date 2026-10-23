@@ -1509,7 +1509,8 @@ Item {
         command: [
             "sh",
             "-c",
-            "if command -v hyprlock >/dev/null 2>&1; then hyprlock; "
+            "if command -v tide-island >/dev/null 2>&1; then tide-island --lock; "
+                + "elif command -v hyprlock >/dev/null 2>&1; then hyprlock; "
                 + "elif command -v swaylock >/dev/null 2>&1; then swaylock; "
                 + "elif command -v i3lock >/dev/null 2>&1; then i3lock; "
                 + "elif command -v loginctl >/dev/null 2>&1; then loginctl lock-session; "
