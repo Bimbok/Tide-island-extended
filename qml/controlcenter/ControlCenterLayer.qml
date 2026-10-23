@@ -39,6 +39,14 @@ Item {
     property string currentDateLabel: ""
     property int batteryCapacity: 0
     property bool isCharging: false
+    readonly property int effectiveBatteryCap: (controlCenter.batteryCapacity > 0)
+        ? controlCenter.batteryCapacity
+        : ((typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+            ? SysBackend.batteryCapacity
+            : ((typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0) ? SystemGlance.batteryCapacity : 0))
+    readonly property bool effectiveCharging: controlCenter.isCharging
+        || (typeof SysBackend !== "undefined" && (SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"))
+        || (typeof SystemGlance !== "undefined" && (SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"))
     property real volumeLevel: -1
     property bool volumeMuted: false
     property real brightnessLevel: -1
@@ -1909,29 +1917,20 @@ Item {
                     anchors.centerIn: parent
                     spacing: 5
 
-                    readonly property int effectiveBatteryCap: (controlCenter.batteryCapacity > 0)
-                        ? controlCenter.batteryCapacity
-                        : ((typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
-                            ? SysBackend.batteryCapacity
-                            : ((typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0) ? SystemGlance.batteryCapacity : 0))
-                    readonly property bool effectiveCharging: controlCenter.isCharging
-                        || (typeof SysBackend !== "undefined" && (SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"))
-                        || (typeof SystemGlance !== "undefined" && (SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"))
-
                     Text {
                         text: controlCenter.chargingIconGlyph
                         color: StyleTokens.white
                         font.pixelSize: 13
-                        font.family: iconFontFamily
-                        visible: effectiveCharging
+                        font.family: controlCenter.iconFontFamily
+                        visible: controlCenter.effectiveCharging
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
                     Text {
-                        text: effectiveBatteryCap + "%"
+                        text: controlCenter.effectiveBatteryCap + "%"
                         color: StyleTokens.white
                         font.pixelSize: 13
-                        font.family: textFontFamily
+                        font.family: controlCenter.textFontFamily
                         font.weight: Font.DemiBold
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -1955,10 +1954,10 @@ Item {
                                 anchors.bottom: parent.bottom
                                 anchors.margins: 2
                                 radius: 2
-                                width: (parent.width - 4) * (Math.max(0, Math.min(100, effectiveBatteryCap)) / 100.0)
+                                width: (parent.width - 4) * (Math.max(0, Math.min(100, controlCenter.effectiveBatteryCap)) / 100.0)
                                 color: {
-                                    if (effectiveBatteryCap <= 10) return StyleTokens.danger;
-                                    if (effectiveBatteryCap <= 20) return StyleTokens.warning;
+                                    if (controlCenter.effectiveBatteryCap <= 10) return StyleTokens.danger;
+                                    if (controlCenter.effectiveBatteryCap <= 20) return StyleTokens.warning;
                                     return StyleTokens.success;
                                 }
 

@@ -708,6 +708,7 @@ Item {
                     color: StyleTokens.secondaryButton
 
                     Item {
+                        id: batteryInfoContainer
                         anchors.fill: parent
                         anchors.margins: 10
 
@@ -731,10 +732,10 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: effectiveCharging ? (root.provider ? root.provider.chargingIconGlyph || "\uf0e7" : "\uf0e7") : "\uf240"
-                                color: effectiveCharging
+                                text: batteryInfoContainer.effectiveCharging ? (root.provider ? root.provider.chargingIconGlyph || "\uf0e7" : "\uf0e7") : "\uf240"
+                                color: batteryInfoContainer.effectiveCharging
                                     ? StyleTokens.accent
-                                    : (effectiveCap <= 20 ? StyleTokens.warning : StyleTokens.textPrimary)
+                                    : (batteryInfoContainer.effectiveCap <= 20 ? StyleTokens.warning : StyleTokens.textPrimary)
                                 font.pixelSize: 15
                                 font.family: root.iconFontFamily
                             }
@@ -752,7 +753,7 @@ Item {
                                 spacing: 6
 
                                 Text {
-                                    text: effectiveCap + "%"
+                                    text: batteryInfoContainer.effectiveCap + "%"
                                     color: StyleTokens.textPrimary
                                     font.pixelSize: 15
                                     font.family: root.heroFontFamily
@@ -762,7 +763,7 @@ Item {
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: {
-                                        if (effectiveCharging) return "Charging";
+                                        if (batteryInfoContainer.effectiveCharging) return "Charging";
                                         if (SystemServices.batteryChargeState === "Not charging") return "Plugged In";
                                         if (SystemServices.batteryChargeState === "Full") return "Full";
                                         return "Discharging";

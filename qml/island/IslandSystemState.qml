@@ -181,6 +181,12 @@ Item {
     }
 
     function refreshMissingValues() {
+        if (batteryCapacity <= 0) {
+            if (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+                batteryCapacity = SysBackend.batteryCapacity;
+            else if (typeof SystemGlance !== "undefined" && SystemGlance.batteryCapacity > 0)
+                batteryCapacity = SystemGlance.batteryCapacity;
+        }
         if (currentBrightness < 0)
             SystemServices.requestBrightness();
         if (currentVolume < 0)
@@ -515,16 +521,24 @@ Item {
         }
 
         function onBatteryCapacityChanged(capacity) {
-            root.batteryCapacity = capacity;
+            if (capacity > 0)
+                root.batteryCapacity = capacity;
+            else if (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+                root.batteryCapacity = SysBackend.batteryCapacity;
         }
 
         function onBatteryStatusChanged(statusString) {
-            root.isCharging = (statusString === "Charging" || statusString === "Full");
+            if (statusString && statusString !== "" && statusString !== "Unknown")
+                root.isCharging = (statusString === "Charging" || statusString === "Full");
         }
 
         function onBatteryChanged(capacity, statusString) {
-            root.batteryCapacity = capacity;
-            root.isCharging = (statusString === "Charging" || statusString === "Full");
+            if (capacity > 0)
+                root.batteryCapacity = capacity;
+            else if (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
+                root.batteryCapacity = SysBackend.batteryCapacity;
+            if (statusString && statusString !== "" && statusString !== "Unknown")
+                root.isCharging = (statusString === "Charging" || statusString === "Full");
             if (root._lastChargeStatus !== "" && root._lastChargeStatus !== statusString) {
                 if (statusString === "Charging")
                     root.transientRequested(root.statusIcon("charging"), -1.0, "");
