@@ -846,14 +846,52 @@ Scope {
                                                                 scale: playMouse.pressed ? 0.92 : (playMouse.containsMouse ? 1.05 : 1.0)
                                                                 Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
-                                                                Text {
+                                                                // Pause state: two crisp rounded vertical bars
+                                                                Row {
                                                                     anchors.centerIn: parent
-                                                                    text: root.isMediaPlaying ? "󰏤" : "󰐊"
-                                                                    font.family: root.nerdFont
-                                                                    font.pixelSize: 18
-                                                                    font.weight: Font.Bold
-                                                                    color: StyleTokens.textOnAccent
+                                                                    spacing: 4
+                                                                    visible: root.isMediaPlaying
+
+                                                                    Rectangle {
+                                                                        width: 3.5
+                                                                        height: 14
+                                                                        radius: 1.5
+                                                                        color: StyleTokens.textOnAccent
+                                                                    }
+                                                                    Rectangle {
+                                                                        width: 3.5
+                                                                        height: 14
+                                                                        radius: 1.5
+                                                                        color: StyleTokens.textOnAccent
+                                                                    }
                                                                 }
+
+                                                                // Play state: right-pointing triangle, optically centered with +1px offset
+                                                                Canvas {
+                                                                    id: playCanvas
+                                                                    width: 14
+                                                                    height: 14
+                                                                    anchors.centerIn: parent
+                                                                    anchors.horizontalCenterOffset: 1
+                                                                    visible: !root.isMediaPlaying
+
+                                                                    property color fillColor: StyleTokens.textOnAccent
+                                                                    onFillColorChanged: requestPaint()
+                                                                    onVisibleChanged: if (visible) requestPaint()
+
+                                                                    onPaint: {
+                                                                        var ctx = getContext("2d");
+                                                                        ctx.reset();
+                                                                        ctx.fillStyle = fillColor;
+                                                                        ctx.beginPath();
+                                                                        ctx.moveTo(1.5, 0.5);
+                                                                        ctx.lineTo(13.5, 7);
+                                                                        ctx.lineTo(1.5, 13.5);
+                                                                        ctx.closePath();
+                                                                        ctx.fill();
+                                                                    }
+                                                                }
+
                                                                 MouseArea {
                                                                     id: playMouse
                                                                     anchors.fill: parent

@@ -786,7 +786,8 @@ Rectangle {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                control.toggled(!control.checked);
+                control.checked = !control.checked;
+                control.toggled(control.checked);
             }
         }
     }

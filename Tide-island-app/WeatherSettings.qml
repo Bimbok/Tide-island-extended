@@ -344,7 +344,10 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: control.toggled(!control.checked)
+            onClicked: {
+                control.checked = !control.checked;
+                control.toggled(control.checked);
+            }
         }
     }
 }
