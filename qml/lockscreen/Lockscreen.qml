@@ -48,8 +48,12 @@ Scope {
 
     readonly property string textFont: (userConfig && userConfig.textFontFamily !== "") ? userConfig.textFontFamily : "Sans Serif"
     readonly property string heroFont: (userConfig && userConfig.heroFontFamily !== "") ? userConfig.heroFontFamily : textFont
+    readonly property string timeFont: (userConfig && userConfig.timeFontFamily !== "" && userConfig.timeFontFamily !== "Sans Serif")
+        ? userConfig.timeFontFamily
+        : "JetBrainsMono Nerd Font"
     readonly property string nerdFont: (userConfig && userConfig.iconFontFamily !== "") ? userConfig.iconFontFamily : "JetBrainsMono Nerd Font"
     readonly property string clockFmt: (userConfig && userConfig.clockFormat === "24") ? "HH:mm" : "hh:mm AP"
+    readonly property bool is24h: clockFmt.indexOf("AP") === -1
 
     readonly property bool isNotchMode: userConfig ? (userConfig.islandStyle === "notch") : false
     readonly property real islandW: userConfig ? userConfig.islandWidth : 280
@@ -566,9 +570,10 @@ Scope {
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: Qt.formatDateTime(clock.date, root.clockFmt)
-                            font.family: root.heroFont
-                            font.pixelSize: 64
-                            font.weight: Font.Bold
+                            font.family: root.timeFont
+                            font.pixelSize: 92
+                            font.weight: Font.Black
+                            font.letterSpacing: -2
                             color: StyleTokens.textPrimaryBright
                         }
 
@@ -577,6 +582,7 @@ Scope {
                             text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                             font.family: root.textFont
                             font.pixelSize: 22
+                            font.weight: Font.Medium
                             color: StyleTokens.textSecondary
                         }
                     }
@@ -676,7 +682,7 @@ Scope {
                                         Column {
                                             anchors.centerIn: parent
                                             width: parent.width - 36
-                                            spacing: root.hasMedia ? 10 : 16
+                                            spacing: root.hasMedia ? 8 : 14
 
                                             // Time Display
                                             Text {
@@ -684,10 +690,10 @@ Scope {
                                                 width: parent.width
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Qt.formatDateTime(clock.date, root.clockFmt)
-                                                font.family: root.heroFont
-                                                font.pixelSize: root.hasMedia ? 46 : 58
-                                                font.weight: Font.DemiBold
-                                                font.letterSpacing: -1
+                                                font.family: root.timeFont
+                                                font.pixelSize: root.hasMedia ? (root.is24h ? 66 : 56) : (root.is24h ? 84 : 72)
+                                                font.weight: Font.Black
+                                                font.letterSpacing: -1.5
                                                 color: StyleTokens.textPrimaryBright
                                             }
 
@@ -698,7 +704,8 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                                                 font.family: root.textFont
-                                                font.pixelSize: root.hasMedia ? 14 : 16
+                                                font.pixelSize: root.hasMedia ? 13 : 15
+                                                font.weight: Font.Medium
                                                 color: StyleTokens.textSecondary
                                             }
 
@@ -706,9 +713,9 @@ Scope {
                                             Rectangle {
                                                 id: greetingCap
                                                 anchors.horizontalCenter: parent.horizontalCenter
-                                                height: 24
-                                                width: greetingText.implicitWidth + 22
-                                                radius: 12
+                                                height: root.hasMedia ? 22 : 24
+                                                width: greetingText.implicitWidth + 20
+                                                radius: height / 2
                                                 color: StyleTokens.withAlpha(StyleTokens.accent, 0.12)
                                                 border.width: 1
                                                 border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.28)
@@ -729,7 +736,7 @@ Scope {
                                             Rectangle {
                                                 id: mediaCard
                                                 width: parent.width
-                                                height: root.hasMedia ? 116 : 0
+                                                height: root.hasMedia ? 112 : 0
                                                 visible: root.hasMedia
                                                 radius: 16
                                                 color: Qt.rgba(0, 0, 0, 0.32)
