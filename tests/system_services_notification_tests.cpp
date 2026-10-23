@@ -274,6 +274,30 @@ private slots:
         QCOMPARE(scApp.value(QStringLiteral("type")).toString(), QStringLiteral("screen"));
         QCOMPARE(scApp.value(QStringLiteral("pid")).toInt(), 1708);
     }
+
+    void testNiriFocusWindowRouting()
+    {
+        SystemServices services;
+        const QString origDesktop = QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP"));
+        const QString origComp = QString::fromLocal8Bit(qgetenv("TIDE_ISLAND_COMPOSITOR"));
+
+        // 1. Verify Niri environment routing executes without crash
+        qputenv("XDG_CURRENT_DESKTOP", "niri");
+        qputenv("TIDE_ISLAND_COMPOSITOR", "niri");
+        services.focusSenderWindow(QStringLiteral("kitty"), 4101, QStringLiteral("fish"), QStringLiteral(""));
+        services.focusSenderWindow(QStringLiteral("helium"), 0, QStringLiteral("YouTube"), QStringLiteral(""));
+
+        // 2. Verify Hyprland environment priority
+        qputenv("XDG_CURRENT_DESKTOP", "Hyprland");
+        qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+        services.focusSenderWindow(QStringLiteral("kitty"), 4101, QStringLiteral("fish"), QStringLiteral(""));
+
+        // Restore original env
+        if (!origDesktop.isEmpty()) qputenv("XDG_CURRENT_DESKTOP", origDesktop.toLocal8Bit());
+        else qunsetenv("XDG_CURRENT_DESKTOP");
+        if (!origComp.isEmpty()) qputenv("TIDE_ISLAND_COMPOSITOR", origComp.toLocal8Bit());
+        else qunsetenv("TIDE_ISLAND_COMPOSITOR");
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

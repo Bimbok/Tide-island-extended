@@ -180,7 +180,7 @@ Item {
     readonly property bool hasActions: filteredActions.length > 0
     readonly property var effectiveActions: {
         if (hasActions) return filteredActions;
-        if (isAgentNotification) {
+        if (isAgentNotification || senderPid > 0 || (appName !== "" && appName.toLowerCase() !== "notification")) {
             return [{ id: "focus", text: "Focus" }];
         }
         return [];

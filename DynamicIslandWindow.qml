@@ -2805,6 +2805,23 @@ PanelWindow {
                     }
 
                     if (mouse.button === userConfig.mouseButton(userConfig.dynamicIslandPrimaryButton)) {
+                        if (islandContainer.islandState === "notification") {
+                            if (islandContainer.toggleNotificationExpansionIfNeeded()) {
+                                if (preparedOverviewOnPress)
+                                    root.cancelPreparedOverviewEverywhere();
+                                preparedOverviewOnPress = false;
+                                return;
+                            }
+
+                            if (preparedOverviewOnPress)
+                                root.cancelPreparedOverviewEverywhere();
+                            preparedOverviewOnPress = false;
+
+                            SystemServices.focusSenderWindow(islandContainer.notificationAppName, islandContainer.notificationSenderPid, islandContainer.notificationSummary, islandContainer.notificationBody);
+                            islandContainer.smartRestoreState();
+                            return;
+                        }
+
                         if (islandContainer.toggleNotificationExpansionIfNeeded()) {
                             if (preparedOverviewOnPress)
                                 root.cancelPreparedOverviewEverywhere();

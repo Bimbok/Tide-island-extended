@@ -942,13 +942,32 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
     }
 
     // Check for Niri compositor support
-    const QString niriSocketPath = QString::fromLocal8Bit(qgetenv("NIRI_SOCKET"));
-    const QString niriCmd = findExecutable(QStringLiteral("niri"));
-    const bool isNiri = !niriSocketPath.isEmpty()
-        || QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP")).contains(QStringLiteral("niri"), Qt::CaseInsensitive)
-        || QString::fromLocal8Bit(qgetenv("TIDE_ISLAND_COMPOSITOR")).contains(QStringLiteral("niri"), Qt::CaseInsensitive);
+    const QString desktopSession = QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP")).toLower();
+    const QString tideComp = QString::fromLocal8Bit(qgetenv("TIDE_ISLAND_COMPOSITOR")).toLower();
+    bool isNiri = false;
+    if (tideComp == QStringLiteral("niri")) {
+        isNiri = true;
+    } else if (tideComp == QStringLiteral("hyprland")) {
+        isNiri = false;
+    } else if (desktopSession.contains(QStringLiteral("niri"))) {
+        isNiri = true;
+    } else if (desktopSession.contains(QStringLiteral("hyprland"))) {
+        isNiri = false;
+    } else if (!qgetenv("NIRI_SOCKET").isEmpty()) {
+        isNiri = true;
+    }
 
     if (isNiri) {
+        QString niriSocketPath = QString::fromLocal8Bit(qgetenv("NIRI_SOCKET"));
+        if (niriSocketPath.isEmpty()) {
+            const QString runDir = QStringLiteral("/run/user/%1").arg(::getuid());
+            const QStringList entries = QDir(runDir).entryList({QStringLiteral("niri*.sock")}, QDir::System | QDir::Files);
+            if (!entries.isEmpty()) {
+                niriSocketPath = runDir + QLatin1Char('/') + entries.first();
+            }
+        }
+        const QString niriCmd = findExecutable(QStringLiteral("niri"));
+
         QByteArray responseBytes;
         if (!niriSocketPath.isEmpty()) {
             QLocalSocket socket;
@@ -956,8 +975,9 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
             if (socket.waitForConnected(300)) {
                 socket.write("\"Windows\"\n");
                 socket.flush();
-                if (socket.waitForReadyRead(800)) {
-                    responseBytes = socket.readAll();
+                while (socket.waitForReadyRead(300)) {
+                    responseBytes.append(socket.readAll());
+                    if (responseBytes.contains('\n')) break;
                 }
             }
         }
@@ -973,48 +993,88 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
         const QJsonDocument doc = QJsonDocument::fromJson(responseBytes);
         if (doc.isArray()) {
             windowList = doc.array();
-        } else if (doc.isObject() && doc.object().contains(QStringLiteral("Ok"))) {
-            windowList = doc.object().value(QStringLiteral("Ok")).toArray();
+        } else if (doc.isObject()) {
+            const QJsonObject rootObj = doc.object();
+            if (rootObj.contains(QStringLiteral("Ok"))) {
+                const QJsonValue okVal = rootObj.value(QStringLiteral("Ok"));
+                if (okVal.isArray()) {
+                    windowList = okVal.toArray();
+                } else if (okVal.isObject()) {
+                    const QJsonObject okObj = okVal.toObject();
+                    if (okObj.contains(QStringLiteral("Windows"))) {
+                        windowList = okObj.value(QStringLiteral("Windows")).toArray();
+                    }
+                }
+            } else if (rootObj.contains(QStringLiteral("Windows"))) {
+                windowList = rootObj.value(QStringLiteral("Windows")).toArray();
+            }
         }
 
         quint64 bestId = 0;
         int bestScore = 0;
-        const QString cleanAppLower = appName.trimmed().toLower();
+        QString cleanAppLower = appName.trimmed().toLower();
+        if (cleanAppLower == QStringLiteral("notification")) {
+            cleanAppLower.clear();
+        }
 
+        // Phase 1: Direct PID or ancestor PID match
         for (const QJsonValue &val : windowList) {
             if (!val.isObject()) continue;
             const QJsonObject w = val.toObject();
             const quint64 wid = static_cast<quint64>(w.value(QStringLiteral("id")).toDouble(0));
             const qint64 wpid = static_cast<qint64>(w.value(QStringLiteral("pid")).toDouble(0));
-            const QString wAppId = w.value(QStringLiteral("app_id")).toString().toLower();
-            const QString wTitle = w.value(QStringLiteral("title")).toString().toLower();
 
-            // Phase 1: Direct PID or ancestor PID match
             if (wpid > 0 && (wpid == pid || ancestorPids.contains(wpid))) {
                 bestId = wid;
                 break;
             }
+        }
 
-            // Phase 2: Scoring by app_id, agentKeyword, and extra keywords
-            bool classMatch = cleanAppLower.isEmpty() || wAppId.contains(cleanAppLower);
-            if (classMatch) {
-                int score = 1;
-                if (!agentKeyword.isEmpty() && wTitle.contains(agentKeyword)) {
-                    score += 20;
-                }
-                for (const QString &kw : extraKeywords) {
-                    if (!kw.isEmpty() && wTitle.contains(kw)) {
-                        score += 5;
+        // Phase 2: Scoring by app_id, title, agentKeyword, and extra keywords
+        if (bestId == 0) {
+            for (const QJsonValue &val : windowList) {
+                if (!val.isObject()) continue;
+                const QJsonObject w = val.toObject();
+                const quint64 wid = static_cast<quint64>(w.value(QStringLiteral("id")).toDouble(0));
+                const QString wAppId = w.value(QStringLiteral("app_id")).toString().toLower();
+                const QString wTitle = w.value(QStringLiteral("title")).toString().toLower();
+
+                bool classMatch = cleanAppLower.isEmpty()
+                    || wAppId.contains(cleanAppLower)
+                    || cleanAppLower.contains(wAppId)
+                    || wTitle.contains(cleanAppLower);
+
+                if (!classMatch && !cleanAppLower.isEmpty()) {
+                    static const QRegularExpression splitRegex(QStringLiteral("[\\s\\-_.]+"));
+                    const QStringList appWords = cleanAppLower.split(splitRegex, Qt::SkipEmptyParts);
+                    for (const QString &aw : appWords) {
+                        if (aw.length() >= 3 && (wAppId.contains(aw) || wTitle.contains(aw))) {
+                            classMatch = true;
+                            break;
+                        }
                     }
                 }
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestId = wid;
+
+                if (classMatch) {
+                    int score = 1;
+                    if (!agentKeyword.isEmpty() && (wTitle.contains(agentKeyword) || wAppId.contains(agentKeyword))) {
+                        score += 20;
+                    }
+                    for (const QString &kw : extraKeywords) {
+                        if (!kw.isEmpty() && (wTitle.contains(kw) || wAppId.contains(kw))) {
+                            score += 5;
+                        }
+                    }
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestId = wid;
+                    }
                 }
             }
         }
 
         if (bestId > 0) {
+            bool focused = false;
             if (!niriSocketPath.isEmpty()) {
                 QLocalSocket socket;
                 socket.connectToServer(niriSocketPath);
@@ -1023,12 +1083,16 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
                     socket.write(actionJson.toUtf8());
                     socket.flush();
                     socket.waitForBytesWritten(300);
+                    if (socket.waitForReadyRead(300)) {
+                        focused = true;
+                    }
                 }
-            } else if (!niriCmd.isEmpty()) {
+            }
+            if (!focused && !niriCmd.isEmpty()) {
                 startCommand(niriCmd, {QStringLiteral("msg"), QStringLiteral("action"), QStringLiteral("focus-window"), QStringLiteral("--id"), QString::number(bestId)}, 1000, nullptr);
             }
-            return;
         }
+        return;
     }
 
     const QString hyprctl = findExecutable(QStringLiteral("hyprctl"));
