@@ -18,22 +18,47 @@ export MALLOC_CONF="${MALLOC_CONF:-narenas:2,background_thread:true,dirty_decay_
 
 cmd_basename="$(basename "$0")"
 if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" || "$1" == "lock" ]]; then
-  if systemctl --user is-active --quiet "$SERVICE_NAME" \
-      || pgrep -u "$(id -u)" -f "/usr/bin/quickshell -p $QML_PATH" >/dev/null; then
-    /usr/bin/quickshell ipc --any-display -p "$QML_PATH" call lock lock >/dev/null 2>&1 || true
-    exit 0
-  else
-    export LOCK_NOW=1
-    exec /usr/bin/quickshell -p "$QML_PATH/qml/lockscreen/Lockscreen.qml"
+  # 1. Try targeting running quickshell instance directly by PID
+  running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
+  if [[ -n "$running_pid" ]]; then
+    if /usr/bin/quickshell ipc --pid "$running_pid" call lock lock 2>/dev/null; then
+      exit 0
+    fi
   fi
+
+  # 2. Fallback to path-based IPC across known install locations
+  for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island" "${HOME}/.local/share/tide-island"; do
+    if [[ -d "$test_path" ]]; then
+      if /usr/bin/quickshell ipc --any-display -p "$test_path" call lock lock 2>/dev/null; then
+        exit 0
+      fi
+    fi
+  done
+
+  # 3. If no active instance was reachable, launch standalone lockscreen
+  for lock_qml in "$QML_PATH/qml/lockscreen/Lockscreen.qml" "/usr/share/tide-island/qml/lockscreen/Lockscreen.qml" "/usr/local/share/tide-island/qml/lockscreen/Lockscreen.qml"; do
+    if [[ -f "$lock_qml" ]]; then
+      export LOCK_NOW=1
+      exec /usr/bin/quickshell -p "$lock_qml"
+    fi
+  done
+  exit 1
 fi
 
 if [[ "${SYSTEMD_EXEC_PID:-}" != "$$" ]]; then
-  if systemctl --user is-active --quiet "$SERVICE_NAME" \
-      || pgrep -u "$(id -u)" -f "/usr/bin/quickshell -p $QML_PATH" >/dev/null; then
-    /usr/bin/quickshell ipc --any-display -p "$QML_PATH" call island show >/dev/null 2>&1 || true
-    exit 0
+  running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
+  if [[ -n "$running_pid" ]]; then
+    if /usr/bin/quickshell ipc --pid "$running_pid" call island show 2>/dev/null; then
+      exit 0
+    fi
   fi
+  for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island"; do
+    if [[ -d "$test_path" ]]; then
+      if /usr/bin/quickshell ipc --any-display -p "$test_path" call island show 2>/dev/null; then
+        exit 0
+      fi
+    fi
+  done
 fi
 
 desktop_name=":${XDG_CURRENT_DESKTOP,,}:"
