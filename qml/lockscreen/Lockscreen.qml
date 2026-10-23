@@ -75,12 +75,15 @@ Scope {
     readonly property bool batCharging: SystemGlance.batteryStatus === "Charging" || SystemGlance.batteryStatus === "Full"
     readonly property bool hasBattery: showBatteryPill && batPct >= 0
 
-    readonly property var batGlyphs: [0xf0083, 0xf007a, 0xf007d, 0xf007c, 0xf007d, 0xf007e, 0xf007f, 0xf0082, 0xf0081, 0xf0079]
+    readonly property var batGlyphs: [0xf007a, 0xf007b, 0xf007c, 0xf007d, 0xf007e, 0xf007f, 0xf0080, 0xf0081, 0xf0082, 0xf0079]
 
     function batteryGlyph(pct) {
         if (!(pct >= 0)) return "";
-        const base = String.fromCodePoint(root.batGlyphs[Math.min(Math.floor(pct / 10), 9)]);
-        return root.batCharging ? base + String.fromCodePoint(0xf140b) : base;
+        if (root.batCharging) {
+            return String.fromCodePoint(0xf0084);
+        }
+        const idx = Math.min(Math.max(0, Math.floor(pct / 10) - 1), 9);
+        return String.fromCodePoint(root.batGlyphs[idx]);
     }
 
     function batteryColor(pct) {
@@ -539,14 +542,14 @@ Scope {
                         blurEnabled: root.blurEnabled
                         blurMax: 32
                         blur: root.blurEnabled ? Math.min(1, scene.intro * 1.25) : 0
-                        saturation: root.hasExplicitWallpaper ? 0.90 : 0.06
-                        brightness: root.hasExplicitWallpaper ? -0.06 : -0.16
+                        saturation: 0.90
+                        brightness: -0.12
                     }
                 }
 
                 Rectangle {
                     anchors.fill: parent
-                    color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, root.hasExplicitWallpaper ? 0.25 : 0.40)
+                    color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.32)
                 }
 
                 // -------------------------------------------------------------
@@ -619,9 +622,9 @@ Scope {
 
                         RectangularGlow {
                             anchors.fill: box
-                            glowRadius: 36
-                            spread: 0.2
-                            color: Qt.rgba(0, 0, 0, 0.55)
+                            glowRadius: 48
+                            spread: 0.15
+                            color: Qt.rgba(0, 0, 0, 0.65)
                             cornerRadius: box.radius
                             opacity: scene.morph
                         }
@@ -630,31 +633,31 @@ Scope {
                             id: box
                             clip: true
                             readonly property real finalW: 820
-                            readonly property real finalH: col.implicitHeight + 36
-                            readonly property real finalR: 28
+                            readonly property real finalH: col.implicitHeight + 40
+                            readonly property real finalR: 32
 
                             width: root.islandW + (finalW - root.islandW) * scene.openW
                             height: root.islandH + (finalH - root.islandH) * scene.openH
                             radius: root.islandR + (finalR - root.islandR) * Math.min(1, scene.openH)
                             topLeftRadius: root.isNotchMode ? (finalR * (1 - (1 - scene.openH))) : radius
                             topRightRadius: root.isNotchMode ? (finalR * (1 - (1 - scene.openH))) : radius
-                            color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.78)
+                            color: Qt.rgba(StyleTokens.panel.r * 0.7, StyleTokens.panel.g * 0.7, StyleTokens.panel.b * 0.7, 0.75)
                             border.width: 1
-                            border.color: StyleTokens.cardBorder
+                            border.color: Qt.rgba(255, 255, 255, 0.12)
 
                             Column {
                                 id: col
-                                x: 18
-                                y: 18
-                                width: box.finalW - 36
-                                spacing: 14
+                                x: 20
+                                y: 20
+                                width: box.finalW - 40
+                                spacing: 16
                                 opacity: scene.reveal
 
                                 Row {
                                     id: panels
                                     width: parent.width
-                                    height: 310
-                                    spacing: 14
+                                    height: 316
+                                    spacing: 16
 
                                     // -----------------------------------------
                                     // LEFT PANEL: CLOCK, GREETING & MEDIA
@@ -663,10 +666,10 @@ Scope {
                                         id: leftP
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
-                                        radius: 20
-                                        color: StyleTokens.cardFillActive
+                                        radius: 24
+                                        color: Qt.rgba(255, 255, 255, 0.04)
                                         border.width: 1
-                                        border.color: StyleTokens.cardBorder
+                                        border.color: Qt.rgba(255, 255, 255, 0.08)
                                         opacity: scene.stage(1)
                                         transform: Translate { x: (1 - scene.stage(1)) * -16 }
 
@@ -682,8 +685,9 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Qt.formatDateTime(clock.date, root.clockFmt)
                                                 font.family: root.heroFont
-                                                font.pixelSize: root.hasMedia ? 34 : 44
-                                                font.weight: Font.Bold
+                                                font.pixelSize: root.hasMedia ? 46 : 58
+                                                font.weight: Font.DemiBold
+                                                font.letterSpacing: -1
                                                 color: StyleTokens.textPrimaryBright
                                             }
 
@@ -694,33 +698,43 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                                                 font.family: root.textFont
-                                                font.pixelSize: root.hasMedia ? 14 : 17
+                                                font.pixelSize: root.hasMedia ? 14 : 16
                                                 color: StyleTokens.textSecondary
                                             }
 
-                                            // Greeting Label
-                                            Text {
-                                                id: greetingText
-                                                width: parent.width
-                                                horizontalAlignment: Text.AlignHCenter
-                                                text: root.greeting()
-                                                font.family: root.textFont
-                                                font.pixelSize: root.hasMedia ? 12 : 14
-                                                font.weight: Font.DemiBold
-                                                color: StyleTokens.accent
-                                                elide: Text.ElideRight
+                                            // Greeting Capsule
+                                            Rectangle {
+                                                id: greetingCap
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                height: 24
+                                                width: greetingText.implicitWidth + 22
+                                                radius: 12
+                                                color: StyleTokens.withAlpha(StyleTokens.accent, 0.12)
+                                                border.width: 1
+                                                border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.28)
+
+                                                Text {
+                                                    id: greetingText
+                                                    anchors.centerIn: parent
+                                                    text: root.greeting()
+                                                    font.family: root.textFont
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.DemiBold
+                                                    color: StyleTokens.accent
+                                                    elide: Text.ElideRight
+                                                }
                                             }
 
                                             // Rich Media Player Card
                                             Rectangle {
                                                 id: mediaCard
                                                 width: parent.width
-                                                height: root.hasMedia ? 112 : 0
+                                                height: root.hasMedia ? 116 : 0
                                                 visible: root.hasMedia
-                                                radius: 14
-                                                color: StyleTokens.cardFill
+                                                radius: 16
+                                                color: Qt.rgba(0, 0, 0, 0.32)
                                                 border.width: 1
-                                                border.color: StyleTokens.cardBorder
+                                                border.color: Qt.rgba(255, 255, 255, 0.08)
                                                 clip: true
 
                                                 Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
@@ -734,14 +748,14 @@ Scope {
                                                     ClippingRectangle {
                                                         Layout.preferredWidth: 64
                                                         Layout.preferredHeight: 64
-                                                        radius: 10
+                                                        radius: 12
                                                         color: StyleTokens.cardFillHover
 
                                                         Text {
                                                             anchors.centerIn: parent
-                                                            text: ""
+                                                            text: "󰎆"
                                                             font.family: root.nerdFont
-                                                            font.pixelSize: 22
+                                                            font.pixelSize: 26
                                                             color: StyleTokens.textMuted
                                                             visible: artImage.status !== Image.Ready
                                                         }
@@ -781,19 +795,21 @@ Scope {
 
                                                         // Playback Controls
                                                         RowLayout {
-                                                            spacing: 10
+                                                            spacing: 8
 
                                                             Rectangle {
-                                                                width: 28
-                                                                height: 28
-                                                                radius: 14
-                                                                color: prevMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
+                                                                width: 32
+                                                                height: 32
+                                                                radius: 16
+                                                                color: prevMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.12) : StyleTokens.transparent
+                                                                Behavior on color { ColorAnimation { duration: 120 } }
+
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: "󰒮"
                                                                     font.family: root.nerdFont
-                                                                    font.pixelSize: 16
-                                                                    color: StyleTokens.textPrimaryBright
+                                                                    font.pixelSize: 18
+                                                                    color: prevMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
                                                                 }
                                                                 MouseArea {
                                                                     id: prevMouse
@@ -805,36 +821,43 @@ Scope {
                                                             }
 
                                                             Rectangle {
-                                                                width: 32
-                                                                height: 32
-                                                                radius: 16
+                                                                width: 36
+                                                                height: 36
+                                                                radius: 18
                                                                 color: StyleTokens.accent
+                                                                scale: playMouse.pressed ? 0.92 : (playMouse.containsMouse ? 1.05 : 1.0)
+                                                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: root.isMediaPlaying ? "󰏤" : "󰐊"
                                                                     font.family: root.nerdFont
-                                                                    font.pixelSize: 16
-                                                                    color: StyleTokens.textPrimaryBright
+                                                                    font.pixelSize: 18
+                                                                    font.weight: Font.Bold
+                                                                    color: StyleTokens.textOnAccent
                                                                 }
                                                                 MouseArea {
                                                                     id: playMouse
                                                                     anchors.fill: parent
+                                                                    hoverEnabled: true
                                                                     cursorShape: Qt.PointingHandCursor
                                                                     onClicked: if (root.activePlayer && root.activePlayer.canControl) root.activePlayer.togglePlaying()
                                                                 }
                                                             }
 
                                                             Rectangle {
-                                                                width: 28
-                                                                height: 28
-                                                                radius: 14
-                                                                color: nextMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.transparent
+                                                                width: 32
+                                                                height: 32
+                                                                radius: 16
+                                                                color: nextMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.12) : StyleTokens.transparent
+                                                                Behavior on color { ColorAnimation { duration: 120 } }
+
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: "󰒭"
                                                                     font.family: root.nerdFont
-                                                                    font.pixelSize: 16
-                                                                    color: StyleTokens.textPrimaryBright
+                                                                    font.pixelSize: 18
+                                                                    color: nextMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
                                                                 }
                                                                 MouseArea {
                                                                     id: nextMouse
@@ -858,10 +881,10 @@ Scope {
                                         id: rightP
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
-                                        radius: 20
-                                        color: StyleTokens.cardFillActive
+                                        radius: 24
+                                        color: Qt.rgba(255, 255, 255, 0.04)
                                         border.width: 1
-                                        border.color: StyleTokens.cardBorder
+                                        border.color: Qt.rgba(255, 255, 255, 0.08)
                                         opacity: scene.stage(1)
                                         transform: Translate { x: (1 - scene.stage(1)) * 16 }
 
@@ -870,38 +893,50 @@ Scope {
                                             width: parent.width - 40
                                             spacing: 14
 
-                                            // Avatar
-                                            ClippingRectangle {
+                                            // Avatar with ambient glow halo
+                                            Item {
                                                 anchors.horizontalCenter: parent.horizontalCenter
-                                                width: 96
-                                                height: 96
-                                                radius: 48
-                                                color: StyleTokens.cardFillHover
-                                                border.width: 2
-                                                border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.4)
+                                                width: 104
+                                                height: 104
 
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: root.userName.charAt(0).toUpperCase()
-                                                    color: StyleTokens.accent
-                                                    font.family: root.heroFont
-                                                    font.pixelSize: 42
-                                                    font.weight: Font.Bold
-                                                    visible: avatarImg.status !== Image.Ready
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: width / 2
+                                                    color: "transparent"
+                                                    border.width: 2
+                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.45)
                                                 }
 
-                                                Image {
-                                                    id: avatarImg
-                                                    anchors.fill: parent
-                                                    source: {
-                                                        if (root.avatarPath === "") return "";
-                                                        if (root.avatarPath.startsWith("file://")) return root.avatarPath;
-                                                        if (root.avatarPath.startsWith("/")) return "file://" + encodeURI(root.avatarPath);
-                                                        return root.avatarPath;
+                                                ClippingRectangle {
+                                                    anchors.centerIn: parent
+                                                    width: 96
+                                                    height: 96
+                                                    radius: 48
+                                                    color: StyleTokens.cardFillHover
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: root.userName.charAt(0).toUpperCase()
+                                                        color: StyleTokens.accent
+                                                        font.family: root.heroFont
+                                                        font.pixelSize: 42
+                                                        font.weight: Font.Bold
+                                                        visible: avatarImg.status !== Image.Ready
                                                     }
-                                                    fillMode: Image.PreserveAspectCrop
-                                                    asynchronous: true
-                                                    visible: status === Image.Ready
+
+                                                    Image {
+                                                        id: avatarImg
+                                                        anchors.fill: parent
+                                                        source: {
+                                                            if (root.avatarPath === "") return "";
+                                                            if (root.avatarPath.startsWith("file://")) return root.avatarPath;
+                                                            if (root.avatarPath.startsWith("/")) return "file://" + encodeURI(root.avatarPath);
+                                                            return root.avatarPath;
+                                                        }
+                                                        fillMode: Image.PreserveAspectCrop
+                                                        asynchronous: true
+                                                        visible: status === Image.Ready
+                                                    }
                                                 }
                                             }
 
@@ -911,7 +946,7 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: root.userName
                                                 font.family: root.textFont
-                                                font.pixelSize: 20
+                                                font.pixelSize: 21
                                                 font.weight: Font.Bold
                                                 color: StyleTokens.textPrimaryBright
                                                 elide: Text.ElideRight
@@ -921,13 +956,13 @@ Scope {
                                             Rectangle {
                                                 id: field
                                                 width: parent.width
-                                                height: 44
-                                                radius: 22
-                                                color: StyleTokens.cardFill
+                                                height: 48
+                                                radius: 24
+                                                color: Qt.rgba(0, 0, 0, 0.35)
                                                 border.width: 1.5
                                                 border.color: (root.failed || root.lockedOut)
                                                     ? StyleTokens.danger
-                                                    : (root.buffer.length > 0 ? StyleTokens.accent : StyleTokens.cardBorder)
+                                                    : (root.buffer.length > 0 ? StyleTokens.accent : Qt.rgba(255, 255, 255, 0.14))
 
                                                 Behavior on border.color {
                                                     ColorAnimation { duration: 180 }
@@ -952,7 +987,8 @@ Scope {
                                                     anchors.centerIn: parent
                                                     text: "Enter Password"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Medium
                                                     color: StyleTokens.textMuted
                                                     opacity: root.buffer.length === 0 ? 0.85 : 0
                                                     Behavior on opacity {
@@ -970,16 +1006,16 @@ Scope {
                                                     Row {
                                                         anchors.horizontalCenter: parent.horizontalCenter
                                                         anchors.verticalCenter: parent.verticalCenter
-                                                        spacing: 6
+                                                        spacing: 7
 
                                                         Repeater {
                                                             model: Math.min(root.buffer.length, 16)
 
                                                             Rectangle {
                                                                 required property int index
-                                                                width: 8
-                                                                height: 8
-                                                                radius: 4
+                                                                width: 9
+                                                                height: 9
+                                                                radius: 4.5
                                                                 color: root.failed ? StyleTokens.danger : StyleTokens.accent
 
                                                                 property real pop: 0
@@ -1005,9 +1041,9 @@ Scope {
                                                 Rectangle {
                                                     id: goBtn
                                                     readonly property bool live: root.buffer.length > 0 || root.checking || root.unlocking || root.pamLocked
-                                                    width: 32
-                                                    height: 32
-                                                    radius: 16
+                                                    width: 36
+                                                    height: 36
+                                                    radius: 18
                                                     anchors.right: parent.right
                                                     anchors.rightMargin: 6
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -1021,10 +1057,11 @@ Scope {
                                                     Text {
                                                         id: goIcon
                                                         anchors.centerIn: parent
-                                                        text: root.unlocking ? "✓" : (root.checking ? "󰑮" : (root.pamLocked ? "" : "➜"))
-                                                        color: StyleTokens.textPrimaryBright
+                                                        text: root.unlocking ? "󰄬" : (root.checking ? "󰑮" : (root.pamLocked ? "󰌾" : "󰁔"))
+                                                        color: StyleTokens.textOnAccent
                                                         font.family: root.nerdFont
-                                                        font.pixelSize: 15
+                                                        font.pixelSize: 18
+                                                        font.weight: Font.Bold
 
                                                         NumberAnimation on rotation {
                                                             running: root.checking
@@ -1056,10 +1093,10 @@ Scope {
 
                                                 Text {
                                                     visible: root.failed || root.lockedOut
-                                                    text: ""
+                                                    text: "󰀦"
                                                     color: StyleTokens.danger
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: 14
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
 
@@ -1084,7 +1121,7 @@ Scope {
                                 Item {
                                     id: bottomBar
                                     width: parent.width
-                                    height: 44
+                                    height: 42
                                     opacity: scene.stage(2)
                                     transform: Translate { y: (1 - scene.stage(2)) * 8 }
 
@@ -1093,35 +1130,35 @@ Scope {
                                         anchors.left: parent.left
                                         anchors.leftMargin: 4
                                         anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 8
+                                        spacing: 10
 
                                         // Weather Pill
                                         Rectangle {
                                             visible: weatherService.hasData
-                                            height: 34
-                                            width: weatherRow.implicitWidth + 24
-                                            radius: 17
-                                            color: StyleTokens.cardFill
+                                            height: 38
+                                            width: weatherRow.implicitWidth + 28
+                                            radius: 19
+                                            color: Qt.rgba(255, 255, 255, 0.05)
                                             border.width: 1
-                                            border.color: StyleTokens.cardBorder
+                                            border.color: Qt.rgba(255, 255, 255, 0.10)
 
                                             RowLayout {
                                                 id: weatherRow
                                                 anchors.centerIn: parent
-                                                spacing: 6
+                                                spacing: 8
 
                                                 Text {
                                                     text: weatherService.iconGlyph
                                                     color: weatherService.iconColor
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 16
+                                                    font.pixelSize: 18
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
 
                                                 Text {
                                                     text: weatherService.tempString
                                                     font.family: root.textFont
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 13
                                                     font.weight: Font.DemiBold
                                                     color: StyleTokens.textPrimaryBright
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1132,30 +1169,30 @@ Scope {
                                         // Battery Pill
                                         Rectangle {
                                             visible: root.hasBattery
-                                            height: 34
-                                            width: batteryRow.implicitWidth + 24
-                                            radius: 17
-                                            color: StyleTokens.cardFill
+                                            height: 38
+                                            width: batteryRow.implicitWidth + 28
+                                            radius: 19
+                                            color: Qt.rgba(255, 255, 255, 0.05)
                                             border.width: 1
-                                            border.color: StyleTokens.cardBorder
+                                            border.color: Qt.rgba(255, 255, 255, 0.10)
 
                                             RowLayout {
                                                 id: batteryRow
                                                 anchors.centerIn: parent
-                                                spacing: 6
+                                                spacing: 8
 
                                                 Text {
                                                     text: root.batteryGlyph(root.batPct)
                                                     color: root.batteryColor(root.batPct)
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 16
+                                                    font.pixelSize: 18
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
 
                                                 Text {
                                                     text: root.batPct + "%"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 13
                                                     font.weight: Font.DemiBold
                                                     color: StyleTokens.textPrimaryBright
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1169,38 +1206,46 @@ Scope {
                                         anchors.right: parent.right
                                         anchors.rightMargin: 4
                                         anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 8
+                                        spacing: 10
                                         visible: root.showPowerActions
 
                                         // Sleep Button
                                         Rectangle {
                                             id: sleepBtn
                                             property bool armed: false
-                                            height: 34
-                                            width: armed ? 76 : 40
-                                            radius: 17
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45) : (sleepMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill)
+                                            height: 38
+                                            width: armed ? 90 : 38
+                                            radius: 19
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
+                                                         : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
+                                                                                     : Qt.rgba(255, 255, 255, 0.07))
                                             border.width: 1
-                                            border.color: armed ? StyleTokens.danger : StyleTokens.cardBorder
+                                            border.color: armed ? StyleTokens.danger
+                                                                : (sleepMouse.containsMouse ? StyleTokens.accent
+                                                                                            : Qt.rgba(255, 255, 255, 0.12))
 
-                                            Behavior on width { NumberAnimation { duration: 120 } }
-                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                            Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 4
+                                                spacing: 6
                                                 Text {
-                                                    text: ""
+                                                    text: "󰤄"
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 14
-                                                    color: sleepBtn.armed ? StyleTokens.danger : StyleTokens.textPrimaryBright
+                                                    font.pixelSize: 18
+                                                    color: sleepBtn.armed ? StyleTokens.danger
+                                                                          : (sleepMouse.containsMouse ? StyleTokens.accent
+                                                                                                      : StyleTokens.textPrimaryBright)
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
                                                 Text {
                                                     visible: sleepBtn.armed
-                                                    text: "sure?"
+                                                    text: "Sleep?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
@@ -1235,31 +1280,39 @@ Scope {
                                         Rectangle {
                                             id: rebootBtn
                                             property bool armed: false
-                                            height: 34
-                                            width: armed ? 76 : 40
-                                            radius: 17
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45) : (rebootMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill)
+                                            height: 38
+                                            width: armed ? 94 : 38
+                                            radius: 19
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
+                                                         : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
+                                                                                      : Qt.rgba(255, 255, 255, 0.07))
                                             border.width: 1
-                                            border.color: armed ? StyleTokens.danger : StyleTokens.cardBorder
+                                            border.color: armed ? StyleTokens.danger
+                                                                : (rebootMouse.containsMouse ? StyleTokens.accent
+                                                                                             : Qt.rgba(255, 255, 255, 0.12))
 
-                                            Behavior on width { NumberAnimation { duration: 120 } }
-                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                            Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 4
+                                                spacing: 6
                                                 Text {
-                                                    text: ""
+                                                    text: "󰑐"
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 14
-                                                    color: rebootBtn.armed ? StyleTokens.danger : StyleTokens.textPrimaryBright
+                                                    font.pixelSize: 18
+                                                    color: rebootBtn.armed ? StyleTokens.danger
+                                                                           : (rebootMouse.containsMouse ? StyleTokens.accent
+                                                                                                        : StyleTokens.textPrimaryBright)
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
                                                 Text {
                                                     visible: rebootBtn.armed
-                                                    text: "sure?"
+                                                    text: "Reboot?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
@@ -1294,31 +1347,39 @@ Scope {
                                         Rectangle {
                                             id: shutdownBtn
                                             property bool armed: false
-                                            height: 34
-                                            width: armed ? 76 : 40
-                                            radius: 17
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45) : (shutdownMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill)
+                                            height: 38
+                                            width: armed ? 90 : 38
+                                            radius: 19
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
+                                                         : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.3)
+                                                                                        : Qt.rgba(255, 255, 255, 0.07))
                                             border.width: 1
-                                            border.color: armed ? StyleTokens.danger : StyleTokens.cardBorder
+                                            border.color: armed ? StyleTokens.danger
+                                                                : (shutdownMouse.containsMouse ? StyleTokens.danger
+                                                                                               : Qt.rgba(255, 255, 255, 0.12))
 
-                                            Behavior on width { NumberAnimation { duration: 120 } }
-                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                            Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 4
+                                                spacing: 6
                                                 Text {
-                                                    text: ""
+                                                    text: "󰐥"
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 14
-                                                    color: shutdownBtn.armed ? StyleTokens.danger : StyleTokens.textPrimaryBright
+                                                    font.pixelSize: 18
+                                                    color: shutdownBtn.armed ? StyleTokens.danger
+                                                                             : (shutdownMouse.containsMouse ? StyleTokens.danger
+                                                                                                            : StyleTokens.textPrimaryBright)
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
                                                 Text {
                                                     visible: shutdownBtn.armed
-                                                    text: "sure?"
+                                                    text: "Power?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
