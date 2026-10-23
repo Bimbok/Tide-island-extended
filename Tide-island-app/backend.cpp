@@ -1359,3 +1359,49 @@ QString Backend::matugenTomlSnippet() const
     );
 }
 
+QString Backend::detectActiveWallpaper() const
+{
+    // 1. Check awww query
+    const QString awwwBin = QStandardPaths::findExecutable(QStringLiteral("awww"));
+    if (!awwwBin.isEmpty()) {
+        QProcess proc;
+        proc.start(awwwBin, {QStringLiteral("query")});
+        if (proc.waitForFinished(300)) {
+            const QString output = QString::fromUtf8(proc.readAllStandardOutput());
+            const int idx = output.indexOf(QStringLiteral("image: "));
+            if (idx != -1) {
+                QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
+                if (!path.isEmpty() && QFile::exists(path))
+                    return path;
+            }
+        }
+    }
+
+    // 2. Check swww query
+    const QString swwwBin = QStandardPaths::findExecutable(QStringLiteral("swww"));
+    if (!swwwBin.isEmpty()) {
+        QProcess proc;
+        proc.start(swwwBin, {QStringLiteral("query")});
+        if (proc.waitForFinished(300)) {
+            const QString output = QString::fromUtf8(proc.readAllStandardOutput());
+            const int idx = output.indexOf(QStringLiteral("image: "));
+            if (idx != -1) {
+                QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
+                if (!path.isEmpty() && QFile::exists(path))
+                    return path;
+            }
+        }
+    }
+
+    // 3. Check ~/.cache/tide-island/last_wallpaper
+    const QString cachePath = QDir::homePath() + QStringLiteral("/.cache/tide-island/last_wallpaper");
+    QFile cacheFile(cachePath);
+    if (cacheFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString cached = QString::fromUtf8(cacheFile.readLine()).trimmed();
+        if (!cached.isEmpty() && QFile::exists(cached))
+            return cached;
+    }
+
+    return QString();
+}
+

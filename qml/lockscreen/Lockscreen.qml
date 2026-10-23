@@ -30,6 +30,7 @@ Scope {
     property bool locked: false
 
     function lock(): void {
+        wpQueryProc.running = true;
         sessionLock.locked = true;
     }
 
@@ -85,12 +86,16 @@ Scope {
     }
 
     // Wallpaper resolution
+    property string liveDetectedWallpaper: ""
+
     readonly property string customLockscreenWallpaper: (userConfig && userConfig.lockscreenWallpaperPath !== "")
         ? expandHome(userConfig.lockscreenWallpaperPath)
         : ""
     readonly property bool hasExplicitWallpaper: customLockscreenWallpaper !== ""
 
     readonly property string detectedWallpaper: {
+        if (liveDetectedWallpaper !== "")
+            return liveDetectedWallpaper;
         if (userConfig && userConfig.wallpaperPath !== "")
             return userConfig.wallpaperPath;
         let p = wpFile.text().split("\n")[0].trim();
@@ -113,6 +118,42 @@ Scope {
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
+    }
+
+    Process {
+        id: wpQueryProc
+        command: [
+            "sh", "-c",
+            "if command -v awww >/dev/null 2>&1; then "
+                + "p=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1); "
+                + "if [ -n \"$p\" ]; then echo \"$p\"; exit 0; fi; "
+            + "fi; "
+            + "if command -v swww >/dev/null 2>&1; then "
+                + "p=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1); "
+                + "if [ -n \"$p\" ]; then echo \"$p\"; exit 0; fi; "
+            + "fi; "
+            + "if command -v hyprctl >/dev/null 2>&1; then "
+                + "p=$(hyprctl hyprpaper listactive 2>/dev/null | head -n1 | awk '{print $NF}'); "
+                + "if [ -n \"$p\" ]; then echo \"$p\"; exit 0; fi; "
+            + "fi; "
+            + "if [ -f ~/.cache/tide-island/last_wallpaper ]; then "
+                + "head -n1 ~/.cache/tide-island/last_wallpaper; "
+            + "fi"
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const p = text.trim();
+                if (p.length > 0) {
+                    root.liveDetectedWallpaper = p;
+                    wpCacheProc.command = ["sh", "-c", "mkdir -p ~/.cache/tide-island && printf '%s\\n' \"$1\" > ~/.cache/tide-island/last_wallpaper", "_", p];
+                    wpCacheProc.running = true;
+                }
+            }
+        }
+    }
+
+    Process {
+        id: wpCacheProc
     }
 
     // Weather Service instance
@@ -324,6 +365,7 @@ Scope {
     }
 
     Component.onCompleted: {
+        wpQueryProc.running = true;
         if (root.oneshot)
             sessionLock.locked = true;
     }
@@ -346,6 +388,7 @@ Scope {
                 confirmTimer.stop();
                 failReset.stop();
                 refreshFailTally();
+                wpQueryProc.running = true;
                 wpFile.reload();
             }
         }

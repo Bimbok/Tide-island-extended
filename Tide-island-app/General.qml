@@ -1050,12 +1050,16 @@ PagePanel {
         function effectiveSource() {
             wallpaperVersion;
             const explicit = String(ConfigStore.value(row.keyName, "")).trim();
-            if (explicit.length > 0) {
+            if (explicit.length > 0 && explicit !== "null" && explicit !== "undefined") {
                 return explicit.startsWith("/") ? "file://" + explicit : explicit;
             }
             const deskWp = String(ConfigStore.value("wallpaperPath", "")).trim();
-            if (deskWp.length > 0) {
+            if (deskWp.length > 0 && deskWp !== "null" && deskWp !== "undefined") {
                 return deskWp.startsWith("/") ? "file://" + deskWp : deskWp;
+            }
+            const detected = backend.detectActiveWallpaper();
+            if (detected.length > 0) {
+                return "file://" + detected;
             }
             return "";
         }
@@ -1184,7 +1188,10 @@ PagePanel {
                 id: field
                 width: Math.max(160, Math.min(260, (row.width - 320) / 2))
                 height: 36
-                placeholderText: "Default: Desktop wallpaper (blurred)"
+                placeholderText: {
+                    const det = backend.detectActiveWallpaper();
+                    return det.length > 0 ? "Default: " + det.split('/').pop() + " (blurred)" : "Default: Desktop wallpaper (blurred)"
+                }
                 textPixelSize: 13
 
                 Component.onCompleted: {

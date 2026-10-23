@@ -54,6 +54,7 @@ public:
     Q_INVOKABLE bool isMatugenTemplateInstalled() const;
     Q_INVOKABLE bool installMatugenTemplate();
     Q_INVOKABLE QString matugenTomlSnippet() const;
+    Q_INVOKABLE QString detectActiveWallpaper() const;
 
 signals:
     void errorStringChanged();
