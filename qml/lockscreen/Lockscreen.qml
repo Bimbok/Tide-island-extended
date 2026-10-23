@@ -85,6 +85,11 @@ Scope {
     }
 
     // Wallpaper resolution
+    readonly property string customLockscreenWallpaper: (userConfig && userConfig.lockscreenWallpaperPath !== "")
+        ? expandHome(userConfig.lockscreenWallpaperPath)
+        : ""
+    readonly property bool hasExplicitWallpaper: customLockscreenWallpaper !== ""
+
     readonly property string detectedWallpaper: {
         if (userConfig && userConfig.wallpaperPath !== "")
             return userConfig.wallpaperPath;
@@ -93,7 +98,14 @@ Scope {
             p = p.slice(7);
         return expandHome(p);
     }
-    readonly property string wallpaper: envWallpaper !== "" ? envWallpaper : detectedWallpaper
+
+    readonly property string wallpaper: {
+        if (envWallpaper !== "") return envWallpaper;
+        if (hasExplicitWallpaper) return customLockscreenWallpaper;
+        return detectedWallpaper;
+    }
+
+    readonly property bool blurEnabled: userConfig ? userConfig.lockscreenBlur : true
 
     FileView {
         id: wpFile
@@ -476,20 +488,20 @@ Scope {
                         NumberAnimation { duration: 250 }
                     }
 
-                    layer.enabled: true
+                    layer.enabled: root.blurEnabled
                     layer.effect: MultiEffect {
                         autoPaddingEnabled: false
-                        blurEnabled: true
+                        blurEnabled: root.blurEnabled
                         blurMax: 32
-                        blur: Math.min(1, scene.intro * 1.25)
-                        saturation: 0.06
-                        brightness: -0.16
+                        blur: root.blurEnabled ? Math.min(1, scene.intro * 1.25) : 0
+                        saturation: root.hasExplicitWallpaper ? 0.90 : 0.06
+                        brightness: root.hasExplicitWallpaper ? -0.06 : -0.16
                     }
                 }
 
                 Rectangle {
                     anchors.fill: parent
-                    color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.40)
+                    color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, root.hasExplicitWallpaper ? 0.25 : 0.40)
                 }
 
                 // -------------------------------------------------------------

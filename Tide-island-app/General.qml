@@ -17,6 +17,16 @@ PagePanel {
         }
     }
 
+    HiddenPathDialog {
+        id: lockscreenWallpaperFileDialog
+
+        directoryMode: false
+        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.svg", "*.gif", "*.bmp"]
+        onPathAccepted: function(path) {
+            lockscreenWallpaperRow.setPath(path)
+        }
+    }
+
     function intValue(key, fallback) {
         return String(ConfigStore.value(key, fallback))
     }
@@ -288,6 +298,30 @@ PagePanel {
                     anchors.right: parent.right
                     anchors.rightMargin: 18
                     spacing: 16
+
+                    LockscreenWallpaperRow {
+                        id: lockscreenWallpaperRow
+                        title: "Lockscreen Wallpaper"
+                        description: "Custom wallpaper. If empty, the desktop wallpaper is used with blur"
+                        keyName: "lockscreenWallpaperPath"
+                        width: parent.width
+                    }
+
+                    SplitLine {
+                        width: parent.width
+                    }
+
+                    SwitchRow {
+                        title: "Blur Wallpaper"
+                        description: "Apply blur effect to the lockscreen wallpaper"
+                        keyName: "lockscreenBlur"
+                        fallbackValue: true
+                        width: parent.width
+                    }
+
+                    SplitLine {
+                        width: parent.width
+                    }
 
                     SwitchRow {
                         title: "Media Player"
@@ -995,6 +1029,206 @@ PagePanel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: control.toggled(!control.checked)
+        }
+    }
+
+    component LockscreenWallpaperRow: Item {
+        id: row
+
+        property string title: ""
+        property string description: ""
+        property string keyName: ""
+
+        property int wallpaperVersion: 0
+
+        height: 60
+
+        function cleanHome() {
+            return backend.homeDirectory || "";
+        }
+
+        function effectiveSource() {
+            wallpaperVersion;
+            const explicit = String(ConfigStore.value(row.keyName, "")).trim();
+            if (explicit.length > 0) {
+                return explicit.startsWith("/") ? "file://" + explicit : explicit;
+            }
+            const deskWp = String(ConfigStore.value("wallpaperPath", "")).trim();
+            if (deskWp.length > 0) {
+                return deskWp.startsWith("/") ? "file://" + deskWp : deskWp;
+            }
+            return "";
+        }
+
+        Item {
+            id: wpContainer
+            width: 80
+            height: 48
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 8
+                color: Theme.componentBgColor
+                border.width: 1
+                border.color: wpMouseArea.containsMouse ? Theme.accentColor : Theme.inputBorderColor
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+                clip: true
+
+                Image {
+                    id: wpThumbnail
+                    anchors.fill: parent
+                    source: row.effectiveSource()
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: false
+                    visible: status === Image.Ready
+
+                    layer.enabled: String(ConfigStore.value(row.keyName, "")).trim().length === 0
+                    layer.effect: MultiEffect {
+                        autoPaddingEnabled: false
+                        blurEnabled: true
+                        blurMax: 8
+                        blur: 0.6
+                        brightness: -0.1
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: wpThumbnail.status !== Image.Ready
+                    text: "Default"
+                    font.family: Theme.textFontFamily
+                    font.pixelSize: 11
+                    color: Theme.subtleTextColor
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Qt.rgba(0, 0, 0, 0.40)
+                    opacity: wpMouseArea.containsMouse ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Change"
+                        font.family: Theme.textFontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        color: "#ffffff"
+                    }
+                }
+            }
+
+            MouseArea {
+                id: wpMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: lockscreenWallpaperFileDialog.openForPath(field.text)
+            }
+
+            DropArea {
+                anchors.fill: parent
+                onDropped: function(drop) {
+                    let p = "";
+                    if (drop.hasUrls && drop.urls.length > 0) {
+                        p = drop.urls[0].toString();
+                    } else if (drop.hasText) {
+                        p = drop.text.trim();
+                    }
+                    if (p.length > 0) {
+                        if (p.startsWith("file://")) {
+                            p = decodeURIComponent(p.substring(7));
+                        }
+                        row.setPath(p);
+                    }
+                }
+            }
+        }
+
+        Column {
+            anchors.left: wpContainer.right
+            anchors.leftMargin: 16
+            anchors.right: controlsRow.left
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+
+            Text {
+                text: row.title
+                font.family: Theme.textFontFamily
+                font.pixelSize: 18
+                color: Theme.textColor
+            }
+
+            Text {
+                text: row.description
+                font.family: Theme.textFontFamily
+                font.pixelSize: 13
+                color: Theme.subtleTextColor
+                elide: Text.ElideRight
+                width: parent.width
+            }
+        }
+
+        Row {
+            id: controlsRow
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+
+            ConfigTextField {
+                id: field
+                width: Math.max(160, Math.min(260, (row.width - 320) / 2))
+                height: 36
+                placeholderText: "Default: Desktop wallpaper (blurred)"
+                textPixelSize: 13
+
+                Component.onCompleted: {
+                    text = String(ConfigStore.value(row.keyName, ""))
+                }
+
+                onAccepted: row.commit()
+                onEditingFinished: row.commit()
+            }
+
+            ButtonLike {
+                text: "Browse"
+                primary: true
+                onClicked: lockscreenWallpaperFileDialog.openForPath(field.text)
+            }
+
+            ButtonLike {
+                text: "Clear"
+                enabled: field.text.length > 0
+                onClicked: row.clear()
+            }
+        }
+
+        function setPath(path) {
+            field.text = path;
+            commit();
+        }
+
+        function clear() {
+            field.text = "";
+            ConfigStore.remove(row.keyName);
+            ConfigStore.save();
+            wallpaperVersion++;
+        }
+
+        function commit() {
+            const val = field.text.trim();
+            if (val.length === 0) {
+                clear();
+            } else {
+                ConfigStore.setValue(row.keyName, val);
+                ConfigStore.save();
+                wallpaperVersion++;
+            }
         }
     }
 

@@ -83,6 +83,8 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(bool lockscreenPowerActions READ lockscreenPowerActions WRITE setLockscreenPowerActions NOTIFY lockscreenPowerActionsChanged FINAL)
     Q_PROPERTY(bool lockscreenShowBattery READ lockscreenShowBattery WRITE setLockscreenShowBattery NOTIFY lockscreenShowBatteryChanged FINAL)
     Q_PROPERTY(QString lockscreenPamService READ lockscreenPamService WRITE setLockscreenPamService NOTIFY lockscreenPamServiceChanged FINAL)
+    Q_PROPERTY(QString lockscreenWallpaperPath READ lockscreenWallpaperPath WRITE setLockscreenWallpaperPath NOTIFY lockscreenWallpaperPathChanged FINAL)
+    Q_PROPERTY(bool lockscreenBlur READ lockscreenBlur WRITE setLockscreenBlur NOTIFY lockscreenBlurChanged FINAL)
 
 public:
     explicit UserConfigBackend(QObject *parent = nullptr);
@@ -159,6 +161,10 @@ public:
     void setLockscreenShowBattery(bool enabled);
     QString lockscreenPamService() const;
     void setLockscreenPamService(const QString &service);
+    QString lockscreenWallpaperPath() const;
+    void setLockscreenWallpaperPath(const QString &path);
+    bool lockscreenBlur() const;
+    void setLockscreenBlur(bool enabled);
     void setDefaultWallpaperPath(const QString &path);
     void setDefaultTlpSudoPassword(const QString &password);
 
@@ -234,6 +240,8 @@ signals:
     void lockscreenPowerActionsChanged();
     void lockscreenShowBatteryChanged();
     void lockscreenPamServiceChanged();
+    void lockscreenWallpaperPathChanged();
+    void lockscreenBlurChanged();
 
 private:
     void scheduleReload();
@@ -307,6 +315,8 @@ private:
     bool m_lockscreenPowerActions = true;
     bool m_lockscreenShowBattery = true;
     QString m_lockscreenPamService = QStringLiteral("login");
+    QString m_lockscreenWallpaperPath;
+    bool m_lockscreenBlur = true;
 
     QFileSystemWatcher m_watcher;
     QTimer m_reloadTimer;

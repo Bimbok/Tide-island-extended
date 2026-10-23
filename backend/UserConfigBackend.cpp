@@ -592,6 +592,50 @@ void UserConfigBackend::setLockscreenPamService(const QString &service)
     }
 }
 
+QString UserConfigBackend::lockscreenWallpaperPath() const { return m_lockscreenWallpaperPath; }
+void UserConfigBackend::setLockscreenWallpaperPath(const QString &path)
+{
+    const QString clean = path.trimmed();
+    if (m_lockscreenWallpaperPath == clean) return;
+    m_lockscreenWallpaperPath = clean;
+    emit lockscreenWallpaperPathChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    if (clean.isEmpty())
+        obj.remove(QStringLiteral("lockscreenWallpaperPath"));
+    else
+        obj.insert(QStringLiteral("lockscreenWallpaperPath"), clean);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+bool UserConfigBackend::lockscreenBlur() const { return m_lockscreenBlur; }
+void UserConfigBackend::setLockscreenBlur(bool enabled)
+{
+    if (m_lockscreenBlur == enabled) return;
+    m_lockscreenBlur = enabled;
+    emit lockscreenBlurChanged();
+    QFile file(m_userConfigPath);
+    QJsonObject obj;
+    if (file.open(QIODevice::ReadOnly)) {
+        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (doc.isObject()) obj = doc.object();
+        file.close();
+    }
+    obj.insert(QStringLiteral("lockscreenBlur"), enabled);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
 void UserConfigBackend::toggleIslandStyle()
 {
     setIslandStyle(m_islandStyle == QLatin1String("notch") ? QStringLiteral("island") : QStringLiteral("notch"));
@@ -804,6 +848,8 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_lockscreenPowerActions, jsonBool(configObject, QLatin1String("lockscreenPowerActions"), true), &UserConfigBackend::lockscreenPowerActionsChanged);
     updateField(this, m_lockscreenShowBattery, jsonBool(configObject, QLatin1String("lockscreenShowBattery"), true), &UserConfigBackend::lockscreenShowBatteryChanged);
     updateField(this, m_lockscreenPamService, jsonString(configObject, QLatin1String("lockscreenPamService"), QStringLiteral("login")), &UserConfigBackend::lockscreenPamServiceChanged);
+    updateField(this, m_lockscreenWallpaperPath, jsonString(configObject, QLatin1String("lockscreenWallpaperPath"), QString()), &UserConfigBackend::lockscreenWallpaperPathChanged);
+    updateField(this, m_lockscreenBlur, jsonBool(configObject, QLatin1String("lockscreenBlur"), true), &UserConfigBackend::lockscreenBlurChanged);
 
     updateWatchedPaths();
 }
