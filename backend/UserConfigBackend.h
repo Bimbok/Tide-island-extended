@@ -254,6 +254,8 @@ private:
     QString m_defaultWallpaperPath;
     QString m_defaultTlpSudoPassword;
     QString m_wallpaperPath;
+    mutable QString m_resolvedWallpaperPath;
+    mutable bool m_probedActiveWallpaper = false;
     QString m_wallpaperLibraryPath;
     bool m_wallpaperPywalEnabled = false;
     bool m_wallpaperCustomCommandEnabled = false;

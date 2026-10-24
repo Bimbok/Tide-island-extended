@@ -1,13 +1,18 @@
 #include "CompositorBackend.h"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QVariant>
 
 #include <algorithm>
+#include <unistd.h>
 
 namespace {
 QString normalizedCompositorName(const QString &value)
@@ -104,10 +109,90 @@ bool CompositorBackend::isOutputFocused(const QString &outputName) const
 
     if (normalizedOutput.isEmpty())
         return true;
+    if (m_niriActiveWorkspaceByOutput.size() <= 1)
+        return true;
     if (m_focusedOutputName.isEmpty())
-        return false;
+        return true;
 
     return normalizedOutput == m_focusedOutputName;
+}
+
+void CompositorBackend::sendNiriAction(const QString &action, const QStringList &args)
+{
+    const QString niriBin = QStandardPaths::findExecutable(QStringLiteral("niri"));
+    if (niriBin.isEmpty())
+        return;
+
+    QStringList cmdArgs;
+    cmdArgs << QStringLiteral("msg") << QStringLiteral("action") << action;
+    cmdArgs.append(args);
+
+    QProcess::startDetached(niriBin, cmdArgs);
+}
+
+void CompositorBackend::toggleOverview()
+{
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(QStringLiteral("toggle-overview"));
+    } else {
+        emit overviewToggleRequested();
+    }
+}
+
+void CompositorBackend::openOverview()
+{
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(QStringLiteral("open-overview"));
+    } else {
+        emit overviewOpenRequested();
+    }
+}
+
+void CompositorBackend::closeOverview()
+{
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(QStringLiteral("close-overview"));
+    } else {
+        emit overviewCloseRequested();
+    }
+}
+
+void CompositorBackend::focusWorkspace(int index)
+{
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(QStringLiteral("focus-workspace"), {QString::number(index)});
+    } else {
+        const QString hyprctl = QStandardPaths::findExecutable(QStringLiteral("hyprctl"));
+        if (!hyprctl.isEmpty()) {
+            QProcess::startDetached(hyprctl, {QStringLiteral("dispatch"), QStringLiteral("workspace"), QString::number(index)});
+        }
+    }
+}
+
+void CompositorBackend::focusWorkspaceAdjacent(int delta)
+{
+    if (delta == 0)
+        return;
+
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(delta > 0 ? QStringLiteral("focus-workspace-down") : QStringLiteral("focus-workspace-up"));
+    } else {
+        const QString hyprctl = QStandardPaths::findExecutable(QStringLiteral("hyprctl"));
+        if (!hyprctl.isEmpty()) {
+            const QString arg = delta > 0 ? QStringLiteral("r+1") : QStringLiteral("r-1");
+            QProcess::startDetached(hyprctl, {QStringLiteral("dispatch"), QStringLiteral("workspace"), arg});
+        }
+    }
+}
+
+void CompositorBackend::runCompositorAction(const QString &action)
+{
+    if (action.trimmed().isEmpty())
+        return;
+
+    if (m_compositor == QLatin1String("niri")) {
+        sendNiriAction(action);
+    }
 }
 
 bool CompositorBackend::applyNiriEventJson(const QByteArray &line)
@@ -127,6 +212,16 @@ bool CompositorBackend::applyNiriEventJson(const QByteArray &line)
 
     if (event.contains(QStringLiteral("WorkspaceActivated"))) {
         applyNiriWorkspaceActivated(event.value(QStringLiteral("WorkspaceActivated")).toObject());
+        return true;
+    }
+
+    if (event.contains(QStringLiteral("WindowFocusChanged"))) {
+        applyNiriWindowFocusChanged(event.value(QStringLiteral("WindowFocusChanged")).toObject());
+        return true;
+    }
+
+    if (event.contains(QStringLiteral("WorkspaceActiveWindowChanged"))) {
+        applyNiriWorkspaceActiveWindowChanged(event.value(QStringLiteral("WorkspaceActiveWindowChanged")).toObject());
         return true;
     }
 
@@ -205,15 +300,34 @@ void CompositorBackend::bumpRevision()
     emit revisionChanged();
 }
 
-#if TIDE_ISLAND_WITH_NIRI
-bool CompositorBackend::hasNiriSocket() const
+QString CompositorBackend::resolveNiriSocketPath() const
 {
-    return !qEnvironmentVariableIsEmpty("NIRI_SOCKET");
+    const QString envSocket = QString::fromLocal8Bit(qgetenv("NIRI_SOCKET"));
+    if (!envSocket.isEmpty() && QFile::exists(envSocket))
+        return envSocket;
+
+    const QString runDir = QStringLiteral("/run/user/%1").arg(::getuid());
+    const QStringList entries = QDir(runDir).entryList({QStringLiteral("niri*.sock")}, QDir::System | QDir::Files);
+    if (!entries.isEmpty())
+        return runDir + QLatin1Char('/') + entries.first();
+
+    return envSocket;
 }
 
+bool CompositorBackend::hasNiriSocket() const
+{
+    if (!qEnvironmentVariableIsEmpty("NIRI_SOCKET"))
+        return true;
+
+    const QString runDir = QStringLiteral("/run/user/%1").arg(::getuid());
+    const QStringList entries = QDir(runDir).entryList({QStringLiteral("niri*.sock")}, QDir::System | QDir::Files);
+    return !entries.isEmpty();
+}
+
+#if TIDE_ISLAND_WITH_NIRI
 void CompositorBackend::startNiriEventStream()
 {
-    m_niriSocketPath = QString::fromLocal8Bit(qgetenv("NIRI_SOCKET"));
+    m_niriSocketPath = resolveNiriSocketPath();
     if (m_niriSocketPath.isEmpty())
         return;
 
@@ -304,6 +418,7 @@ void CompositorBackend::applyNiriWorkspacesChanged(const QJsonArray &workspaces)
         state.outputName = object.value(QStringLiteral("output")).toString();
         state.active = object.value(QStringLiteral("is_active")).toBool(false);
         state.focused = object.value(QStringLiteral("is_focused")).toBool(false);
+        state.activeWindowId = jsonU64(object.value(QStringLiteral("active_window_id")));
 
         if (state.active)
             nextActiveByOutput.insert(state.outputName, state.index);
@@ -315,7 +430,8 @@ void CompositorBackend::applyNiriWorkspacesChanged(const QJsonArray &workspaces)
 
     m_niriWorkspaces = nextWorkspaces;
     m_niriActiveWorkspaceByOutput = nextActiveByOutput;
-    setFocusedOutputName(nextFocusedOutput);
+    if (!nextFocusedOutput.isEmpty() || m_focusedOutputName.isEmpty())
+        setFocusedOutputName(nextFocusedOutput);
     bumpRevision();
 }
 
@@ -343,6 +459,35 @@ void CompositorBackend::applyNiriWorkspaceActivated(const QJsonObject &event)
     }
 
     bumpRevision();
+}
+
+void CompositorBackend::applyNiriWindowFocusChanged(const QJsonObject &event)
+{
+    if (event.value(QStringLiteral("id")).isNull())
+        return;
+
+    const quint64 winId = jsonU64(event.value(QStringLiteral("id")));
+    if (winId == 0)
+        return;
+
+    for (const auto &ws : std::as_const(m_niriWorkspaces)) {
+        if (ws.activeWindowId == winId && !ws.outputName.isEmpty()) {
+            setFocusedOutputName(ws.outputName);
+            bumpRevision();
+            break;
+        }
+    }
+}
+
+void CompositorBackend::applyNiriWorkspaceActiveWindowChanged(const QJsonObject &event)
+{
+    const quint64 wsId = jsonU64(event.value(QStringLiteral("workspace_id")));
+    const quint64 winId = jsonU64(event.value(QStringLiteral("active_window_id")));
+
+    auto it = m_niriWorkspaces.find(wsId);
+    if (it != m_niriWorkspaces.end()) {
+        it.value().activeWindowId = winId;
+    }
 }
 
 #endif

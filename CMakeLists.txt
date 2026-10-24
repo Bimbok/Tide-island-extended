@@ -351,6 +351,7 @@ install(DIRECTORY qml
         PATTERN "*.js"
         PATTERN "*.svg"
         PATTERN "*.json"
+        PATTERN "*.ttf"
 )
 
 install(FILES

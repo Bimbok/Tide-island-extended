@@ -8,6 +8,15 @@ INSTALL_PREFIX="$(dirname "$(dirname "$LAUNCHER_PATH")")"
 QML_PATH="${TIDE_ISLAND_QML_PATH:-$INSTALL_PREFIX/share/tide-island}"
 CONFIG_APP="${TIDE_ISLAND_CONFIG_APP:-$INSTALL_PREFIX/bin/tide-island-config-app}"
 QML_MODULE_PATH="$INSTALL_PREFIX/@CMAKE_INSTALL_LIBDIR@/qt6/qml"
+if [[ "$QML_MODULE_PATH" == *"@CMAKE_INSTALL_LIBDIR@"* ]]; then
+  if [[ -d "$INSTALL_PREFIX/lib/qt6/qml" ]]; then
+    QML_MODULE_PATH="$INSTALL_PREFIX/lib/qt6/qml"
+  elif [[ -d "$INSTALL_PREFIX/lib64/qt6/qml" ]]; then
+    QML_MODULE_PATH="$INSTALL_PREFIX/lib64/qt6/qml"
+  else
+    QML_MODULE_PATH="${TIDE_ISLAND_QML_MODULE_PATH:-}"
+  fi
+fi
 SERVICE_NAME="tide-island.service"
 
 export QML_IMPORT_PATH="$QML_MODULE_PATH${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
@@ -21,7 +30,7 @@ if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" 
   # 1. Try targeting running quickshell instance directly by PID
   running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
   if [[ -n "$running_pid" ]]; then
-    if /usr/bin/quickshell ipc --pid "$running_pid" call lock lock 2>/dev/null; then
+    if /usr/bin/quickshell ipc --pid "$running_pid" call lock lock >/dev/null 2>&1; then
       exit 0
     fi
   fi
@@ -29,7 +38,7 @@ if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" 
   # 2. Fallback to path-based IPC across known install locations
   for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island" "${HOME}/.local/share/tide-island"; do
     if [[ -d "$test_path" ]]; then
-      if /usr/bin/quickshell ipc --any-display -p "$test_path" call lock lock 2>/dev/null; then
+      if /usr/bin/quickshell ipc --any-display -p "$test_path" call lock lock >/dev/null 2>&1; then
         exit 0
       fi
     fi
@@ -48,15 +57,25 @@ fi
 if [[ "${SYSTEMD_EXEC_PID:-}" != "$$" ]]; then
   running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
   if [[ -n "$running_pid" ]]; then
-    if /usr/bin/quickshell ipc --pid "$running_pid" call island show 2>/dev/null; then
+    if /usr/bin/quickshell ipc --pid "$running_pid" call island show >/dev/null 2>&1; then
       exit 0
     fi
   fi
   for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island"; do
     if [[ -d "$test_path" ]]; then
-      if /usr/bin/quickshell ipc --any-display -p "$test_path" call island show 2>/dev/null; then
+      if /usr/bin/quickshell ipc --any-display -p "$test_path" call island show >/dev/null 2>&1; then
         exit 0
       fi
+    fi
+  done
+fi
+
+# Auto-discover Niri socket if running on Niri but NIRI_SOCKET is not in env
+if [[ -z "${NIRI_SOCKET:-}" ]]; then
+  for s in /run/user/"$(id -u)"/niri*.sock; do
+    if [[ -S "$s" ]]; then
+      export NIRI_SOCKET="$s"
+      break
     fi
   done
 fi

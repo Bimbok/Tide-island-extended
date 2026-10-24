@@ -30,12 +30,22 @@ public:
     Q_INVOKABLE int activeWorkspaceIndexForOutput(const QString &outputName) const;
     Q_INVOKABLE bool isOutputFocused(const QString &outputName) const;
 
+    Q_INVOKABLE void toggleOverview();
+    Q_INVOKABLE void openOverview();
+    Q_INVOKABLE void closeOverview();
+    Q_INVOKABLE void focusWorkspace(int index);
+    Q_INVOKABLE void focusWorkspaceAdjacent(int delta);
+    Q_INVOKABLE void runCompositorAction(const QString &action);
+
     bool applyNiriEventJson(const QByteArray &line);
 
 signals:
     void compositorChanged();
     void focusedOutputNameChanged();
     void revisionChanged();
+    void overviewToggleRequested();
+    void overviewOpenRequested();
+    void overviewCloseRequested();
 
 private:
     struct NiriWorkspaceState {
@@ -44,12 +54,16 @@ private:
         QString outputName;
         bool active = false;
         bool focused = false;
+        quint64 activeWindowId = 0;
     };
 
     void detectCompositor();
     void setCompositor(const QString &compositor);
     void setFocusedOutputName(const QString &outputName);
     void bumpRevision();
+    QString resolveNiriSocketPath() const;
+    bool hasNiriSocket() const;
+    void sendNiriAction(const QString &action, const QStringList &args = {});
 
 #if TIDE_ISLAND_WITH_NIRI
     void startNiriEventStream();
@@ -59,7 +73,8 @@ private:
     void handleNiriEventLine(const QByteArray &line);
     void applyNiriWorkspacesChanged(const QJsonArray &workspaces);
     void applyNiriWorkspaceActivated(const QJsonObject &event);
-    bool hasNiriSocket() const;
+    void applyNiriWindowFocusChanged(const QJsonObject &event);
+    void applyNiriWorkspaceActiveWindowChanged(const QJsonObject &event);
 #endif
 
     QString m_compositor = QStringLiteral("hyprland");

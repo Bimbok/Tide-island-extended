@@ -18,7 +18,41 @@ Scope {
 
     readonly property var userConfig: UserConfig
 
-    // Configuration & Environment
+    // -------------------------------------------------------------------------
+    // FONTS & TYPOGRAPHY
+    // -------------------------------------------------------------------------
+    FontLoader {
+        id: interFont
+        source: "../fonts/InterVariable.ttf"
+    }
+
+    readonly property string displayFont: (interFont.status === FontLoader.Ready && interFont.name !== "")
+        ? interFont.name
+        : "Red Hat Display"
+
+    readonly property string textFont: (userConfig && userConfig.textFontFamily !== "" && userConfig.textFontFamily !== "Sans Serif")
+        ? userConfig.textFontFamily
+        : ((interFont.status === FontLoader.Ready && interFont.name !== "") ? interFont.name : "Red Hat Text")
+
+    readonly property string heroFont: (userConfig && userConfig.heroFontFamily !== "" && userConfig.heroFontFamily !== "Sans Serif")
+        ? userConfig.heroFontFamily
+        : displayFont
+
+    // For the lockscreen clock, a modern display typeface elevates the aesthetic immensely
+    readonly property string timeFont: (userConfig && userConfig.timeFontFamily !== "" && userConfig.timeFontFamily !== "Sans Serif" && !userConfig.timeFontFamily.includes("Mono") && !userConfig.timeFontFamily.includes("FiraCode"))
+        ? userConfig.timeFontFamily
+        : displayFont
+
+    readonly property string nerdFont: (userConfig && userConfig.iconFontFamily !== "")
+        ? userConfig.iconFontFamily
+        : "JetBrainsMono Nerd Font"
+
+    readonly property string clockFmt: (userConfig && userConfig.clockFormat === "24") ? "HH:mm" : "hh:mm AP"
+    readonly property bool is24h: clockFmt.indexOf("AP") === -1
+
+    // -------------------------------------------------------------------------
+    // ENVIRONMENT & ISLAND SIZING
+    // -------------------------------------------------------------------------
     readonly property string envWallpaper: Quickshell.env("LOCK_WALLPAPER") || ""
     readonly property string userName: Quickshell.env("USER") || "user"
     readonly property string home: Quickshell.env("HOME") || ""
@@ -46,15 +80,6 @@ Scope {
         return (p && p.startsWith("~")) ? home + p.slice(1) : p;
     }
 
-    readonly property string textFont: (userConfig && userConfig.textFontFamily !== "") ? userConfig.textFontFamily : "Sans Serif"
-    readonly property string heroFont: (userConfig && userConfig.heroFontFamily !== "") ? userConfig.heroFontFamily : textFont
-    readonly property string timeFont: (userConfig && userConfig.timeFontFamily !== "" && userConfig.timeFontFamily !== "Sans Serif")
-        ? userConfig.timeFontFamily
-        : "JetBrainsMono Nerd Font"
-    readonly property string nerdFont: (userConfig && userConfig.iconFontFamily !== "") ? userConfig.iconFontFamily : "JetBrainsMono Nerd Font"
-    readonly property string clockFmt: (userConfig && userConfig.clockFormat === "24") ? "HH:mm" : "hh:mm AP"
-    readonly property bool is24h: clockFmt.indexOf("AP") === -1
-
     readonly property bool isNotchMode: userConfig ? (userConfig.islandStyle === "notch") : false
     readonly property real islandW: userConfig ? userConfig.islandWidth : 280
     readonly property real islandH: userConfig ? userConfig.islandHeight : 38
@@ -64,7 +89,7 @@ Scope {
     readonly property string avatarPath: {
         if (userConfig && userConfig.avatarPath !== "")
             return expandHome(userConfig.avatarPath);
-        if (SystemGlance && SystemGlance.avatarPath !== "")
+        if (typeof SystemGlance !== "undefined" && SystemGlance.avatarPath !== "")
             return SystemGlance.avatarPath;
         return "";
     }
@@ -74,7 +99,9 @@ Scope {
     readonly property bool showLockscreenMedia: userConfig ? userConfig.lockscreenMedia : true
     readonly property bool showBatteryPill: userConfig ? userConfig.lockscreenShowBattery : true
 
-    // Live battery from SysBackend & SystemGlance
+    // -------------------------------------------------------------------------
+    // BATTERY REPORTING
+    // -------------------------------------------------------------------------
     readonly property int batPct: {
         if (typeof SysBackend !== "undefined" && SysBackend.batteryCapacity > 0)
             return SysBackend.batteryCapacity;
@@ -90,22 +117,23 @@ Scope {
     }
     readonly property bool hasBattery: showBatteryPill && batPct > 0
 
-    readonly property var batGlyphs: [0xf007a, 0xf007b, 0xf007c, 0xf007d, 0xf007e, 0xf007f, 0xf0080, 0xf0081, 0xf0082, 0xf0079]
-
+    // Smooth horizontal rounded battery icons matching the control center & system glance
     function batteryGlyph(pct) {
-        if (!(pct >= 0)) return "";
-        if (root.batCharging) {
-            return String.fromCodePoint(0xf0084);
-        }
-        const idx = Math.min(Math.max(0, Math.floor(pct / 10) - 1), 9);
-        return String.fromCodePoint(root.batGlyphs[idx]);
+        if (!(pct >= 0)) return "\uf240";
+        if (pct >= 85) return "\uf240"; // Full rounded battery
+        if (pct >= 60) return "\uf241"; // 3/4
+        if (pct >= 35) return "\uf242"; // 1/2
+        if (pct >= 15) return "\uf243"; // 1/4
+        return "\uf244"; // Empty
     }
 
     function batteryColor(pct) {
-        return pct > 30 ? StyleTokens.success : (pct <= 15 ? StyleTokens.danger : StyleTokens.warning);
+        return StyleTokens.batteryColor(pct, root.batCharging);
     }
 
-    // Wallpaper resolution
+    // -------------------------------------------------------------------------
+    // WALLPAPER RESOLUTION
+    // -------------------------------------------------------------------------
     property string liveDetectedWallpaper: ""
 
     readonly property string customLockscreenWallpaper: (userConfig && userConfig.lockscreenWallpaperPath !== "")
@@ -176,12 +204,16 @@ Scope {
         id: wpCacheProc
     }
 
-    // Weather Service instance
+    // -------------------------------------------------------------------------
+    // WEATHER SERVICE
+    // -------------------------------------------------------------------------
     WeatherService {
         id: weatherService
     }
 
-    // Media Player detection
+    // -------------------------------------------------------------------------
+    // MEDIA PLAYER DETECTION (MPRIS)
+    // -------------------------------------------------------------------------
     property var activePlayer: {
         const list = Mpris.players.values !== undefined ? Mpris.players.values : Mpris.players;
         for (let i = 0; i < list.length; i++) {
@@ -203,7 +235,109 @@ Scope {
     readonly property string trackArtUrl: activePlayer ? (activePlayer.trackArtUrl || activePlayer.artUrl || "") : ""
     readonly property bool isMediaPlaying: activePlayer ? (activePlayer.playbackState === MprisPlaybackState.Playing) : false
 
-    // Authentication state
+    property real trackProgress: 0
+    property string timePlayed: "0:00"
+    property string timeTotal: "0:00"
+    property real visualizerPhase: 0
+
+    onActivePlayerChanged: root.syncProgress()
+
+    Timer {
+        id: visualizerTimer
+        interval: 45
+        repeat: true
+        running: root.isMediaPlaying && root.locked
+        onTriggered: {
+            root.visualizerPhase += 0.22;
+            if (root.visualizerPhase > Math.PI * 2)
+                root.visualizerPhase -= Math.PI * 2;
+        }
+    }
+
+    function visualizerLevel(index) {
+        if (typeof SystemServices !== "undefined" && SystemServices.cavaLevels && SystemServices.cavaLevels.length > index) {
+            const val = Number(SystemServices.cavaLevels[index]);
+            if (!isNaN(val) && val > 0) return Math.min(1.0, val);
+        }
+        const phase = root.visualizerPhase + index * 0.88;
+        const primary = (Math.sin(phase) + 1) * 0.5;
+        const secondary = (Math.sin(phase * 2 + index * 1.15) + 1) * 0.5;
+        return 0.18 + primary * 0.48 + secondary * 0.26;
+    }
+
+    function formatTime(value) {
+        const numberValue = Number(value);
+        if (isNaN(numberValue) || numberValue <= 0) return "0:00";
+
+        let totalSeconds = 0;
+        if (numberValue < 10000) totalSeconds = Math.floor(numberValue);
+        else if (numberValue < 100000000) totalSeconds = Math.floor(numberValue / 1000);
+        else totalSeconds = Math.floor(numberValue / 1000000);
+
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = Math.floor(totalSeconds % 60);
+        return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+    }
+
+    function syncProgress(positionOverride) {
+        const player = root.activePlayer;
+        if (!player) {
+            root.trackProgress = 0;
+            root.timePlayed = "0:00";
+            root.timeTotal = "0:00";
+            return;
+        }
+
+        const currentPosition = positionOverride !== undefined
+            ? Number(positionOverride) || 0
+            : (player.position !== undefined ? Number(player.position) || 0 : 0);
+        let totalLength = (player.length !== undefined ? Number(player.length) || 0 : 0);
+        if (totalLength <= 0 && player.metadata && player.metadata["mpris:length"])
+            totalLength = Number(player.metadata["mpris:length"]);
+
+        if (totalLength > 0) {
+            root.trackProgress = Math.max(0, Math.min(1.0, currentPosition / totalLength));
+            root.timePlayed = root.formatTime(currentPosition);
+            root.timeTotal = root.formatTime(totalLength);
+        } else {
+            root.trackProgress = 0;
+            root.timePlayed = root.formatTime(currentPosition);
+            root.timeTotal = "--:--";
+        }
+    }
+
+    function seekToRatio(ratio) {
+        const player = root.activePlayer;
+        if (!player) return;
+
+        let totalLength = (player.length !== undefined ? Number(player.length) || 0 : 0);
+        if (totalLength <= 0 && player.metadata && player.metadata["mpris:length"])
+            totalLength = Number(player.metadata["mpris:length"]);
+
+        if (totalLength > 0) {
+            const clampedRatio = Math.max(0, Math.min(1.0, ratio));
+            const targetPos = clampedRatio * totalLength;
+            if (player.canSeek) {
+                if (player.positionSupported)
+                    player.position = targetPos;
+                else if (typeof player.seek === "function")
+                    player.seek(targetPos - (Number(player.position) || 0));
+            }
+            root.syncProgress(targetPos);
+        }
+    }
+
+    Timer {
+        id: progressPoller
+        interval: 500
+        repeat: true
+        running: root.hasMedia && root.locked
+        onTriggered: root.syncProgress()
+    }
+
+    // -------------------------------------------------------------------------
+    // AUTHENTICATION STATE & LOGIC
+    // -------------------------------------------------------------------------
     property string buffer: ""
     property bool checking: false
     property bool failed: false
@@ -219,19 +353,19 @@ Scope {
 
     readonly property string statusText: {
         if (unlocking)
-            return "Welcome back";
+            return "Welcome back, " + userName;
         if (pamLocked)
-            return "Locked by PAM · reset required";
+            return "Locked by PAM · Admin reset required";
         if (lockedOut)
-            return "Too many attempts · wait " + cooldown + "s";
+            return "Too many attempts · Please wait " + cooldown + "s";
         if (checking)
             return "Verifying credentials…";
         if (confirmArmed)
             return "Press Enter again to submit";
         if (failed)
-            return "Wrong password · " + failCount + (failCount === 1 ? " attempt" : " attempts");
+            return "Incorrect password · " + failCount + (failCount === 1 ? " attempt" : " attempts");
         if (pamRisky)
-            return "PAM recorded earlier failures · Enter again to submit";
+            return "PAM recorded earlier failures · Press Enter to confirm";
         return "Press Enter to unlock · Esc to clear";
     }
 
@@ -239,8 +373,15 @@ Scope {
 
     function greeting() {
         const h = clock.hours;
-        const t = h < 5 ? "Burning the midnight oil" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 22 ? "Good evening" : "Late night";
+        const t = h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 22 ? "Good evening" : "Late night";
         return t + ", " + userName;
+    }
+
+    function greetingIcon() {
+        const h = clock.hours;
+        if (h >= 5 && h < 17) return "󰖙"; // Cute sun
+        if (h >= 17 && h < 21) return "󰖐"; // Cute sunset cloud
+        return "󰖔"; // Cute crescent moon
     }
 
     function onFailure() {
@@ -347,9 +488,10 @@ Scope {
         }
     }
 
+    // 420ms provides a silky exit animation before the session lock surface is dropped
     Timer {
         id: unlockTimer
-        interval: 400
+        interval: 420
         onTriggered: {
             sessionLock.locked = false;
             root.buffer = "";
@@ -391,7 +533,7 @@ Scope {
     }
 
     // =========================================================================
-    // WAYLAND SESSION LOCK
+    // WAYLAND SESSION LOCK (ext-session-lock-v1)
     // =========================================================================
     WlSessionLock {
         id: sessionLock
@@ -428,78 +570,66 @@ Scope {
                 id: scene
                 anchors.fill: parent
                 focus: true
-                opacity: root.unlocking ? 0 : scene.intro
+
+                // -------------------------------------------------------------
+                // ANIMATION CONTROLLER (IN & OUT)
+                // -------------------------------------------------------------
+                property bool armed: false
+                property real animProgress: 0
+                property real exitProgress: 0
 
                 Timer {
-                    interval: 40
+                    interval: 30
                     running: lockSurface.visible
-                    onTriggered: scene.arm()
+                    onTriggered: {
+                        scene.armed = true;
+                        scene.animProgress = 0;
+                        scene.exitProgress = 0;
+                        introAnim.restart();
+                    }
                 }
 
-                property bool armed: false
-                function arm() {
-                    if (scene.armed) return;
-                    scene.armed = true;
-                }
-
-                property real intro: 0
-                NumberAnimation on intro {
-                    running: scene.armed
+                NumberAnimation {
+                    id: introAnim
+                    target: scene
+                    property: "animProgress"
                     from: 0
                     to: 1
-                    duration: 220
-                    easing.type: Easing.OutQuad
+                    duration: 520
+                    easing.type: Easing.OutCubic
                 }
 
-                // Island / Notch to Card morphing animation
-                property real openW: 0
-                property real openH: 0
-                readonly property real morph: Math.min(1, (openW + openH) / 2)
-                readonly property bool shown: scene.armed && !root.unlocking
+                NumberAnimation {
+                    id: exitAnim
+                    target: scene
+                    property: "exitProgress"
+                    from: 0
+                    to: 1
+                    duration: 400
+                    easing.type: Easing.OutCubic
+                }
 
-                onShownChanged: {
-                    if (shown) {
-                        closeAnim.stop();
-                        openAnim.restart();
-                    } else if (armed) {
-                        openAnim.stop();
-                        closeAnim.restart();
+                Connections {
+                    target: root
+                    function onUnlockingChanged() {
+                        if (root.unlocking) {
+                            exitAnim.restart();
+                        } else {
+                            scene.exitProgress = 0;
+                        }
+                    }
+                    function onLockedChanged() {
+                        if (root.locked) {
+                            scene.exitProgress = 0;
+                            scene.animProgress = 0;
+                            introAnim.restart();
+                        }
                     }
                 }
 
-                ParallelAnimation {
-                    id: openAnim
-                    NumberAnimation { target: scene; property: "openW"; to: 1; duration: 380; easing.type: Easing.OutCubic }
-                    SequentialAnimation {
-                        PauseAnimation { duration: 90 }
-                        NumberAnimation { target: scene; property: "openH"; to: 1; duration: 440; easing.type: Easing.OutCubic }
-                    }
-                }
-
-                ParallelAnimation {
-                    id: closeAnim
-                    NumberAnimation { target: scene; property: "openH"; to: 0; duration: 280; easing.type: Easing.InOutCubic }
-                    SequentialAnimation {
-                        PauseAnimation { duration: 70 }
-                        NumberAnimation { target: scene; property: "openW"; to: 0; duration: 260; easing.type: Easing.InOutCubic }
-                    }
-                }
-
-                readonly property real reveal: Math.max(0, Math.min(1, (openH - 0.50) / 0.50))
-
-                property real contentIn: 0
-                SequentialAnimation {
-                    running: scene.armed
-                    PauseAnimation { duration: 160 }
-                    NumberAnimation { target: scene; property: "contentIn"; from: 0; to: 1; duration: 600; easing.type: Easing.OutCubic }
-                }
-
-                function stage(i) {
-                    return Math.max(0, Math.min(1, scene.contentIn * 1.5 - i * 0.25));
-                }
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+                // Stagger helper
+                function stage(index) {
+                    return Math.max(0, Math.min(1, scene.animProgress * 1.5 - index * 0.25));
                 }
 
                 Component.onCompleted: forceActiveFocus()
@@ -530,11 +660,11 @@ Scope {
                 }
 
                 // -------------------------------------------------------------
-                // WALLPAPER BACKDROP WITH BLUR & VIGNETTE
+                // WALLPAPER BACKDROP WITH DYNAMIC BLUR & LUXURIOUS ZOOM
                 // -------------------------------------------------------------
                 Rectangle {
                     anchors.fill: parent
-                    color: StyleTokens.panel
+                    color: StyleTokens.black
                 }
 
                 Image {
@@ -544,57 +674,108 @@ Scope {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
-                    scale: 1.08
+
+                    // Smooth cinematic zoom: 1.0 -> 1.05 during lock, eases back to 1.0 on unlock
+                    scale: 1.00 + 0.05 * scene.animProgress * (1 - scene.exitProgress)
                     opacity: status === Image.Ready ? 1 : 0
 
                     Behavior on opacity {
-                        NumberAnimation { duration: 250 }
+                        NumberAnimation { duration: 300 }
                     }
 
                     layer.enabled: root.blurEnabled
                     layer.effect: MultiEffect {
                         autoPaddingEnabled: false
                         blurEnabled: root.blurEnabled
-                        blurMax: 32
-                        blur: root.blurEnabled ? Math.min(1, scene.intro * 1.25) : 0
-                        saturation: 0.90
-                        brightness: -0.12
+                        blurMax: 36
+                        // Blur eases from 0 to 36 on entrance, and from 36 back to 0 on unlock!
+                        blur: root.blurEnabled ? Math.max(0, scene.animProgress * (1.0 - scene.exitProgress)) : 0
+                        saturation: 0.95
+                        brightness: -0.08
                     }
                 }
 
+                // Deep ambient glass tint with smooth fade
                 Rectangle {
                     anchors.fill: parent
-                    color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.32)
+                    color: Qt.rgba(StyleTokens.panel.r * 0.4, StyleTokens.panel.g * 0.4, StyleTokens.panel.b * 0.4, 0.46)
+                    opacity: scene.animProgress * (1 - scene.exitProgress)
+                }
+
+                // Vignette gradient overlay for depth
+                Rectangle {
+                    anchors.fill: parent
+                    opacity: 0.35 * scene.animProgress * (1 - scene.exitProgress)
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.55) }
+                        GradientStop { position: 0.5; color: Qt.rgba(0, 0, 0, 0.10) }
+                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.65) }
+                    }
                 }
 
                 // -------------------------------------------------------------
-                // AMBIENT SECONDARY SCREEN VIEW
+                // AMBIENT SECONDARY SCREEN VIEW (MINIMALIST & SLEEK)
                 // -------------------------------------------------------------
                 Item {
                     anchors.fill: parent
                     visible: !lockSurface.isMainOutput
+                    opacity: (1 - scene.exitProgress) * scene.animProgress
 
                     Column {
                         anchors.centerIn: parent
-                        spacing: 16
+                        spacing: 20
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: Qt.formatDateTime(clock.date, root.clockFmt)
                             font.family: root.timeFont
-                            font.pixelSize: 92
-                            font.weight: Font.Black
-                            font.letterSpacing: -2
+                            font.pixelSize: 96
+                            font.weight: Font.Bold
+                            font.letterSpacing: -2.5
                             color: StyleTokens.textPrimaryBright
                         }
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
+                            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
                             font.family: root.textFont
                             font.pixelSize: 22
                             font.weight: Font.Medium
                             color: StyleTokens.textSecondary
+                        }
+
+                        // Cute ambient weather / greeting pill on secondary screens
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            height: 36
+                            width: secRow.implicitWidth + 32
+                            radius: 18
+                            color: Qt.rgba(255, 255, 255, 0.06)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.10)
+
+                            RowLayout {
+                                id: secRow
+                                anchors.centerIn: parent
+                                spacing: 8
+
+                                Text {
+                                    text: weatherService.hasData ? weatherService.iconGlyph : root.greetingIcon()
+                                    color: weatherService.hasData ? weatherService.iconColor : StyleTokens.accent
+                                    font.family: root.nerdFont
+                                    font.pixelSize: 16
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Text {
+                                    text: weatherService.hasData ? (weatherService.tempString + " · " + weatherService.condition) : root.greeting()
+                                    font.family: root.textFont
+                                    font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    color: StyleTokens.textPrimaryBright
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                            }
                         }
                     }
                 }
@@ -618,93 +799,111 @@ Scope {
                         readonly property real finalCenterY: (ui.height - height) / 2
 
                         x: targetCenterX - width / 2 + shakeOff
-                        y: startTopY + (finalCenterY - startTopY) * scene.openH
+                        // Fluid morph downwards on open, and gentle upwards float on unlock
+                        y: startTopY + (finalCenterY - startTopY) * scene.animProgress - (scene.exitProgress * 18)
 
-                        opacity: Math.min(1, scene.morph * 6)
-                        scale: 0.98 + 0.02 * scene.morph
+                        // Luxurious scale-in on entry, and blooming scale-up on unlock
+                        scale: (0.94 + 0.06 * scene.animProgress) * (1.0 + 0.035 * scene.exitProgress)
+                        opacity: Math.min(1.0, scene.animProgress * 1.5) * (1.0 - scene.exitProgress)
 
                         Connections {
                             target: root
                             function onShake() { shakeAnim.restart(); }
                         }
 
+                        // Organic decaying shake on password fail
                         SequentialAnimation {
                             id: shakeAnim
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -22; duration: 45 }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 20; duration: 65 }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -12; duration: 65 }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 6; duration: 55 }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 0; duration: 55 }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -18; duration: 45; easing.type: Easing.OutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 16; duration: 55; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -10; duration: 55; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 6; duration: 50; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 0; duration: 45; easing.type: Easing.OutQuad }
                         }
 
+                        // Deep diffused dark drop shadow
                         RectangularGlow {
                             anchors.fill: box
-                            glowRadius: 48
-                            spread: 0.15
-                            color: Qt.rgba(0, 0, 0, 0.65)
+                            glowRadius: 56
+                            spread: 0.12
+                            color: Qt.rgba(0, 0, 0, 0.70)
                             cornerRadius: box.radius
-                            opacity: scene.morph
+                            opacity: scene.animProgress * (1 - scene.exitProgress)
+                        }
+
+                        // Subtle warm ambient accent glow for depth
+                        RectangularGlow {
+                            anchors.fill: box
+                            glowRadius: 72
+                            spread: 0.05
+                            color: StyleTokens.withAlpha(StyleTokens.accent, 0.18)
+                            cornerRadius: box.radius
+                            opacity: scene.animProgress * (1 - scene.exitProgress)
                         }
 
                         Rectangle {
                             id: box
                             clip: true
-                            readonly property real finalW: 820
-                            readonly property real finalH: col.implicitHeight + 40
-                            readonly property real finalR: 32
+                            readonly property real finalW: 800
+                            readonly property real finalH: col.implicitHeight + 44
+                            readonly property real finalR: 36
 
-                            width: root.islandW + (finalW - root.islandW) * scene.openW
-                            height: root.islandH + (finalH - root.islandH) * scene.openH
-                            radius: root.islandR + (finalR - root.islandR) * Math.min(1, scene.openH)
-                            topLeftRadius: root.isNotchMode ? (finalR * (1 - (1 - scene.openH))) : radius
-                            topRightRadius: root.isNotchMode ? (finalR * (1 - (1 - scene.openH))) : radius
-                            color: Qt.rgba(StyleTokens.panel.r * 0.7, StyleTokens.panel.g * 0.7, StyleTokens.panel.b * 0.7, 0.75)
+                            width: root.islandW + (finalW - root.islandW) * scene.animProgress
+                            height: root.islandH + (finalH - root.islandH) * scene.animProgress
+                            radius: root.islandR + (finalR - root.islandR) * scene.animProgress
+                            topLeftRadius: root.isNotchMode ? (finalR * scene.animProgress) : radius
+                            topRightRadius: root.isNotchMode ? (finalR * scene.animProgress) : radius
+
+                            // Premium multi-layered frosted glass body
+                            color: Qt.rgba(16/255, 18/255, 24/255, 0.72)
                             border.width: 1
-                            border.color: Qt.rgba(255, 255, 255, 0.12)
+                            border.color: Qt.rgba(255, 255, 255, 0.14)
 
                             Column {
                                 id: col
-                                x: 20
-                                y: 20
-                                width: box.finalW - 40
-                                spacing: 16
-                                opacity: scene.reveal
+                                x: 22
+                                y: 22
+                                width: box.finalW - 44
+                                spacing: 18
+                                opacity: Math.max(0, Math.min(1, (scene.animProgress - 0.20) / 0.50))
 
                                 Row {
                                     id: panels
                                     width: parent.width
-                                    height: 316
+                                    height: 312
                                     spacing: 16
 
                                     // -----------------------------------------
-                                    // LEFT PANEL: CLOCK, GREETING & MEDIA
+                                    // LEFT PANEL: CLOCK, GREETING & MEDIA/GLANCE
                                     // -----------------------------------------
                                     Rectangle {
                                         id: leftP
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
-                                        radius: 24
-                                        color: Qt.rgba(255, 255, 255, 0.04)
+                                        radius: 26
+                                        color: Qt.rgba(255, 255, 255, 0.035)
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.08)
+                                        border.color: Qt.rgba(255, 255, 255, 0.07)
                                         opacity: scene.stage(1)
-                                        transform: Translate { x: (1 - scene.stage(1)) * -16 }
+                                        transform: Translate {
+                                            y: (1 - scene.stage(1)) * 14
+                                        }
 
                                         Column {
                                             anchors.centerIn: parent
-                                            width: parent.width - 36
-                                            spacing: root.hasMedia ? 8 : 14
+                                            width: parent.width - 28
+                                            spacing: root.hasMedia ? 8 : 16
 
-                                            // Time Display
+                                            // Time Display (Modern, Bold, Perfectly Proportioned)
                                             Text {
                                                 id: clockText
                                                 width: parent.width
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Qt.formatDateTime(clock.date, root.clockFmt)
                                                 font.family: root.timeFont
-                                                font.pixelSize: root.hasMedia ? (root.is24h ? 66 : 56) : (root.is24h ? 84 : 72)
-                                                font.weight: Font.Black
-                                                font.letterSpacing: -1.5
+                                                font.pixelSize: root.hasMedia ? (root.is24h ? 50 : 42) : (root.is24h ? 78 : 68)
+                                                font.weight: Font.Bold
+                                                font.letterSpacing: -1.8
                                                 color: StyleTokens.textPrimaryBright
                                             }
 
@@ -713,120 +912,278 @@ Scope {
                                                 id: dateText
                                                 width: parent.width
                                                 horizontalAlignment: Text.AlignHCenter
-                                                text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
+                                                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
                                                 font.family: root.textFont
-                                                font.pixelSize: root.hasMedia ? 13 : 15
+                                                font.pixelSize: root.hasMedia ? 12 : 15
                                                 font.weight: Font.Medium
                                                 color: StyleTokens.textSecondary
                                             }
 
-                                            // Greeting Capsule
+                                            // Cute Greeting Badge with ambient icon
                                             Rectangle {
                                                 id: greetingCap
                                                 anchors.horizontalCenter: parent.horizontalCenter
-                                                height: root.hasMedia ? 22 : 24
-                                                width: greetingText.implicitWidth + 20
+                                                height: root.hasMedia ? 24 : 28
+                                                width: greetingRow.implicitWidth + 24
                                                 radius: height / 2
                                                 color: StyleTokens.withAlpha(StyleTokens.accent, 0.12)
                                                 border.width: 1
                                                 border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.28)
 
-                                                Text {
-                                                    id: greetingText
+                                                RowLayout {
+                                                    id: greetingRow
                                                     anchors.centerIn: parent
-                                                    text: root.greeting()
-                                                    font.family: root.textFont
-                                                    font.pixelSize: 11
-                                                    font.weight: Font.DemiBold
-                                                    color: StyleTokens.accent
-                                                    elide: Text.ElideRight
+                                                    spacing: 6
+
+                                                    Text {
+                                                        text: root.greetingIcon()
+                                                        font.family: root.nerdFont
+                                                        font.pixelSize: 13
+                                                        color: StyleTokens.accent
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                    }
+
+                                                    Text {
+                                                        text: root.greeting()
+                                                        font.family: root.textFont
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.DemiBold
+                                                        color: StyleTokens.accent
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                        elide: Text.ElideRight
+                                                    }
                                                 }
                                             }
 
-                                            // Rich Media Player Card
+                                            // ---------------------------------
+                                            // Rich Media Player Showcase Card (Active)
+                                            // ---------------------------------
                                             Rectangle {
                                                 id: mediaCard
                                                 width: parent.width
-                                                height: root.hasMedia ? 112 : 0
+                                                height: root.hasMedia ? 164 : 0
                                                 visible: root.hasMedia
-                                                radius: 16
-                                                color: Qt.rgba(0, 0, 0, 0.32)
+                                                radius: 20
+                                                color: Qt.rgba(0, 0, 0, 0.42)
                                                 border.width: 1
                                                 border.color: Qt.rgba(255, 255, 255, 0.08)
                                                 clip: true
 
-                                                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                                Behavior on height {
+                                                    NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                                                }
 
-                                                RowLayout {
+                                                Column {
                                                     anchors.fill: parent
-                                                    anchors.margins: 10
-                                                    spacing: 12
+                                                    anchors.margins: 14
+                                                    spacing: 10
 
-                                                    // Album Art
-                                                    ClippingRectangle {
-                                                        Layout.preferredWidth: 64
-                                                        Layout.preferredHeight: 64
-                                                        radius: 12
-                                                        color: StyleTokens.cardFillHover
+                                                    // Row 1: Album Art + Track Info + Live Audio Waveform Visualizer
+                                                    RowLayout {
+                                                        width: parent.width
+                                                        spacing: 12
 
-                                                        Text {
-                                                            anchors.centerIn: parent
-                                                            text: "󰎆"
-                                                            font.family: root.nerdFont
-                                                            font.pixelSize: 26
-                                                            color: StyleTokens.textMuted
-                                                            visible: artImage.status !== Image.Ready
+                                                        // Album Art with rounded squircle and subtle border
+                                                        ClippingRectangle {
+                                                            Layout.preferredWidth: 48
+                                                            Layout.preferredHeight: 48
+                                                            radius: 14
+                                                            color: StyleTokens.cardFillHover
+
+                                                            Text {
+                                                                anchors.centerIn: parent
+                                                                text: "󰝚" // Cute music note
+                                                                font.family: root.nerdFont
+                                                                font.pixelSize: 22
+                                                                color: StyleTokens.textMuted
+                                                                visible: artImage.status !== Image.Ready
+                                                            }
+
+                                                            Image {
+                                                                id: artImage
+                                                                anchors.fill: parent
+                                                                source: root.trackArtUrl
+                                                                fillMode: Image.PreserveAspectCrop
+                                                                asynchronous: true
+                                                            }
                                                         }
 
-                                                        Image {
-                                                            id: artImage
-                                                            anchors.fill: parent
-                                                            source: root.trackArtUrl
-                                                            fillMode: Image.PreserveAspectCrop
-                                                            asynchronous: true
+                                                        // Track Title & Artist
+                                                        ColumnLayout {
+                                                            Layout.fillWidth: true
+                                                            spacing: 2
+
+                                                            Text {
+                                                                Layout.fillWidth: true
+                                                                text: root.trackTitle
+                                                                font.family: root.textFont
+                                                                font.pixelSize: 13
+                                                                font.weight: Font.Bold
+                                                                color: StyleTokens.textPrimaryBright
+                                                                elide: Text.ElideRight
+                                                            }
+
+                                                            Text {
+                                                                Layout.fillWidth: true
+                                                                text: root.trackArtist
+                                                                font.family: root.textFont
+                                                                font.pixelSize: 11
+                                                                font.weight: Font.Medium
+                                                                color: StyleTokens.textSecondary
+                                                                elide: Text.ElideRight
+                                                            }
+                                                        }
+
+                                                        // Live Animated Audio Visualizer Bars
+                                                        Row {
+                                                            spacing: 3
+                                                            Layout.alignment: Qt.AlignVCenter
+
+                                                            Repeater {
+                                                                model: 5
+
+                                                                Rectangle {
+                                                                    required property int index
+                                                                    width: 3.5
+                                                                    height: root.isMediaPlaying
+                                                                        ? (4 + 18 * root.visualizerLevel(index))
+                                                                        : (4 + 14 * [0.35, 0.65, 0.85, 0.65, 0.35][index])
+                                                                    radius: 1.75
+                                                                    color: root.isMediaPlaying
+                                                                        ? StyleTokens.accent
+                                                                        : StyleTokens.withAlpha(StyleTokens.accent, 0.40)
+                                                                    anchors.verticalCenter: parent.verticalCenter
+
+                                                                    Behavior on height {
+                                                                        NumberAnimation { duration: 75; easing.type: Easing.OutQuad }
+                                                                    }
+                                                                    Behavior on color {
+                                                                        ColorAnimation { duration: 150 }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                     }
 
-                                                    // Track Info & Controls
-                                                    ColumnLayout {
-                                                        Layout.fillWidth: true
-                                                        spacing: 4
+                                                    // Row 2: Seekable Progress Bar & Timestamps (Mac / Control Center style)
+                                                    RowLayout {
+                                                        width: parent.width
+                                                        spacing: 8
 
                                                         Text {
-                                                            Layout.fillWidth: true
-                                                            text: root.trackTitle
+                                                            text: root.timePlayed
                                                             font.family: root.textFont
-                                                            font.pixelSize: 13
-                                                            font.weight: Font.Bold
-                                                            color: StyleTokens.textPrimaryBright
-                                                            elide: Text.ElideRight
+                                                            font.pixelSize: 10
+                                                            font.weight: Font.Medium
+                                                            color: trackContainer.isHovered ? StyleTokens.textPrimaryBright : StyleTokens.textMuted
+                                                            Layout.alignment: Qt.AlignVCenter
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        Text {
+                                                        Item {
+                                                            id: trackContainer
                                                             Layout.fillWidth: true
-                                                            text: root.trackArtist
-                                                            font.family: root.textFont
-                                                            font.pixelSize: 11
-                                                            color: StyleTokens.textSecondary
-                                                            elide: Text.ElideRight
-                                                        }
+                                                            height: 22
 
-                                                        // Playback Controls
-                                                        RowLayout {
-                                                            spacing: 8
+                                                            readonly property bool isHovered: progressMouse.containsMouse || progressMouse.pressed
+                                                            readonly property real currentTrackHeight: isHovered ? 14 : 8
 
+                                                            // Mac / Control Center style rounded capsule track
                                                             Rectangle {
-                                                                width: 32
-                                                                height: 32
-                                                                radius: 16
-                                                                color: prevMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.12) : StyleTokens.transparent
+                                                                id: trackBg
+                                                                anchors.left: parent.left
+                                                                anchors.right: parent.right
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                                height: trackContainer.currentTrackHeight
+                                                                radius: height / 2
+                                                                color: trackContainer.isHovered
+                                                                    ? Qt.rgba(255, 255, 255, 0.16)
+                                                                    : Qt.rgba(255, 255, 255, 0.10)
+                                                                border.width: 1
+                                                                border.color: trackContainer.isHovered
+                                                                    ? Qt.rgba(255, 255, 255, 0.20)
+                                                                    : Qt.rgba(255, 255, 255, 0.06)
+                                                                clip: true
+
+                                                                Behavior on height {
+                                                                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                                                                }
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                                                // Active filled progress capsule
+                                                                Rectangle {
+                                                                    id: trackFill
+                                                                    anchors.left: parent.left
+                                                                    anchors.top: parent.top
+                                                                    anchors.bottom: parent.bottom
+                                                                    radius: parent.radius
+                                                                    color: StyleTokens.accent
+                                                                    width: root.trackProgress <= 0.001
+                                                                        ? 0
+                                                                        : Math.min(parent.width, parent.width * Math.max(0, Math.min(1.0, root.trackProgress)))
+
+                                                                    Behavior on width {
+                                                                        enabled: !progressMouse.pressed
+                                                                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            MouseArea {
+                                                                id: progressMouse
+                                                                anchors.fill: parent
+                                                                hoverEnabled: true
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onPressed: mouse => root.seekToRatio(mouse.x / width)
+                                                                onClicked: mouse => root.seekToRatio(mouse.x / width)
+                                                                onPositionChanged: mouse => {
+                                                                    if (pressed) root.seekToRatio(mouse.x / width)
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Text {
+                                                            text: root.timeTotal
+                                                            font.family: root.textFont
+                                                            font.pixelSize: 10
+                                                            font.weight: Font.Medium
+                                                            color: trackContainer.isHovered ? StyleTokens.textPrimaryBright : StyleTokens.textMuted
+                                                            Layout.alignment: Qt.AlignVCenter
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                        }
+                                                    }
+
+                                                    // Row 3: Perfectly Spaced Hero Playback Controls
+                                                    Item {
+                                                        width: parent.width
+                                                        height: 44
+
+                                                        Row {
+                                                            anchors.centerIn: parent
+                                                            spacing: 28
+
+                                                            // Previous Button
+                                                            Rectangle {
+                                                                width: 36
+                                                                height: 36
+                                                                radius: 18
+                                                                color: prevMouse.containsMouse
+                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.12)
+                                                                    : Qt.rgba(255, 255, 255, 0.05)
+                                                                border.width: 1
+                                                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                                                scale: prevMouse.pressed ? 0.90 : (prevMouse.containsMouse ? 1.08 : 1.0)
+                                                                anchors.verticalCenter: parent.verticalCenter
+
+                                                                Behavior on scale { NumberAnimation { duration: 100 } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
 
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: "󰒮"
                                                                     font.family: root.nerdFont
-                                                                    font.pixelSize: 18
+                                                                    font.pixelSize: 16
                                                                     color: prevMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
                                                                 }
                                                                 MouseArea {
@@ -838,13 +1195,26 @@ Scope {
                                                                 }
                                                             }
 
+                                                            // Play / Pause Hero Pill
                                                             Rectangle {
-                                                                width: 36
-                                                                height: 36
-                                                                radius: 18
+                                                                width: 44
+                                                                height: 44
+                                                                radius: 22
                                                                 color: StyleTokens.accent
-                                                                scale: playMouse.pressed ? 0.92 : (playMouse.containsMouse ? 1.05 : 1.0)
+                                                                scale: playMouse.pressed ? 0.90 : (playMouse.containsMouse ? 1.08 : 1.0)
+                                                                anchors.verticalCenter: parent.verticalCenter
+
                                                                 Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                                                                // Ambient glow on play button
+                                                                RectangularGlow {
+                                                                    anchors.fill: parent
+                                                                    glowRadius: 14
+                                                                    spread: 0.08
+                                                                    color: StyleTokens.withAlpha(StyleTokens.accent, 0.40)
+                                                                    cornerRadius: 22
+                                                                    opacity: root.isMediaPlaying ? 1.0 : 0.4
+                                                                }
 
                                                                 // Pause state: two crisp rounded vertical bars
                                                                 Row {
@@ -855,18 +1225,18 @@ Scope {
                                                                     Rectangle {
                                                                         width: 3.5
                                                                         height: 14
-                                                                        radius: 1.5
+                                                                        radius: 1.75
                                                                         color: StyleTokens.textOnAccent
                                                                     }
                                                                     Rectangle {
                                                                         width: 3.5
                                                                         height: 14
-                                                                        radius: 1.5
+                                                                        radius: 1.75
                                                                         color: StyleTokens.textOnAccent
                                                                     }
                                                                 }
 
-                                                                // Play state: right-pointing triangle, optically centered with +1px offset
+                                                                // Play state: right-pointing triangle
                                                                 Canvas {
                                                                     id: playCanvas
                                                                     width: 14
@@ -885,7 +1255,7 @@ Scope {
                                                                         ctx.fillStyle = fillColor;
                                                                         ctx.beginPath();
                                                                         ctx.moveTo(1.5, 0.5);
-                                                                        ctx.lineTo(13.5, 7);
+                                                                        ctx.lineTo(13.5, 7.0);
                                                                         ctx.lineTo(1.5, 13.5);
                                                                         ctx.closePath();
                                                                         ctx.fill();
@@ -901,18 +1271,27 @@ Scope {
                                                                 }
                                                             }
 
+                                                            // Next Button
                                                             Rectangle {
-                                                                width: 32
-                                                                height: 32
-                                                                radius: 16
-                                                                color: nextMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.12) : StyleTokens.transparent
+                                                                width: 36
+                                                                height: 36
+                                                                radius: 18
+                                                                color: nextMouse.containsMouse
+                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.12)
+                                                                    : Qt.rgba(255, 255, 255, 0.05)
+                                                                border.width: 1
+                                                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                                                scale: nextMouse.pressed ? 0.90 : (nextMouse.containsMouse ? 1.08 : 1.0)
+                                                                anchors.verticalCenter: parent.verticalCenter
+
+                                                                Behavior on scale { NumberAnimation { duration: 100 } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
 
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: "󰒭"
                                                                     font.family: root.nerdFont
-                                                                    font.pixelSize: 18
+                                                                    font.pixelSize: 16
                                                                     color: nextMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
                                                                 }
                                                                 MouseArea {
@@ -927,57 +1306,114 @@ Scope {
                                                     }
                                                 }
                                             }
+
+                                            // ---------------------------------
+                                            // Atmospheric Glance Card (Inactive Media fallback)
+                                            // ---------------------------------
+                                            Rectangle {
+                                                width: parent.width
+                                                height: 44
+                                                visible: !root.hasMedia
+                                                radius: 22
+                                                color: Qt.rgba(0, 0, 0, 0.22)
+                                                border.width: 1
+                                                border.color: Qt.rgba(255, 255, 255, 0.05)
+
+                                                RowLayout {
+                                                    anchors.centerIn: parent
+                                                    spacing: 8
+
+                                                    Text {
+                                                        text: weatherService.hasData ? weatherService.iconGlyph : "󰌾"
+                                                        color: weatherService.hasData ? weatherService.iconColor : StyleTokens.accent
+                                                        font.family: root.nerdFont
+                                                        font.pixelSize: 15
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                    }
+
+                                                    Text {
+                                                        text: weatherService.hasData
+                                                            ? (weatherService.tempString + " · " + weatherService.condition)
+                                                            : "Session Protected"
+                                                        font.family: root.textFont
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Medium
+                                                        color: StyleTokens.textSecondary
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
                                     // -----------------------------------------
-                                    // RIGHT PANEL: USER PROFILE & PASSWORD
+                                    // RIGHT PANEL: USER PROFILE & PASSWORD INPUT
                                     // -----------------------------------------
                                     Rectangle {
                                         id: rightP
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
-                                        radius: 24
-                                        color: Qt.rgba(255, 255, 255, 0.04)
+                                        radius: 26
+                                        color: Qt.rgba(255, 255, 255, 0.035)
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.08)
+                                        border.color: Qt.rgba(255, 255, 255, 0.07)
                                         opacity: scene.stage(1)
-                                        transform: Translate { x: (1 - scene.stage(1)) * 16 }
+                                        transform: Translate {
+                                            y: (1 - scene.stage(1)) * 14
+                                        }
 
                                         Column {
                                             anchors.centerIn: parent
-                                            width: parent.width - 40
-                                            spacing: 14
+                                            width: parent.width - 36
+                                            spacing: 12
 
-                                            // Avatar with ambient glow halo
+                                            // Avatar with Living Breathing Glass Halo
                                             Item {
                                                 anchors.horizontalCenter: parent.horizontalCenter
-                                                width: 104
-                                                height: 104
+                                                width: 96
+                                                height: 96
 
+                                                // Breathing halo glow
                                                 Rectangle {
+                                                    id: avatarHalo
                                                     anchors.fill: parent
                                                     radius: width / 2
                                                     color: "transparent"
                                                     border.width: 2
-                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.45)
+                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.50)
+
+                                                    SequentialAnimation on opacity {
+                                                        loops: Animation.Infinite
+                                                        running: true
+                                                        NumberAnimation { to: 0.85; duration: 2200; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 0.35; duration: 2200; easing.type: Easing.InOutSine }
+                                                    }
                                                 }
 
                                                 ClippingRectangle {
                                                     anchors.centerIn: parent
-                                                    width: 96
-                                                    height: 96
-                                                    radius: 48
-                                                    color: StyleTokens.cardFillHover
+                                                    width: 86
+                                                    height: 86
+                                                    radius: 43
+                                                    color: StyleTokens.withAlpha(StyleTokens.panel, 0.85)
 
-                                                    Text {
-                                                        anchors.centerIn: parent
-                                                        text: root.userName.charAt(0).toUpperCase()
-                                                        color: StyleTokens.accent
-                                                        font.family: root.heroFont
-                                                        font.pixelSize: 42
-                                                        font.weight: Font.Bold
+                                                    // Monogram fallback with modern typography
+                                                    Rectangle {
+                                                        anchors.fill: parent
                                                         visible: avatarImg.status !== Image.Ready
+                                                        gradient: Gradient {
+                                                            GradientStop { position: 0.0; color: StyleTokens.withAlpha(StyleTokens.accent, 0.35) }
+                                                            GradientStop { position: 1.0; color: Qt.rgba(255, 255, 255, 0.05) }
+                                                        }
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: root.userName.charAt(0).toUpperCase()
+                                                            color: StyleTokens.accent
+                                                            font.family: root.heroFont
+                                                            font.pixelSize: 38
+                                                            font.weight: Font.Bold
+                                                        }
                                                     }
 
                                                     Image {
@@ -1002,19 +1438,20 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: root.userName
                                                 font.family: root.textFont
-                                                font.pixelSize: 21
+                                                font.pixelSize: 20
                                                 font.weight: Font.Bold
+                                                font.letterSpacing: 0.2
                                                 color: StyleTokens.textPrimaryBright
                                                 elide: Text.ElideRight
                                             }
 
-                                            // Password Input Field
+                                            // Password Input Field (Modern Frosted Glass Pill)
                                             Rectangle {
                                                 id: field
                                                 width: parent.width
                                                 height: 48
                                                 radius: 24
-                                                color: Qt.rgba(0, 0, 0, 0.35)
+                                                color: Qt.rgba(0, 0, 0, 0.38)
                                                 border.width: 1.5
                                                 border.color: (root.failed || root.lockedOut)
                                                     ? StyleTokens.danger
@@ -1026,7 +1463,7 @@ Scope {
 
                                                 SequentialAnimation {
                                                     id: typePulse
-                                                    NumberAnimation { target: field; property: "scale"; to: 1.015; duration: 70; easing.type: Easing.OutQuad }
+                                                    NumberAnimation { target: field; property: "scale"; to: 1.018; duration: 60; easing.type: Easing.OutQuad }
                                                     NumberAnimation { target: field; property: "scale"; to: 1.0; duration: 120; easing.type: Easing.OutQuad }
                                                 }
 
@@ -1046,43 +1483,43 @@ Scope {
                                                     font.pixelSize: 13
                                                     font.weight: Font.Medium
                                                     color: StyleTokens.textMuted
-                                                    opacity: root.buffer.length === 0 ? 0.85 : 0
+                                                    opacity: root.buffer.length === 0 ? 0.75 : 0
                                                     Behavior on opacity {
-                                                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                                                        NumberAnimation { duration: 160 }
                                                     }
                                                 }
 
-                                                // Password Bullets
+                                                // Password Bullets (Cute Glowing Pearls)
                                                 Item {
                                                     anchors.fill: parent
-                                                    anchors.leftMargin: 40
-                                                    anchors.rightMargin: 40
+                                                    anchors.leftMargin: 44
+                                                    anchors.rightMargin: 44
                                                     clip: true
 
                                                     Row {
                                                         anchors.horizontalCenter: parent.horizontalCenter
                                                         anchors.verticalCenter: parent.verticalCenter
-                                                        spacing: 7
+                                                        spacing: root.buffer.length > 8 ? Math.max(5, 9 - (root.buffer.length - 8) * 0.6) : 9
 
                                                         Repeater {
                                                             model: Math.min(root.buffer.length, 16)
 
                                                             Rectangle {
                                                                 required property int index
-                                                                width: 9
-                                                                height: 9
-                                                                radius: 4.5
+                                                                width: 14
+                                                                height: 14
+                                                                radius: 7
                                                                 color: root.failed ? StyleTokens.danger : StyleTokens.accent
 
                                                                 property real pop: 0
                                                                 opacity: 0.6 + 0.4 * pop
-                                                                scale: 0.8 + 0.2 * pop
+                                                                scale: 0.4 + 0.6 * pop
 
                                                                 NumberAnimation on pop {
                                                                     from: 0
                                                                     to: 1
-                                                                    duration: 250
-                                                                    easing.type: Easing.OutCubic
+                                                                    duration: 220
+                                                                    easing.type: Easing.OutBack
                                                                 }
 
                                                                 Behavior on color {
@@ -1093,7 +1530,7 @@ Scope {
                                                     }
                                                 }
 
-                                                // Submit Button
+                                                // Submit Button with Cute Animated State
                                                 Rectangle {
                                                     id: goBtn
                                                     readonly property bool live: root.buffer.length > 0 || root.checking || root.unlocking || root.pamLocked
@@ -1103,12 +1540,13 @@ Scope {
                                                     anchors.right: parent.right
                                                     anchors.rightMargin: 6
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    color: StyleTokens.accent
+                                                    color: root.unlocking ? StyleTokens.success : StyleTokens.accent
                                                     opacity: live ? (root.lockedOut ? 0.4 : 1.0) : 0
-                                                    scale: goArea.pressed ? 0.92 : (live ? 1.0 : 0.6)
+                                                    scale: goArea.pressed ? 0.90 : (live ? 1.0 : 0.6)
 
                                                     Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                                     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                                    Behavior on color { ColorAnimation { duration: 180 } }
 
                                                     Text {
                                                         id: goIcon
@@ -1116,14 +1554,14 @@ Scope {
                                                         text: root.unlocking ? "󰄬" : (root.checking ? "󰑮" : (root.pamLocked ? "󰌾" : "󰁔"))
                                                         color: StyleTokens.textOnAccent
                                                         font.family: root.nerdFont
-                                                        font.pixelSize: 18
+                                                        font.pixelSize: 17
                                                         font.weight: Font.Bold
 
                                                         NumberAnimation on rotation {
                                                             running: root.checking
                                                             from: 0
                                                             to: 360
-                                                            duration: 800
+                                                            duration: 750
                                                             loops: Animation.Infinite
                                                             onRunningChanged: if (!running) goIcon.rotation = 0
                                                         }
@@ -1142,17 +1580,17 @@ Scope {
                                                 }
                                             }
 
-                                            // Status Text
+                                            // Status Feedback Row
                                             RowLayout {
                                                 width: parent.width
                                                 spacing: 6
 
                                                 Text {
                                                     visible: root.failed || root.lockedOut
-                                                    text: "󰀦"
+                                                    text: "󰀦" // Warning
                                                     color: StyleTokens.danger
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: 13
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
 
@@ -1163,6 +1601,7 @@ Scope {
                                                     wrapMode: Text.WordWrap
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
+                                                    font.weight: Font.Medium
                                                     color: (root.failed || root.lockedOut) ? StyleTokens.danger : StyleTokens.textSecondary
                                                     text: root.statusText
                                                 }
@@ -1172,14 +1611,16 @@ Scope {
                                 }
 
                                 // ---------------------------------------------
-                                // BOTTOM BAR: WEATHER + BATTERY & POWER
+                                // BOTTOM DOCK: WEATHER, BATTERY & POWER ACTIONS
                                 // ---------------------------------------------
                                 Item {
                                     id: bottomBar
                                     width: parent.width
-                                    height: 42
+                                    height: 40
                                     opacity: scene.stage(2)
-                                    transform: Translate { y: (1 - scene.stage(2)) * 8 }
+                                    transform: Translate {
+                                        y: (1 - scene.stage(2)) * 8
+                                    }
 
                                     // Left: Weather & Battery Pills
                                     Row {
@@ -1191,30 +1632,30 @@ Scope {
                                         // Weather Pill
                                         Rectangle {
                                             visible: weatherService.hasData
-                                            height: 38
-                                            width: weatherRow.implicitWidth + 28
-                                            radius: 19
+                                            height: 36
+                                            width: weatherRow.implicitWidth + 24
+                                            radius: 18
                                             color: Qt.rgba(255, 255, 255, 0.05)
                                             border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.10)
+                                            border.color: Qt.rgba(255, 255, 255, 0.09)
 
                                             RowLayout {
                                                 id: weatherRow
                                                 anchors.centerIn: parent
-                                                spacing: 8
+                                                spacing: 7
 
                                                 Text {
                                                     text: weatherService.iconGlyph
                                                     color: weatherService.iconColor
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 18
+                                                    font.pixelSize: 16
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
 
                                                 Text {
                                                     text: weatherService.tempString
                                                     font.family: root.textFont
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: 12
                                                     font.weight: Font.DemiBold
                                                     color: StyleTokens.textPrimaryBright
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1225,30 +1666,44 @@ Scope {
                                         // Battery Pill
                                         Rectangle {
                                             visible: root.hasBattery
-                                            height: 38
-                                            width: batteryRow.implicitWidth + 28
-                                            radius: 19
+                                            height: 36
+                                            width: batteryRow.implicitWidth + 24
+                                            radius: 18
                                             color: Qt.rgba(255, 255, 255, 0.05)
                                             border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.10)
+                                            border.color: Qt.rgba(255, 255, 255, 0.09)
 
                                             RowLayout {
                                                 id: batteryRow
                                                 anchors.centerIn: parent
-                                                spacing: 8
+                                                spacing: 6
 
-                                                Text {
-                                                    text: root.batteryGlyph(root.batPct)
-                                                    color: root.batteryColor(root.batPct)
-                                                    font.family: root.nerdFont
-                                                    font.pixelSize: 18
+                                                Row {
+                                                    spacing: 4
                                                     Layout.alignment: Qt.AlignVCenter
+
+                                                    Text {
+                                                        text: root.batteryGlyph(root.batPct)
+                                                        color: root.batteryColor(root.batPct)
+                                                        font.family: root.nerdFont
+                                                        font.pixelSize: 15
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+
+                                                    Text {
+                                                        visible: root.batCharging
+                                                        text: "\uf0e7" // Cute charging bolt from Control Center
+                                                        color: StyleTokens.batteryCharging
+                                                        font.family: root.nerdFont
+                                                        font.pixelSize: 12
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
                                                 }
 
                                                 Text {
                                                     text: root.batPct + "%"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: 12
                                                     font.weight: Font.DemiBold
                                                     color: StyleTokens.textPrimaryBright
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1257,40 +1712,42 @@ Scope {
                                         }
                                     }
 
-                                    // Right: Power Action Pills
+                                    // Right: Cute Power Action Pills
                                     Row {
                                         anchors.right: parent.right
                                         anchors.rightMargin: 4
                                         anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 10
+                                        spacing: 8
                                         visible: root.showPowerActions
 
-                                        // Sleep Button
+                                        // Sleep Button (Cute Snooze)
                                         Rectangle {
                                             id: sleepBtn
                                             property bool armed: false
-                                            height: 38
-                                            width: armed ? 90 : 38
-                                            radius: 19
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
-                                                         : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
-                                                                                     : Qt.rgba(255, 255, 255, 0.07))
+                                            height: 36
+                                            width: armed ? 90 : 36
+                                            radius: 18
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
+                                                         : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
+                                                                                     : Qt.rgba(255, 255, 255, 0.06))
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (sleepMouse.containsMouse ? StyleTokens.accent
-                                                                                            : Qt.rgba(255, 255, 255, 0.12))
+                                                                                            : Qt.rgba(255, 255, 255, 0.10))
+                                            scale: sleepMouse.pressed ? 0.92 : (sleepMouse.containsMouse ? 1.05 : 1.0)
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            Behavior on scale { NumberAnimation { duration: 100 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 6
+                                                spacing: 5
                                                 Text {
-                                                    text: "󰤄"
+                                                    text: "󰒲" // Cute Zzz snooze moon
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 18
+                                                    font.pixelSize: 16
                                                     color: sleepBtn.armed ? StyleTokens.danger
                                                                           : (sleepMouse.containsMouse ? StyleTokens.accent
                                                                                                       : StyleTokens.textPrimaryBright)
@@ -1300,7 +1757,7 @@ Scope {
                                                     visible: sleepBtn.armed
                                                     text: "Sleep?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 11
                                                     font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1332,32 +1789,34 @@ Scope {
                                             }
                                         }
 
-                                        // Reboot Button
+                                        // Reboot Button (Cute Rounded Refresh)
                                         Rectangle {
                                             id: rebootBtn
                                             property bool armed: false
-                                            height: 38
-                                            width: armed ? 94 : 38
-                                            radius: 19
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
-                                                         : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
-                                                                                      : Qt.rgba(255, 255, 255, 0.07))
+                                            height: 36
+                                            width: armed ? 94 : 36
+                                            radius: 18
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
+                                                         : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
+                                                                                      : Qt.rgba(255, 255, 255, 0.06))
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (rebootMouse.containsMouse ? StyleTokens.accent
-                                                                                             : Qt.rgba(255, 255, 255, 0.12))
+                                                                                             : Qt.rgba(255, 255, 255, 0.10))
+                                            scale: rebootMouse.pressed ? 0.92 : (rebootMouse.containsMouse ? 1.05 : 1.0)
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            Behavior on scale { NumberAnimation { duration: 100 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 6
+                                                spacing: 5
                                                 Text {
-                                                    text: "󰑐"
+                                                    text: "󰑓" // Cute rounded sync
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 18
+                                                    font.pixelSize: 16
                                                     color: rebootBtn.armed ? StyleTokens.danger
                                                                            : (rebootMouse.containsMouse ? StyleTokens.accent
                                                                                                         : StyleTokens.textPrimaryBright)
@@ -1365,9 +1824,9 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: rebootBtn.armed
-                                                    text: "Reboot?"
+                                                    text: "Restart?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 11
                                                     font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1399,32 +1858,34 @@ Scope {
                                             }
                                         }
 
-                                        // Shutdown Button
+                                        // Shutdown Button (Cute Soft Power)
                                         Rectangle {
                                             id: shutdownBtn
                                             property bool armed: false
-                                            height: 38
-                                            width: armed ? 90 : 38
-                                            radius: 19
-                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.5)
-                                                         : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.3)
-                                                                                        : Qt.rgba(255, 255, 255, 0.07))
+                                            height: 36
+                                            width: armed ? 90 : 36
+                                            radius: 18
+                                            color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
+                                                         : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.25)
+                                                                                        : Qt.rgba(255, 255, 255, 0.06))
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (shutdownMouse.containsMouse ? StyleTokens.danger
-                                                                                               : Qt.rgba(255, 255, 255, 0.12))
+                                                                                               : Qt.rgba(255, 255, 255, 0.10))
+                                            scale: shutdownMouse.pressed ? 0.92 : (shutdownMouse.containsMouse ? 1.05 : 1.0)
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            Behavior on scale { NumberAnimation { duration: 100 } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
-                                                spacing: 6
+                                                spacing: 5
                                                 Text {
-                                                    text: "󰐥"
+                                                    text: "󰐥" // Cute soft power
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 18
+                                                    font.pixelSize: 16
                                                     color: shutdownBtn.armed ? StyleTokens.danger
                                                                              : (shutdownMouse.containsMouse ? StyleTokens.danger
                                                                                                             : StyleTokens.textPrimaryBright)
@@ -1434,7 +1895,7 @@ Scope {
                                                     visible: shutdownBtn.armed
                                                     text: "Power?"
                                                     font.family: root.textFont
-                                                    font.pixelSize: 12
+                                                    font.pixelSize: 11
                                                     font.weight: Font.Bold
                                                     color: StyleTokens.danger
                                                     Layout.alignment: Qt.AlignVCenter

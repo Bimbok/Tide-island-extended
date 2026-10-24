@@ -1004,58 +1004,71 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
     QProcess *proc = new QProcess(this);
     m_updateProcess = proc;
 
-    auto onFinished = [this, proc](int exitCode, QProcess::ExitStatus exitStatus) {
-        m_checkingUpdates = false;
-        m_lastUpdateCheckTime.restart();
-
-        const QByteArray stdOut = proc->readAllStandardOutput();
-
-        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-            const QString text = QString::fromUtf8(stdOut).trimmed();
-            m_pendingUpdatesCount = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
-        } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
-            // checkupdates returns 2 when no updates are available
+    auto runPacmanFallback = [this, proc]() {
+        if (!QFile::exists(QStringLiteral("/usr/bin/pacman"))) {
+            m_checkingUpdates = false;
+            m_lastUpdateCheckTime.restart();
             m_pendingUpdatesCount = 0;
-        } else {
-            // Fallback: check local synced pacman database with pacman -Qu
-            QProcess pacProc;
-            pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
-            if (pacProc.waitForFinished(2000)) {
-                if (pacProc.exitCode() == 0) {
-                    const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
-                    m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
-                } else {
-                    // pacman -Qu exits with 1 when no updates are found
-                    m_pendingUpdatesCount = 0;
-                }
-            }
+            emit updatesChanged();
+            emit statsUpdated();
+            proc->deleteLater();
+            return;
         }
 
-        emit updatesChanged();
-        emit statsUpdated();
-        proc->deleteLater();
-    };
-
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, onFinished);
-
-    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError) {
-        // Fallback: check local synced pacman database on error
-        QProcess pacProc;
-        pacProc.start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
-        if (pacProc.waitForFinished(2000)) {
-            if (pacProc.exitCode() == 0) {
-                const QString fallbackText = QString::fromUtf8(pacProc.readAllStandardOutput()).trimmed();
+        QProcess *pacProc = new QProcess(this);
+        connect(pacProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this, pacProc](int pCode, QProcess::ExitStatus pStatus) {
+            m_checkingUpdates = false;
+            m_lastUpdateCheckTime.restart();
+            if (pStatus == QProcess::NormalExit && pCode == 0) {
+                const QString fallbackText = QString::fromUtf8(pacProc->readAllStandardOutput()).trimmed();
                 m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
             } else {
                 m_pendingUpdatesCount = 0;
             }
-        }
-
-        m_checkingUpdates = false;
-        m_lastUpdateCheckTime.restart();
-        emit updatesChanged();
-        emit statsUpdated();
+            emit updatesChanged();
+            emit statsUpdated();
+            pacProc->deleteLater();
+        });
+        connect(pacProc, &QProcess::errorOccurred, this, [this, pacProc](QProcess::ProcessError) {
+            m_checkingUpdates = false;
+            m_lastUpdateCheckTime.restart();
+            m_pendingUpdatesCount = 0;
+            emit updatesChanged();
+            emit statsUpdated();
+            pacProc->deleteLater();
+        });
+        pacProc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
         proc->deleteLater();
+    };
+
+    auto onFinished = [this, proc, runPacmanFallback](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            m_checkingUpdates = false;
+            m_lastUpdateCheckTime.restart();
+            const QString text = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+            m_pendingUpdatesCount = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+            emit updatesChanged();
+            emit statsUpdated();
+            proc->deleteLater();
+        } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
+            // checkupdates returns 2 when no updates are available
+            m_checkingUpdates = false;
+            m_lastUpdateCheckTime.restart();
+            m_pendingUpdatesCount = 0;
+            emit updatesChanged();
+            emit statsUpdated();
+            proc->deleteLater();
+        } else {
+            // Fallback: check local synced pacman database asynchronously
+            runPacmanFallback();
+        }
+    };
+
+    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, onFinished);
+
+    connect(proc, &QProcess::errorOccurred, this, [runPacmanFallback](QProcess::ProcessError) {
+        runPacmanFallback();
     });
 
     if (QFile::exists(QStringLiteral("/usr/bin/checkupdates"))) {

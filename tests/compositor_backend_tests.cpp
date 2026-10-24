@@ -12,6 +12,9 @@ private slots:
     void detectsNiriFromSocketEnvironmentBeforeConnectionIsReady();
     void niriWorkspacesUseIdxAndOutput();
     void niriWorkspaceActivationUpdatesFocusedOutput();
+    void singleOutputDefaultsToFocused();
+    void niriWindowFocusChangedUpdatesFocusedOutput();
+    void hyprlandOverviewSignalsEmitted();
 };
 
 void CompositorBackendTests::detectsNiriFromDesktopEnvironment()
@@ -99,6 +102,72 @@ void CompositorBackendTests::niriWorkspaceActivationUpdatesFocusedOutput()
     QCOMPARE(backend.focusedOutputName(), QStringLiteral("HDMI-A-1"));
     QVERIFY(backend.isOutputFocused(QStringLiteral("HDMI-A-1")));
     QVERIFY(!backend.isOutputFocused(QStringLiteral("eDP-1")));
+}
+
+void CompositorBackendTests::singleOutputDefaultsToFocused()
+{
+    qputenv("TIDE_ISLAND_COMPOSITOR", "niri");
+    qputenv("NIRI_SOCKET", "/tmp/tide-island-missing-niri.sock");
+
+    CompositorBackend backend;
+    QVERIFY(backend.applyNiriEventJson(R"JSON({
+        "WorkspacesChanged": {
+            "workspaces": [
+                {"id": 1, "idx": 1, "output": "eDP-1", "is_active": true, "is_focused": false}
+            ]
+        }
+    })JSON"));
+
+    // Single output must be recognized as focused even if no window is focused yet
+    QVERIFY(backend.isOutputFocused(QStringLiteral("eDP-1")));
+    QCOMPARE(backend.activeWorkspaceIndexForOutput(QStringLiteral("eDP-1")), 1);
+}
+
+void CompositorBackendTests::niriWindowFocusChangedUpdatesFocusedOutput()
+{
+    qputenv("TIDE_ISLAND_COMPOSITOR", "niri");
+    qputenv("NIRI_SOCKET", "/tmp/tide-island-missing-niri.sock");
+
+    CompositorBackend backend;
+    QVERIFY(backend.applyNiriEventJson(R"JSON({
+        "WorkspacesChanged": {
+            "workspaces": [
+                {"id": 10, "idx": 1, "output": "eDP-1", "is_active": true, "is_focused": true, "active_window_id": 100},
+                {"id": 20, "idx": 1, "output": "DP-1", "is_active": true, "is_focused": false, "active_window_id": 200}
+            ]
+        }
+    })JSON"));
+
+    QCOMPARE(backend.focusedOutputName(), QStringLiteral("eDP-1"));
+    QVERIFY(backend.isOutputFocused(QStringLiteral("eDP-1")));
+    QVERIFY(!backend.isOutputFocused(QStringLiteral("DP-1")));
+
+    // When focus shifts to window on DP-1
+    QVERIFY(backend.applyNiriEventJson(R"JSON({"WindowFocusChanged": {"id": 200}})JSON"));
+    QCOMPARE(backend.focusedOutputName(), QStringLiteral("DP-1"));
+    QVERIFY(backend.isOutputFocused(QStringLiteral("DP-1")));
+    QVERIFY(!backend.isOutputFocused(QStringLiteral("eDP-1")));
+}
+
+void CompositorBackendTests::hyprlandOverviewSignalsEmitted()
+{
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    CompositorBackend backend;
+    QCOMPARE(backend.compositor(), QStringLiteral("hyprland"));
+
+    QSignalSpy toggleSpy(&backend, &CompositorBackend::overviewToggleRequested);
+    QSignalSpy openSpy(&backend, &CompositorBackend::overviewOpenRequested);
+    QSignalSpy closeSpy(&backend, &CompositorBackend::overviewCloseRequested);
+
+    backend.toggleOverview();
+    QCOMPARE(toggleSpy.count(), 1);
+
+    backend.openOverview();
+    QCOMPARE(openSpy.count(), 1);
+
+    backend.closeOverview();
+    QCOMPARE(closeSpy.count(), 1);
 }
 
 QTEST_MAIN(CompositorBackendTests)

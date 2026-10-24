@@ -156,43 +156,55 @@ QString UserConfigBackend::wallpaperPath() const
     if (!m_wallpaperPath.isEmpty() && QFile::exists(m_wallpaperPath))
         return m_wallpaperPath;
 
-    // Check cached wallpaper
+    if (!m_resolvedWallpaperPath.isEmpty() && QFile::exists(m_resolvedWallpaperPath))
+        return m_resolvedWallpaperPath;
+
+    // Check cached wallpaper file first
     const QString cachePath = QDir::homePath() + QStringLiteral("/.cache/tide-island/last_wallpaper");
     QFile cacheFile(cachePath);
     if (cacheFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         const QString cached = QString::fromUtf8(cacheFile.readLine()).trimmed();
-        if (!cached.isEmpty() && QFile::exists(cached))
-            return cached;
-    }
-
-    // Try detecting from awww query
-    const QString awwwBin = QStandardPaths::findExecutable(QStringLiteral("awww"));
-    if (!awwwBin.isEmpty()) {
-        QProcess proc;
-        proc.start(awwwBin, {QStringLiteral("query")});
-        if (proc.waitForFinished(300)) {
-            const QString output = QString::fromUtf8(proc.readAllStandardOutput());
-            const int idx = output.indexOf(QStringLiteral("image: "));
-            if (idx != -1) {
-                QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
-                if (!path.isEmpty() && QFile::exists(path))
-                    return path;
-            }
+        if (!cached.isEmpty() && QFile::exists(cached)) {
+            m_resolvedWallpaperPath = cached;
+            return m_resolvedWallpaperPath;
         }
     }
 
-    // Try detecting from swww query
-    const QString swwwBin = QStandardPaths::findExecutable(QStringLiteral("swww"));
-    if (!swwwBin.isEmpty()) {
-        QProcess proc;
-        proc.start(swwwBin, {QStringLiteral("query")});
-        if (proc.waitForFinished(300)) {
-            const QString output = QString::fromUtf8(proc.readAllStandardOutput());
-            const int idx = output.indexOf(QStringLiteral("image: "));
-            if (idx != -1) {
-                QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
-                if (!path.isEmpty() && QFile::exists(path))
-                    return path;
+    // Try detecting from active wallpaper managers once
+    if (!m_probedActiveWallpaper) {
+        m_probedActiveWallpaper = true;
+
+        const QString awwwBin = QStandardPaths::findExecutable(QStringLiteral("awww"));
+        if (!awwwBin.isEmpty()) {
+            QProcess proc;
+            proc.start(awwwBin, {QStringLiteral("query")});
+            if (proc.waitForFinished(150)) {
+                const QString output = QString::fromUtf8(proc.readAllStandardOutput());
+                const int idx = output.indexOf(QStringLiteral("image: "));
+                if (idx != -1) {
+                    QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
+                    if (!path.isEmpty() && QFile::exists(path)) {
+                        m_resolvedWallpaperPath = path;
+                        return m_resolvedWallpaperPath;
+                    }
+                }
+            }
+        }
+
+        const QString swwwBin = QStandardPaths::findExecutable(QStringLiteral("swww"));
+        if (!swwwBin.isEmpty()) {
+            QProcess proc;
+            proc.start(swwwBin, {QStringLiteral("query")});
+            if (proc.waitForFinished(150)) {
+                const QString output = QString::fromUtf8(proc.readAllStandardOutput());
+                const int idx = output.indexOf(QStringLiteral("image: "));
+                if (idx != -1) {
+                    QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
+                    if (!path.isEmpty() && QFile::exists(path)) {
+                        m_resolvedWallpaperPath = path;
+                        return m_resolvedWallpaperPath;
+                    }
+                }
             }
         }
     }
@@ -760,6 +772,9 @@ void UserConfigBackend::scheduleReload()
 void UserConfigBackend::loadConfig()
 {
     updateWatchedPaths();
+
+    m_probedActiveWallpaper = false;
+    m_resolvedWallpaperPath.clear();
 
     QJsonObject configObject;
     QString nextConfigError;

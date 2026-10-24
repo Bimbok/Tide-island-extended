@@ -109,6 +109,7 @@ private:
     QString m_replaysDir;
     QString m_lastSavedFile;
     QString m_currentRecordingFile;
+    mutable QString m_cachedDetectedScreen;
 
     qint64 m_recordPid = 0;
     qint64 m_replayPid = 0;

@@ -298,6 +298,13 @@ private slots:
         if (!origComp.isEmpty()) qputenv("TIDE_ISLAND_COMPOSITOR", origComp.toLocal8Bit());
         else qunsetenv("TIDE_ISLAND_COMPOSITOR");
     }
+
+    void testQueryDiskUsagePercent()
+    {
+        SystemServices services;
+        const double pct = services.queryDiskUsagePercent(QStringLiteral("/"));
+        QVERIFY(pct >= 0.0 && pct <= 100.0);
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

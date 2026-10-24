@@ -217,21 +217,28 @@ bool ScreenRecorderController::isProcessRunning(qint64 pid) const {
 QString ScreenRecorderController::detectDefaultScreen() const {
     if (!m_screenName.isEmpty())
         return m_screenName;
+    if (!m_cachedDetectedScreen.isEmpty())
+        return m_cachedDetectedScreen;
 
-    // Run gpu-screen-recorder --list-monitors to find the active monitor
-    QProcess proc;
-    proc.start(QStringLiteral("gpu-screen-recorder"), {QStringLiteral("--list-monitors")});
-    if (proc.waitForFinished(1000)) {
-        const QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-        const QStringList lines = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-        for (const QString &line : lines) {
-            const QString mon = line.section(QLatin1Char('|'), 0, 0).trimmed();
-            if (!mon.isEmpty())
-                return mon;
+    const QString gsr = QStandardPaths::findExecutable(QStringLiteral("gpu-screen-recorder"));
+    if (!gsr.isEmpty()) {
+        QProcess proc;
+        proc.start(gsr, {QStringLiteral("--list-monitors")});
+        if (proc.waitForFinished(300)) {
+            const QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+            const QStringList lines = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+            for (const QString &line : lines) {
+                const QString mon = line.section(QLatin1Char('|'), 0, 0).trimmed();
+                if (!mon.isEmpty()) {
+                    m_cachedDetectedScreen = mon;
+                    return m_cachedDetectedScreen;
+                }
+            }
         }
     }
 
-    return QStringLiteral("eDP-1");
+    m_cachedDetectedScreen = QStringLiteral("eDP-1");
+    return m_cachedDetectedScreen;
 }
 
 QString ScreenRecorderController::resolveAudioSource(bool withMic) const {

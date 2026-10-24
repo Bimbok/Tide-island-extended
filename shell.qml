@@ -94,22 +94,28 @@ Scope {
     }
 
     function openOverviewAll() {
-        if (CompositorBackend.compositor === "niri")
+        if (CompositorBackend.compositor === "niri") {
+            CompositorBackend.openOverview();
             return;
+        }
 
         shellRoot.forEachWindow((window) => window.openOverview());
     }
 
     function closeOverviewAll() {
-        if (CompositorBackend.compositor === "niri")
+        if (CompositorBackend.compositor === "niri") {
+            CompositorBackend.closeOverview();
             return;
+        }
 
         shellRoot.forEachWindow((window) => window.closeOverview());
     }
 
     function toggleOverviewAll() {
-        if (CompositorBackend.compositor === "niri")
+        if (CompositorBackend.compositor === "niri") {
+            CompositorBackend.toggleOverview();
             return;
+        }
 
         if (shellRoot.anyOverviewOpen())
             shellRoot.closeOverviewAll();
@@ -243,7 +249,7 @@ Scope {
             shellRoot.userConfig.toggleIslandStyle();
         }
 
-        function setStyle(styleName) {
+        function setStyle(styleName: string) {
             shellRoot.userConfig.setIslandStyle(styleName);
         }
     }
@@ -255,7 +261,7 @@ Scope {
             shellRoot.userConfig.toggleIslandStyle();
         }
 
-        function setStyle(styleName) {
+        function setStyle(styleName: string) {
             shellRoot.userConfig.setIslandStyle(styleName);
         }
 
@@ -886,6 +892,22 @@ Scope {
 
         function onNotificationReceived(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid) {
             shellRoot.showNotificationAll(id, appName, appIcon, summary, body, actions, imagePath, urgency, senderPid);
+        }
+    }
+
+    Connections {
+        target: CompositorBackend
+
+        function onOverviewToggleRequested() {
+            shellRoot.toggleOverviewAll();
+        }
+
+        function onOverviewOpenRequested() {
+            shellRoot.openOverviewAll();
+        }
+
+        function onOverviewCloseRequested() {
+            shellRoot.closeOverviewAll();
         }
     }
 

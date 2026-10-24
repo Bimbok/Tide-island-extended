@@ -73,15 +73,20 @@ PanelWindow {
 
     readonly property var userConfig: UserConfig
 
-    WeatherService {
-        id: fallbackWeatherService
-        weatherEnabled: (!root.shellRootController || !root.shellRootController.weatherService)
+    Loader {
+        id: fallbackWeatherServiceLoader
+        active: (!root.shellRootController || !root.shellRootController.weatherService)
             && (userConfig ? userConfig.weatherEnabled : true)
+        sourceComponent: Component {
+            WeatherService {
+                weatherEnabled: true
+            }
+        }
     }
 
     readonly property var weatherService: (root.shellRootController && root.shellRootController.weatherService)
         ? root.shellRootController.weatherService
-        : fallbackWeatherService
+        : (fallbackWeatherServiceLoader.item || null)
 
     Loader {
         id: hyprlandIntegrationLoader
@@ -663,8 +668,10 @@ PanelWindow {
     }
 
     function toggleOverviewEverywhere() {
-        if (compositorIsNiri)
+        if (compositorIsNiri) {
+            CompositorBackend.toggleOverview();
             return;
+        }
 
         if (shellRootController && shellRootController.toggleOverviewAll) {
             shellRootController.toggleOverviewAll();
@@ -1455,11 +1462,15 @@ PanelWindow {
                     view.focusAdjacentWorkspace(0, 1);
                 event.accepted = true;
             } else if ((event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)) || event.key === Qt.Key_Backtab) {
-                if (root.hyprlandIntegration)
+                if (root.compositorIsNiri)
+                    CompositorBackend.focusWorkspaceAdjacent(-1);
+                else if (root.hyprlandIntegration)
                     root.hyprlandIntegration.focusWorkspace("r-1");
                 event.accepted = true;
             } else if (event.key === Qt.Key_Tab) {
-                if (root.hyprlandIntegration)
+                if (root.compositorIsNiri)
+                    CompositorBackend.focusWorkspaceAdjacent(1);
+                else if (root.hyprlandIntegration)
                     root.hyprlandIntegration.focusWorkspace("r+1");
                 event.accepted = true;
             }

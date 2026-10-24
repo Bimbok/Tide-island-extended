@@ -85,7 +85,15 @@ Item {
     onUsesSystemStatsModuleChanged: refreshMissingValues()
     onUsesStorageModuleChanged: refreshMissingValues()
     onUsesCavaModuleChanged: updateCavaSubscription()
-    onCustomSwipeActiveChanged: updateCavaSubscription()
+    onCustomSwipeActiveChanged: {
+        if (customSwipeActive) {
+            if (usesSystemStatsModule)
+                SystemServices.requestSystemStats();
+            if (usesStorageModule)
+                updateStorageStats();
+        }
+        updateCavaSubscription();
+    }
     onLyricsCavaActiveChanged: updateCavaSubscription()
     onBatteryCapacityChanged: syncCustomLeftItems()
     onIsChargingChanged: syncCustomLeftItems()
@@ -191,10 +199,18 @@ Item {
             SystemServices.requestBrightness();
         if (currentVolume < 0)
             SystemServices.requestVolume();
-        if (usesSystemStatsModule)
+        if (usesSystemStatsModule && customSwipeActive)
             SystemServices.requestSystemStats();
         if (usesStorageModule)
-            storagePollTimer.restart();
+            updateStorageStats();
+    }
+
+    function updateStorageStats() {
+        if (!usesStorageModule)
+            return;
+        const pct = SystemServices.queryDiskUsagePercent("/");
+        if (pct >= 0)
+            currentStorageUsage = Math.round(pct);
     }
 
     function updateCavaSubscription() {
@@ -411,37 +427,15 @@ Item {
 
         interval: 3000
         repeat: true
-        running: root.usesSystemStatsModule
-        triggeredOnStart: true
+        running: (root.usesSystemStatsModule || root.usesStorageModule) && root.customSwipeActive
+        triggeredOnStart: false
 
-        onTriggered: SystemServices.requestSystemStats()
-    }
-    Process {
-        id: storagePollProcess
-        command: ["df", "--output=pcent", "/"]
-        running: false
-
-        stdout: SplitParser {
-            onRead: function(line) {
-                const trimmed = line.trim();
-                if (trimmed === "" || trimmed.indexOf("Use%") >= 0)
-                    return;
-                const pct = parseInt(trimmed.replace("%", ""));
-                if (!isNaN(pct))
-                    root.currentStorageUsage = pct;
-            }
+        onTriggered: {
+            if (root.usesSystemStatsModule)
+                SystemServices.requestSystemStats();
+            if (root.usesStorageModule)
+                root.updateStorageStats();
         }
-    }
-
-    Timer {
-        id: storagePollTimer
-
-        interval: 10000
-        repeat: true
-        running: root.usesStorageModule
-        triggeredOnStart: true
-
-        onTriggered: storagePollProcess.running = true
     }
 
 

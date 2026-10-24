@@ -78,6 +78,12 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   </tr>
 </table>
 
+### Native Dynamic Island Lockscreen
+
+<p align="center">
+  <img src="docs/preview/lockscreen.png" width="95%" alt="Native Dynamic Island Lockscreen" />
+</p>
+
 ### Interactive Panels
 
 <table>
@@ -201,19 +207,26 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **Intuitive Triggers & Controls**: Sleek modern aesthetic without intrusive close buttons — dismiss seamlessly with `Escape`, click outside, or shortcut toggle (`SUPER+G`).
 - **In-App Matugen Assistant**: Direct one-click template installation and TOML snippet copying right inside Tide Island Settings (`Color & Wallpaper` tab).
 - **Native Dynamic Island Lockscreen & Ambient Multi-Monitor Standby**:
-  - **Fluid Morphing Glass Architecture**: A native, highly authentic Wayland lockscreen (`tide-island --lock` or `quickshell ipc call lock lock`) that smoothly morphs from the dynamic island capsule into a luxury dual-panel frosted glass card with 32px corner radius and customizable blur backdrop.
-  - **PAM Authentication & Security**: Complete Linux PAM authentication handling password entry, responsive interactive character counter, PIN dots, enter-to-unlock, `Esc`/`Ctrl+U` to clear, error shake animation on failed attempts, faillock lockout detection with countdown timers, and automatic session restoration.
+  - **Fluid In/Out Morphing Animations**: An authentic, buttery-smooth Wayland lockscreen (`tide-island --lock`, `tide-island-lock`, or `quickshell ipc call lock lock`) that enters with a dynamic zoom-blur morph directly from the resting dynamic island capsule and smoothly lifts, dissolves, and unblurs upon unlocking.
+  - **Embedded Hero Music Player**:
+    - High-resolution album cover art in a rounded squircle frame.
+    - **Live Audio Visualizer**: 5-bar live equalizer syncing in real time with Cava audio frequency telemetry or procedural audio waveforms when music is playing.
+    - **Mac / Control Center Pill Capsule Scrubber**: Seekable capsule progress bar that smoothly thickens from 8px to 14px on hover or drag with zero distracting knobs or dots.
+    - **Hero Playback Controls & Track Timestamps**: Balanced Previous, glowing Hero Play/Pause button with warm ambient accent halo, Next track controls, and live elapsed / total duration counters (`1:14 / 4:05`) with instant click-and-drag seek.
+  - **Linux PAM Authentication & Security**: Complete, secure Linux PAM authentication with responsive typing micro-interactions, Enter-to-unlock, `Esc`/`Ctrl+U` to clear, error shake animation on failed attempts, system lockout detection (`faillock`) with live countdown timers, and automatic session restoration.
+  - **Cute Password Pearls**: Frosted glass pill input field featuring enlarged 14px glowing pearl bullets with bouncy pop spring animations (`Easing.OutBack`) that dynamically compact for longer passwords, keeping bullets centered and visible.
+  - **Bundled Modern Typography**: Includes `InterVariable.ttf` out of the box for crisp, ultra-clean clock numbers, greeting pills, and system details with zero external font setup required.
   - **Dual-Panel Primary Card & Multi-Monitor Support**:
-    - **Left Panel (Hero Clock, Date, Greeting & Media)**: Ultra-bold time display (`Font.Black` 900 weight, 66px-84px) dynamically respecting `timeFontFamily` (`JetBrainsMono Nerd Font`, `Red Hat Display Black`, `FiraCode Nerd Font`), formatted date, dynamic contextual greeting pill (`Good evening, <user>`), and rich embedded media player card with album art and centered playback controls.
-    - **Right Panel (User Avatar & Auth)**: Crisp circular user profile avatar with smooth drop shadow, bold username, and rounded input pill.
-    - **Multi-Monitor Standby View**: Non-primary monitors present a minimalist ambient clock (92px `Font.Black`) and date over the blurred wallpaper.
-  - **Live Hardware Telemetry & Power Controls**:
-    - Integrated battery percentage pill with dynamic charging bolt and glyph tiers, backed by event-driven udev and UPower kernel monitoring.
+    - **Left Panel (Hero Clock, Date, Greeting & Media)**: Modern display clock, formatted date, dynamic contextual greeting pill (`Good afternoon, <user>`), and the embedded hero media player.
+    - **Right Panel (Avatar & Authentication)**: Crisp circular user profile avatar with a living, breathing ambient halo glow, bold username, and the interactive password pill.
+    - **Multi-Monitor Standby View**: Secondary and non-primary displays automatically show a minimalist ambient clock and date over the blurred wallpaper.
+  - **Live Hardware Telemetry & Cute Soft Power Controls**:
+    - Horizontal rounded battery pill (`\uf240`–`\uf244`) matching the Control Center and System Glance, with live charge percentage, charging bolt (`⚡`), and charge-aware color transitions.
     - Real-time weather condition pill with temperature.
-    - Quick-access glass power buttons (`Sleep`, `Restart`, `Power Off`) with hover glow.
+    - Soft rounded glass power buttons (`Sleep`, `Restart`, `Power Off`) with hover glow and safe arming confirmation.
   - **Wallpaper Detection & In-App Customization**:
-    - Automatic live wallpaper extraction from `awww`, `swww`, or `hyprpaper` with MultiEffect real-time Gaussian blur and saturation preservation.
-    - Custom lockscreen wallpaper picker and toggles directly in `Tide Island Settings` (`General` ➔ `Lockscreen`) for Blur Wallpaper, Media Player, Power Actions, and Battery Status.
+    - Automatic live wallpaper extraction from `awww`, `swww`, or `hyprpaper` with real-time Gaussian blur and saturation preservation.
+    - Dedicated lockscreen settings in **Tide Island Settings** (`General` ➔ `Lockscreen`) with toggles for Wallpaper Blur, Lockscreen Media Player, Power Action buttons, Battery Status pill, and custom wallpaper file selection.
 
 ### Core Features
 
@@ -393,7 +406,9 @@ tide-island-config-app
 - **Lockscreen Settings**:
   - Set a custom lockscreen wallpaper path (with file picker and live preview), or automatically use the active desktop wallpaper (`awww`, `swww`, `hyprpaper`).
   - Responsive toggle switches for Wallpaper Blur, Lockscreen Media Player, Power Action pills, and Battery Status pill.
-  - Customize the hero lockscreen clock font via `Time Font Family` in **Font Settings**.
+  - Customize the hero lockscreen clock font via `Time Font Family` in **Font Settings** or enjoy the bundled `Inter Variable` typography out of the box.
+  - Configurable PAM service authentication backend (default: `login`, or `system-auth` / `hyprlock`).
+  - Searchable application launcher entry: Launch "Lock Screen" directly from any app launcher via `tide-island-lock.desktop`.
 - **Color Palette & Matugen**: Tide Island supports dynamic system-wide color palettes generated by tools like [Matugen](https://github.com/InioX/matugen) or customized manually in `~/.config/tide-island/colors.json`.
   - **Live Auto-Reload**: Palette updates on disk are automatically detected and reloaded instantly via `QFileSystemWatcher` without restarting the service.
   - **Transparency Preserved**: Island capsule background transparency (`islandBackgroundOpacity`) continues to work seamlessly alongside dynamic palette tints.
@@ -413,6 +428,32 @@ tide-island-config-app
 ```bash
 tide-island --lock
 # or: tide-island-lock
+```
+
+**Hyprland Keybinding (`hyprland.conf`)**:
+```conf
+bind = SUPER, L, exec, tide-island-lock
+```
+
+**niri Keybinding (`config.kdl`)**:
+```kdl
+binds {
+    Mod+L { spawn "tide-island-lock"; }
+}
+```
+
+**Idle Daemon Integration (`hypridle.conf`)**:
+```conf
+listener {
+    timeout = 300                                 # 5min
+    on-timeout = tide-island-lock                 # lock screen when timeout has passed
+}
+
+listener {
+    timeout = 330                                 # 5.5min
+    on-timeout = hyprctl dispatch dpms off        # screen off when timeout has passed
+    on-resume = hyprctl dispatch dpms on          # screen on when activity is detected
+}
 ```
 
 #### Restart after editing the configuration:

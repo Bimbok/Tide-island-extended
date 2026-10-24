@@ -31,6 +31,7 @@
 
 #ifdef Q_OS_UNIX
 #include <unistd.h>
+#include <sys/statvfs.h>
 #endif
 
 #include <algorithm>
@@ -2946,6 +2947,22 @@ void SystemServices::handleCavaLine(const QString &line) {
     if (!changed) return;
     m_cavaLevels = nextLevels;
     emit cavaLevelsChanged();
+}
+
+double SystemServices::queryDiskUsagePercent(const QString &mountPath) const {
+#ifdef Q_OS_UNIX
+    struct statvfs st;
+    const QByteArray pathBytes = QFile::encodeName(mountPath.isEmpty() ? QStringLiteral("/") : mountPath);
+    if (::statvfs(pathBytes.constData(), &st) == 0) {
+        const quint64 totalBytes = static_cast<quint64>(st.f_blocks) * st.f_frsize;
+        const quint64 availBytes = static_cast<quint64>(st.f_bavail) * st.f_frsize;
+        const quint64 usedBytes = (totalBytes >= availBytes) ? (totalBytes - availBytes) : 0;
+        return totalBytes > 0 ? (static_cast<double>(usedBytes) / totalBytes) * 100.0 : 0.0;
+    }
+#else
+    Q_UNUSED(mountPath)
+#endif
+    return 0.0;
 }
 
 QString SystemServices::defaultTerminalEmulator() const {
