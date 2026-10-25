@@ -4,7 +4,7 @@ import IslandBackend
 Item {
     id: root
 
-    property real radius: 20
+    property real radius: StyleTokens.radiusModule
     property bool hovered: false
     property bool pressed: false
 

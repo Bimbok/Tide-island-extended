@@ -66,6 +66,14 @@ Rectangle {
                 width: 22
                 height: 20
                 visible: root.iconText !== ""
+                scale: iconMouse.pressed ? 0.88 : (iconMouse.containsMouse ? 1.08 : 1.0)
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 Text {
                     anchors.centerIn: parent
@@ -90,6 +98,14 @@ Rectangle {
                 width: 18
                 height: 20
                 visible: root.showFlyoutChevron
+                scale: chevronMouse.pressed ? 0.88 : (chevronMouse.containsMouse ? 1.12 : 1.0)
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 Text {
                     anchors.centerIn: parent

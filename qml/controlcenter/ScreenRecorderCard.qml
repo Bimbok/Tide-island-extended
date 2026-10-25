@@ -30,7 +30,7 @@ Item {
     Rectangle {
         id: cardBg
         anchors.fill: parent
-        radius: 20
+        radius: StyleTokens.radiusModule
         color: StyleTokens.clearBlack
         clip: true
 
@@ -68,6 +68,7 @@ Item {
                     height: 44
                     radius: 22
                     anchors.verticalCenter: parent.verticalCenter
+                    scale: recordMouse.pressed ? 0.94 : (recordMouse.containsMouse ? 1.04 : 1.0)
                     color: root.isRecording
                         ? StyleTokens.withAlpha(root.cardRed, 0.22)
                         : (recordMouse.pressed
@@ -78,6 +79,7 @@ Item {
                         : (recordMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.4) : StyleTokens.withAlpha(StyleTokens.white, 0.12))
                     border.width: 1
 
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
                     Behavior on border.color { ColorAnimation { duration: 150 } }
 
@@ -175,12 +177,14 @@ Item {
                         width: 34
                         height: 34
                         radius: 10
+                        scale: pauseMouse.pressed ? 0.92 : (pauseMouse.containsMouse ? 1.06 : 1.0)
                         color: pauseMouse.pressed
                             ? root.buttonBgPressed
                             : (pauseMouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                         border.color: root.isPaused ? root.cardYellow : (pauseMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08))
                         border.width: 1
 
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -209,6 +213,7 @@ Item {
                         width: 34
                         height: 34
                         radius: 10
+                        scale: micMouse.pressed ? 0.92 : (micMouse.containsMouse ? 1.06 : 1.0)
                         color: root.isMicOn
                             ? StyleTokens.withAlpha(root.cardAccent, 0.22)
                             : (micMouse.pressed
@@ -217,6 +222,7 @@ Item {
                         border.color: root.isMicOn ? root.cardAccent : (micMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08))
                         border.width: 1
 
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -245,6 +251,7 @@ Item {
                         width: 34
                         height: 34
                         radius: 10
+                        scale: replayMouse.pressed ? 0.92 : (replayMouse.containsMouse ? 1.06 : 1.0)
                         color: root.isReplayActive
                             ? StyleTokens.withAlpha(root.cardAccent, 0.22)
                             : (replayMouse.pressed
@@ -253,6 +260,7 @@ Item {
                         border.color: root.isReplayActive ? root.cardAccent : (replayMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08))
                         border.width: 1
 
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -281,12 +289,14 @@ Item {
                         width: 34
                         height: 34
                         radius: 10
+                        scale: folderMouse.pressed ? 0.92 : (folderMouse.containsMouse ? 1.06 : 1.0)
                         color: folderMouse.pressed
                             ? root.buttonBgPressed
                             : (folderMouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                         border.color: folderMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08)
                         border.width: 1
 
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -334,12 +344,14 @@ Item {
                     height: 28
                     radius: 8
                     anchors.verticalCenter: parent.verticalCenter
+                    scale: clip60Mouse.pressed ? 0.94 : (clip60Mouse.containsMouse ? 1.03 : 1.0)
                     color: clip60Mouse.pressed
                         ? root.buttonBgPressed
                         : (clip60Mouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                     border.color: clip60Mouse.containsMouse ? root.cardAccent : StyleTokens.withAlpha(root.cardAccent, 0.4)
                     border.width: 1
 
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 120 } }
                     Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -370,12 +382,14 @@ Item {
                     height: 28
                     radius: 8
                     anchors.verticalCenter: parent.verticalCenter
+                    scale: clip30Mouse.pressed ? 0.94 : (clip30Mouse.containsMouse ? 1.03 : 1.0)
                     color: clip30Mouse.pressed
                         ? root.buttonBgPressed
                         : (clip30Mouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                     border.color: clip30Mouse.containsMouse ? root.cardAccent : StyleTokens.withAlpha(root.cardAccent, 0.3)
                     border.width: 1
 
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 120 } }
                     Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -406,12 +420,14 @@ Item {
                     height: 28
                     radius: 8
                     anchors.verticalCenter: parent.verticalCenter
+                    scale: clip10Mouse.pressed ? 0.94 : (clip10Mouse.containsMouse ? 1.03 : 1.0)
                     color: clip10Mouse.pressed
                         ? root.buttonBgPressed
                         : (clip10Mouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                     border.color: clip10Mouse.containsMouse ? root.cardAccent : StyleTokens.withAlpha(StyleTokens.white, 0.1)
                     border.width: 1
 
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 120 } }
                     Behavior on border.color { ColorAnimation { duration: 120 } }
 

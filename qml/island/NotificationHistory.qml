@@ -202,6 +202,14 @@ Item {
 
                 width: listView.width
                 height: root.cardHeight
+                scale: cardMouse.pressed ? 0.98 : 1.0
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 readonly property string titleText: model.summary !== ""
                     ? model.summary

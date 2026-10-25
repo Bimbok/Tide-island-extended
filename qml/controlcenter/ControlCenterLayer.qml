@@ -2009,7 +2009,7 @@ Item {
                     }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
-                    radius: 20
+                    radius: StyleTokens.radiusModule
                     color: StyleTokens.clearBlack
                     clip: true
 
@@ -2140,7 +2140,7 @@ Item {
                     }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
-                    radius: 20
+                    radius: StyleTokens.radiusModule
                     color: StyleTokens.clearBlack
                     clip: true
 
@@ -2281,7 +2281,7 @@ Item {
                 y: -height + controlCenter.batteryDrawerProgress * height
                 width: batteryDrawer.cardWidth
                 height: controlCenter.batteryModeCardHeight
-                radius: 20
+                radius: StyleTokens.radiusModule
                 color: StyleTokens.clearBlack
                 visible: controlCenter.tlpControlsEnabled
                 opacity: controlCenter.tlpControlsEnabled ? Math.min(1, controlCenter.batteryDrawerProgress * 1.35) : 0
@@ -2532,7 +2532,7 @@ Item {
                 y: batteryModeCard.y
                 width: batteryDrawer.cardWidth
                 height: controlCenter.batteryModeCardHeight
-                radius: 20
+                radius: StyleTokens.radiusModule
                 color: StyleTokens.clearBlack
                 opacity: Math.min(1, controlCenter.batteryDrawerProgress * 1.35)
                 clip: true
@@ -3032,17 +3032,32 @@ Item {
                 delegate: Item {
                     width: 56
                     height: 56
+                    scale: powerMouse.pressed ? 0.90 : (powerMouse.containsMouse ? 1.10 : 1.0)
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: 140
+                            easing.type: Easing.OutCubic
+                        }
+                    }
 
                     Text {
                         anchors.centerIn: parent
                         text: modelData.glyph
-                        color: StyleTokens.textPrimary
+                        color: powerMouse.containsMouse ? StyleTokens.accent : StyleTokens.textPrimary
                         font.pixelSize: 38
                         font.family: controlCenter.iconFontFamily
+
+                        Behavior on color {
+                            ColorAnimation { duration: 120 }
+                        }
                     }
 
                     MouseArea {
+                        id: powerMouse
                         anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (controlCenter[modelData.action])
                                 controlCenter[modelData.action]();

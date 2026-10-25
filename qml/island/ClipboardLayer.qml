@@ -43,7 +43,7 @@ FocusScope {
     Behavior on opacity {
         NumberAnimation {
             duration: root.showCondition ? StyleTokens.durationStandard : StyleTokens.durationFast
-            easing.type: Easing.InOutQuad
+            easing.type: Easing.OutCubic
         }
     }
 

@@ -22,7 +22,7 @@ Item {
     Rectangle {
         id: cardBg
         anchors.fill: parent
-        radius: 20
+        radius: StyleTokens.radiusModule
         color: StyleTokens.clearBlack
         clip: true
 
@@ -140,6 +140,14 @@ Item {
                             id: trayDelegate
                             width: 34
                             height: 34
+                            scale: trayMouse.pressed ? 0.90 : (trayMouse.containsMouse ? 1.08 : 1.0)
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 120
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
 
                             Rectangle {
                                 anchors.fill: parent

@@ -107,7 +107,15 @@ FocusScope {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
                 radius: 13
+                scale: refreshMouse.pressed ? 0.88 : (refreshMouse.containsMouse ? 1.08 : 1.0)
                 color: refreshMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.module
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 Text {
                     id: refreshIcon
@@ -176,7 +184,15 @@ FocusScope {
                     Layout.preferredWidth: 84
                     Layout.preferredHeight: 28
                     radius: 14
+                    scale: retryHover.pressed ? 0.94 : (retryHover.containsMouse ? 1.04 : 1.0)
                     color: retryHover.containsMouse ? StyleTokens.accentPressed : StyleTokens.accent
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: 120
+                            easing.type: Easing.OutCubic
+                        }
+                    }
 
                     Text {
                         anchors.centerIn: parent

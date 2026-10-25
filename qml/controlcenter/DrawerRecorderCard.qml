@@ -26,7 +26,7 @@ Item {
     Rectangle {
         id: cardBg
         anchors.fill: parent
-        radius: 20
+        radius: StyleTokens.radiusModule
         color: StyleTokens.clearBlack
         clip: true
 
@@ -98,6 +98,7 @@ Item {
                 width: parent.width - 34 - 34 - 12
                 height: 34
                 radius: 10
+                scale: recMouse.pressed ? 0.95 : (recMouse.containsMouse ? 1.02 : 1.0)
                 color: root.isRecording
                     ? StyleTokens.withAlpha(root.cardRed, 0.22)
                     : (recMouse.pressed ? root.buttonBgPressed : (recMouse.containsMouse ? root.buttonBgHover : root.buttonBg))
@@ -106,6 +107,7 @@ Item {
                     : (recMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08))
                 border.width: 1
 
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -148,6 +150,7 @@ Item {
                 width: 34
                 height: 34
                 radius: 10
+                scale: micMouse.pressed ? 0.92 : (micMouse.containsMouse ? 1.06 : 1.0)
                 color: root.isMicOn
                     ? StyleTokens.withAlpha(root.cardAccent, 0.22)
                     : (micMouse.pressed ? root.buttonBgPressed : (micMouse.containsMouse ? root.buttonBgHover : root.buttonBg))
@@ -156,6 +159,7 @@ Item {
                     : (micMouse.containsMouse ? StyleTokens.withAlpha(root.cardAccent, 0.35) : StyleTokens.withAlpha(StyleTokens.white, 0.08))
                 border.width: 1
 
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -184,12 +188,14 @@ Item {
                 width: 34
                 height: 34
                 radius: 10
+                scale: folderMouse.pressed ? 0.92 : (folderMouse.containsMouse ? 1.06 : 1.0)
                 color: folderMouse.pressed ? root.buttonBgPressed : (folderMouse.containsMouse ? root.buttonBgHover : root.buttonBg)
                 border.color: folderMouse.containsMouse
                     ? StyleTokens.withAlpha(root.cardAccent, 0.35)
                     : StyleTokens.withAlpha(StyleTokens.white, 0.08)
                 border.width: 1
 
+                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
