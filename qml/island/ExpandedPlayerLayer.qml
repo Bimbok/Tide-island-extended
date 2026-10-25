@@ -172,14 +172,14 @@ Item {
         }
     }
 
-    Timer {
-        interval: 64
-        repeat: true
-        running: showCondition && isPlaying && currentPage === 0
-        onTriggered: {
-            visualizerPhase += 0.18;
-            if (visualizerPhase > Math.PI * 2) visualizerPhase -= Math.PI * 2;
-        }
+    NumberAnimation {
+        target: root
+        property: "visualizerPhase"
+        from: 0
+        to: Math.PI * 2
+        duration: 2200
+        loops: Animation.Infinite
+        running: root.showCondition && root.isPlaying && root.currentPage === 0
     }
 
     Item {

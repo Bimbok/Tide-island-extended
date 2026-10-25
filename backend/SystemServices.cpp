@@ -2818,7 +2818,7 @@ void SystemServices::startCava() {
 
     static const QByteArray config =
         "[general]\n"
-        "framerate = 30\n"
+        "framerate = 22\n"
         "bars = 8\n"
         "autosens = 1\n"
         "[output]\n"

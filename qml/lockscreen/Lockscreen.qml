@@ -243,16 +243,15 @@ Scope {
 
     onActivePlayerChanged: root.syncProgress()
 
-    Timer {
-        id: visualizerTimer
-        interval: 45
-        repeat: true
+    NumberAnimation {
+        id: visualizerAnim
+        target: root
+        property: "visualizerPhase"
+        from: 0
+        to: Math.PI * 2
+        duration: 1300
+        loops: Animation.Infinite
         running: root.isMediaPlaying && root.locked
-        onTriggered: {
-            root.visualizerPhase += 0.22;
-            if (root.visualizerPhase > Math.PI * 2)
-                root.visualizerPhase -= Math.PI * 2;
-        }
     }
 
     function visualizerLevel(index) {
