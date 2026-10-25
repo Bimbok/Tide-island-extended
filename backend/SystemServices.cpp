@@ -212,24 +212,20 @@ SystemServices::SystemServices(QObject *parent)
     s_systemServicesInstance = this;
     m_cavaLevels = QVariantList{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-    m_notificationRestartTimer.setSingleShot(true);
-    m_notificationRestartTimer.setInterval(1200);
-    connect(&m_notificationRestartTimer, &QTimer::timeout, this, &SystemServices::startNotificationMonitor);
+    m_busMonitorRestartTimer.setSingleShot(true);
+    m_busMonitorRestartTimer.setInterval(1200);
+    connect(&m_busMonitorRestartTimer, &QTimer::timeout, this, &SystemServices::startBusMonitor);
 
     m_pipeWireRestartTimer.setSingleShot(true);
     m_pipeWireRestartTimer.setInterval(1200);
     connect(&m_pipeWireRestartTimer, &QTimer::timeout, this, &SystemServices::startPipeWireMonitor);
-
-    m_recordingPortalRestartTimer.setSingleShot(true);
-    m_recordingPortalRestartTimer.setInterval(1200);
-    connect(&m_recordingPortalRestartTimer, &QTimer::timeout, this, &SystemServices::startRecordingPortalMonitor);
 
     m_recordingSnapshotDebounceTimer.setSingleShot(true);
     m_recordingSnapshotDebounceTimer.setInterval(250);
     connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     QTimer::singleShot(200, this, &SystemServices::requestPrivacySnapshot);
 
-    m_privacyPollTimer.setInterval(25000);
+    m_privacyPollTimer.setInterval(60000);
     connect(&m_privacyPollTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     m_privacyPollTimer.start();
 
@@ -258,9 +254,8 @@ SystemServices::SystemServices(QObject *parent)
         }
     });
 
-    startNotificationMonitor();
+    startBusMonitor();
     startPipeWireMonitor();
-    startRecordingPortalMonitor();
     requestScreenRecordingSnapshot();
     detectBatteryThresholdSupport();
     requestBatteryThresholdState();
@@ -271,9 +266,8 @@ SystemServices::~SystemServices() {
         s_systemServicesInstance = nullptr;
 
     m_shuttingDown = true;
-    m_notificationRestartTimer.stop();
+    m_busMonitorRestartTimer.stop();
     m_pipeWireRestartTimer.stop();
-    m_recordingPortalRestartTimer.stop();
     m_recordingSnapshotDebounceTimer.stop();
     m_cavaRestartTimer.stop();
     m_brightnessThrottleTimer.stop();
@@ -282,9 +276,8 @@ SystemServices::~SystemServices() {
     m_pendingAppStreamVolumePercents.clear();
     m_activeAppStreamVolumeCommands.clear();
 
-    stopProcess(m_notificationMonitor);
+    stopProcess(m_busMonitor);
     stopProcess(m_pipeWireMonitor);
-    stopProcess(m_recordingPortalMonitor);
     stopProcess(m_recordingSnapshot);
     stopProcess(m_tlpSetter);
     stopCava();
@@ -415,32 +408,40 @@ void SystemServices::stopProcess(QProcess *&process) {
     current->deleteLater();
 }
 
-void SystemServices::startNotificationMonitor() {
-    if (m_shuttingDown || m_notificationMonitor) return;
+void SystemServices::startBusMonitor() {
+    if (m_shuttingDown || m_busMonitor) return;
     const QString executable = findExecutable(QStringLiteral("dbus-monitor"));
     if (executable.isEmpty()) {
-        qWarning() << "[SystemServices] dbus-monitor is not available; notification mirroring is disabled";
+        qWarning() << "[SystemServices] dbus-monitor is not available; notification and portal monitoring are disabled";
         return;
     }
 
-    m_notificationMonitor = new QProcess(this);
-    m_notificationMonitor->setProcessChannelMode(QProcess::MergedChannels);
-    m_notificationMonitor->setProgram(executable);
-    m_notificationMonitor->setArguments({
+    m_busMonitor = new QProcess(this);
+    m_busMonitor->setProcessChannelMode(QProcess::MergedChannels);
+    m_busMonitor->setProgram(executable);
+    m_busMonitor->setArguments({
         QStringLiteral("--session"),
-        QStringLiteral("type='method_call',interface='org.freedesktop.Notifications',member='Notify'")
+        QStringLiteral("type='method_call',interface='org.freedesktop.Notifications',member='Notify'"),
+        QStringLiteral("type='method_call',interface='org.freedesktop.portal.ScreenCast'"),
+        QStringLiteral("type='signal',sender='org.freedesktop.portal.Desktop',interface='org.freedesktop.portal.Session',member='Closed'")
     });
-    connect(m_notificationMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handleNotificationOutput);
-    connect(m_notificationMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+    connect(m_busMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handleBusMonitorOutput);
+    connect(m_busMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus) {
-        m_notificationMonitor->deleteLater();
-        m_notificationMonitor = nullptr;
-        m_notificationBuffer.clear();
+        m_busMonitor->deleteLater();
+        m_busMonitor = nullptr;
+        m_busMonitorBuffer.clear();
         m_notificationCaptureActive = false;
+        m_pendingScreenCastMember.clear();
+        m_pendingSessionCandidate.clear();
         if (!m_shuttingDown)
-            m_notificationRestartTimer.start();
+            m_busMonitorRestartTimer.start();
     });
-    m_notificationMonitor->start();
+    m_busMonitor->start();
+}
+
+void SystemServices::startNotificationMonitor() {
+    startBusMonitor();
 }
 
 void SystemServices::startPipeWireMonitor() {
@@ -468,33 +469,7 @@ void SystemServices::startPipeWireMonitor() {
 }
 
 void SystemServices::startRecordingPortalMonitor() {
-    if (m_shuttingDown || m_recordingPortalMonitor) return;
-    const QString executable = findExecutable(QStringLiteral("dbus-monitor"));
-    if (executable.isEmpty()) {
-        qWarning() << "[SystemServices] dbus-monitor is not available; portal recording monitoring is disabled";
-        return;
-    }
-
-    m_recordingPortalMonitor = new QProcess(this);
-    m_recordingPortalMonitor->setProcessChannelMode(QProcess::MergedChannels);
-    m_recordingPortalMonitor->setProgram(executable);
-    m_recordingPortalMonitor->setArguments({
-        QStringLiteral("--session"),
-        QStringLiteral("type='method_call',interface='org.freedesktop.portal.ScreenCast'"),
-        QStringLiteral("type='signal',sender='org.freedesktop.portal.Desktop',interface='org.freedesktop.portal.Session',member='Closed'")
-    });
-    connect(m_recordingPortalMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handleRecordingPortalOutput);
-    connect(m_recordingPortalMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this](int, QProcess::ExitStatus) {
-        m_recordingPortalMonitor->deleteLater();
-        m_recordingPortalMonitor = nullptr;
-        m_recordingPortalBuffer.clear();
-        m_pendingScreenCastMember.clear();
-        m_pendingSessionCandidate.clear();
-        if (!m_shuttingDown)
-            m_recordingPortalRestartTimer.start();
-    });
-    m_recordingPortalMonitor->start();
+    startBusMonitor();
 }
 
 void SystemServices::processLines(QByteArray &buffer,
@@ -514,11 +489,21 @@ void SystemServices::processLines(QByteArray &buffer,
     }
 }
 
-void SystemServices::handleNotificationOutput() {
-    if (!m_notificationMonitor) return;
-    processLines(m_notificationBuffer, m_notificationMonitor->readAllStandardOutput(), [this](const QString &line) {
-        handleNotificationLine(line);
+void SystemServices::handleBusMonitorOutput() {
+    if (!m_busMonitor) return;
+    processLines(m_busMonitorBuffer, m_busMonitor->readAllStandardOutput(), [this](const QString &line) {
+        handleBusMonitorLine(line);
     });
+}
+
+void SystemServices::handleBusMonitorLine(const QString &line) {
+    if (line.isEmpty()) return;
+    handleRecordingPortalLine(line);
+    handleNotificationLine(line);
+}
+
+void SystemServices::handleNotificationOutput() {
+    handleBusMonitorOutput();
 }
 
 void SystemServices::handlePipeWireOutput() {
@@ -529,10 +514,7 @@ void SystemServices::handlePipeWireOutput() {
 }
 
 void SystemServices::handleRecordingPortalOutput() {
-    if (!m_recordingPortalMonitor) return;
-    processLines(m_recordingPortalBuffer, m_recordingPortalMonitor->readAllStandardOutput(), [this](const QString &line) {
-        handleRecordingPortalLine(line);
-    });
+    handleBusMonitorOutput();
 }
 
 QString SystemServices::decodeEscapedString(const QString &escaped) const {
@@ -601,6 +583,14 @@ QString SystemServices::decodeDbusMonitorString(const QString &line) const {
 
 void SystemServices::handleNotificationLine(const QString &line) {
     if (line.isEmpty()) return;
+
+    if (line.startsWith(QLatin1String("method call")) || line.startsWith(QLatin1String("method_call")) || line.startsWith(QLatin1String("signal "))) {
+        if (!line.contains(QStringLiteral("member=Notify"))) {
+            m_notificationCaptureActive = false;
+            m_notificationCaptureStage = -1;
+            return;
+        }
+    }
 
     if (line.contains(QStringLiteral("member=Notify"))) {
         m_notificationCaptureActive = true;
@@ -1302,11 +1292,16 @@ void SystemServices::requestScreenRecordingSnapshot() {
 void SystemServices::requestPrivacySnapshot() {
     if (m_recordingSnapshot) return;
 
+    const bool hasVideoDevices = !QDir(QStringLiteral("/dev")).entryList({QStringLiteral("video*")}, QDir::System).isEmpty();
+    const QString script = hasVideoDevices
+        ? QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; fuser /dev/video* 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null; true")
+        : QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null; true");
+
     m_recordingSnapshot = startCommand(
         QStringLiteral("sh"),
         {
             QStringLiteral("-c"),
-            QStringLiteral("pactl -f json list source-outputs 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; fuser /dev/video* 2>/dev/null; printf '\\n---TIDE-PRIVACY-SEP---\\n'; pw-cli ls Node 2>/dev/null; true")
+            script
         },
         1500,
         [this](const CommandResult &result) {
