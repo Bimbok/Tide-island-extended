@@ -12,9 +12,11 @@ Item {
         id: bg
         anchors.fill: parent
         radius: root.radius
-        color: root.pressed ? "#10000000" : root.hovered ? "#1fffffff" : "#13ffffff"
+        color: root.pressed 
+            ? StyleTokens.cardFillActive 
+            : (root.hovered ? StyleTokens.moduleHover : StyleTokens.module)
         border.width: 1
-        border.color: root.hovered ? "#2affffff" : StyleTokens.surfaceHighlight
+        border.color: root.hovered ? StyleTokens.inputBorder : StyleTokens.surfaceBorder
         antialiasing: true
 
         Behavior on color {

@@ -628,8 +628,8 @@ FocusScope {
             width: parent.width
             height: 34
             radius: 10
-            color: searchInput.activeFocus ? StyleTokens.input : "#13ffffff"
-            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.surfaceHighlight
+            color: searchInput.activeFocus ? StyleTokens.input : StyleTokens.module
+            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.surfaceBorder
             border.width: 1
             visible: !root.imgFullPreview
             antialiasing: true
@@ -830,9 +830,9 @@ FocusScope {
                         width: parent.width
                         height: parent.height - 34
                         radius: 14
-                        color: "#13ffffff"
+                        color: StyleTokens.module
                         border.width: 1
-                        border.color: StyleTokens.surfaceHighlight
+                        border.color: StyleTokens.surfaceBorder
                         clip: true
                         antialiasing: true
 
@@ -1021,8 +1021,8 @@ FocusScope {
                         if (isSelected)
                             return StyleTokens.cardFillActive;
                         if (rowMouse.containsMouse)
-                            return "#1fffffff";
-                        return "#13ffffff";
+                            return StyleTokens.moduleHover;
+                        return StyleTokens.module;
                     }
 
                     border.color: {
@@ -1031,8 +1031,8 @@ FocusScope {
                         if (isSelected)
                             return StyleTokens.accent;
                         if (rowMouse.containsMouse)
-                            return "#2affffff";
-                        return StyleTokens.surfaceHighlight;
+                            return StyleTokens.inputBorder;
+                        return StyleTokens.surfaceBorder;
                     }
                     border.width: 1
                     antialiasing: true
