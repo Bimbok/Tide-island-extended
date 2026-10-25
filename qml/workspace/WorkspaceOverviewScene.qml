@@ -20,6 +20,7 @@ Item {
 
     HyprlandData {
         id: hyprlandData
+        active: root.showCondition
     }
 
     WorkspaceOverviewLayer {

@@ -8,6 +8,7 @@ Item {
 
     visible: false
 
+    property bool active: true
     property var windowList: []
     property var windowByAddress: ({})
     property var workspaces: []
@@ -93,7 +94,7 @@ Item {
     }
 
     function queueRefreshForEvent(event) {
-        if (!event || !event.name)
+        if (!root.active || !event || !event.name)
             return;
 
         const name = String(event.name);
@@ -130,7 +131,22 @@ Item {
         queueRefresh(affectsClients, affectsMonitors, affectsWorkspaces, affectsActiveWorkspace);
     }
 
-    Component.onCompleted: updateAll()
+    onActiveChanged: {
+        if (active) {
+            updateAll();
+        } else {
+            refreshTimer.stop();
+            clientsRefreshPending = false;
+            monitorsRefreshPending = false;
+            workspacesRefreshPending = false;
+            activeWorkspaceRefreshPending = false;
+        }
+    }
+
+    Component.onCompleted: {
+        if (root.active)
+            updateAll();
+    }
     Component.onDestruction: {
         refreshTimer.stop();
     }
