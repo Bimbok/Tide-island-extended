@@ -12,6 +12,7 @@ import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import IslandBackend
 import "../island"
+import "../common"
 
 Scope {
     id: root
@@ -855,9 +856,30 @@ Scope {
                             topRightRadius: root.isNotchMode ? (finalR * scene.animProgress) : radius
 
                             // Premium multi-layered frosted glass body
-                            color: Qt.rgba(16/255, 18/255, 24/255, 0.72)
+                            color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.76)
                             border.width: 1
-                            border.color: Qt.rgba(255, 255, 255, 0.14)
+                            border.color: StyleTokens.surfaceBorder
+                            antialiasing: true
+
+                            // Specular glass highlight reflection
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 1
+                                radius: Math.max(0, box.radius - 1)
+                                topLeftRadius: box.topLeftRadius > 0 ? Math.max(0, box.topLeftRadius - 1) : 0
+                                topRightRadius: box.topRightRadius > 0 ? Math.max(0, box.topRightRadius - 1) : 0
+                                bottomLeftRadius: Math.max(0, box.bottomLeftRadius - 1)
+                                bottomRightRadius: Math.max(0, box.bottomRightRadius - 1)
+                                color: StyleTokens.transparent
+                                border.width: 1
+                                border.color: StyleTokens.surfaceHighlight
+                                gradient: Gradient {
+                                    GradientStop { position: 0; color: "#0cffffff" }
+                                    GradientStop { position: 0.45; color: "#02ffffff" }
+                                    GradientStop { position: 1; color: "#04000000" }
+                                }
+                                antialiasing: true
+                            }
 
                             Column {
                                 id: col
@@ -881,12 +903,28 @@ Scope {
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
                                         radius: 26
-                                        color: Qt.rgba(255, 255, 255, 0.035)
+                                        color: "#13ffffff"
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.07)
+                                        border.color: StyleTokens.surfaceHighlight
                                         opacity: scene.stage(1)
                                         transform: Translate {
                                             y: (1 - scene.stage(1)) * 14
+                                        }
+                                        antialiasing: true
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            radius: Math.max(0, leftP.radius - 1)
+                                            color: StyleTokens.transparent
+                                            border.width: 1
+                                            border.color: StyleTokens.surfaceHighlight
+                                            gradient: Gradient {
+                                                GradientStop { position: 0; color: "#08ffffff" }
+                                                GradientStop { position: 0.5; color: "#01ffffff" }
+                                                GradientStop { position: 1; color: "#02000000" }
+                                            }
+                                            antialiasing: true
                                         }
 
                                         Column {
@@ -929,6 +967,7 @@ Scope {
                                                 color: StyleTokens.withAlpha(StyleTokens.accent, 0.12)
                                                 border.width: 1
                                                 border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.28)
+                                                antialiasing: true
 
                                                 RowLayout {
                                                     id: greetingRow
@@ -964,10 +1003,11 @@ Scope {
                                                 height: root.hasMedia ? 164 : 0
                                                 visible: root.hasMedia
                                                 radius: 20
-                                                color: Qt.rgba(0, 0, 0, 0.42)
+                                                color: "#30000000"
                                                 border.width: 1
-                                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                                border.color: StyleTokens.surfaceHighlight
                                                 clip: true
+                                                antialiasing: true
 
                                                 Behavior on height {
                                                     NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
@@ -1169,15 +1209,17 @@ Scope {
                                                                 height: 36
                                                                 radius: 18
                                                                 color: prevMouse.containsMouse
-                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.12)
-                                                                    : Qt.rgba(255, 255, 255, 0.05)
+                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.15)
+                                                                    : "#13ffffff"
                                                                 border.width: 1
-                                                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                                                border.color: prevMouse.containsMouse ? StyleTokens.accent : StyleTokens.surfaceHighlight
                                                                 scale: prevMouse.pressed ? 0.90 : (prevMouse.containsMouse ? 1.08 : 1.0)
                                                                 anchors.verticalCenter: parent.verticalCenter
+                                                                antialiasing: true
 
                                                                 Behavior on scale { NumberAnimation { duration: 100 } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
+                                                                Behavior on border.color { ColorAnimation { duration: 120 } }
 
                                                                 Text {
                                                                     anchors.centerIn: parent
@@ -1277,15 +1319,17 @@ Scope {
                                                                 height: 36
                                                                 radius: 18
                                                                 color: nextMouse.containsMouse
-                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.12)
-                                                                    : Qt.rgba(255, 255, 255, 0.05)
+                                                                    ? StyleTokens.withAlpha(StyleTokens.white, 0.15)
+                                                                    : "#13ffffff"
                                                                 border.width: 1
-                                                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                                                border.color: nextMouse.containsMouse ? StyleTokens.accent : StyleTokens.surfaceHighlight
                                                                 scale: nextMouse.pressed ? 0.90 : (nextMouse.containsMouse ? 1.08 : 1.0)
                                                                 anchors.verticalCenter: parent.verticalCenter
+                                                                antialiasing: true
 
                                                                 Behavior on scale { NumberAnimation { duration: 100 } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
+                                                                Behavior on border.color { ColorAnimation { duration: 120 } }
 
                                                                 Text {
                                                                     anchors.centerIn: parent
@@ -1315,9 +1359,10 @@ Scope {
                                                 height: 44
                                                 visible: !root.hasMedia
                                                 radius: 22
-                                                color: Qt.rgba(0, 0, 0, 0.22)
+                                                color: "#30000000"
                                                 border.width: 1
-                                                border.color: Qt.rgba(255, 255, 255, 0.05)
+                                                border.color: StyleTokens.surfaceHighlight
+                                                antialiasing: true
 
                                                 RowLayout {
                                                     anchors.centerIn: parent
@@ -1354,12 +1399,28 @@ Scope {
                                         width: (parent.width - parent.spacing) / 2
                                         height: parent.height
                                         radius: 26
-                                        color: Qt.rgba(255, 255, 255, 0.035)
+                                        color: "#13ffffff"
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.07)
+                                        border.color: StyleTokens.surfaceHighlight
                                         opacity: scene.stage(1)
                                         transform: Translate {
                                             y: (1 - scene.stage(1)) * 14
+                                        }
+                                        antialiasing: true
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            radius: Math.max(0, rightP.radius - 1)
+                                            color: StyleTokens.transparent
+                                            border.width: 1
+                                            border.color: StyleTokens.surfaceHighlight
+                                            gradient: Gradient {
+                                                GradientStop { position: 0; color: "#08ffffff" }
+                                                GradientStop { position: 0.5; color: "#01ffffff" }
+                                                GradientStop { position: 1; color: "#02000000" }
+                                            }
+                                            antialiasing: true
                                         }
 
                                         Column {
@@ -1451,11 +1512,12 @@ Scope {
                                                 width: parent.width
                                                 height: 48
                                                 radius: 24
-                                                color: Qt.rgba(0, 0, 0, 0.38)
+                                                color: "#30000000"
                                                 border.width: 1.5
                                                 border.color: (root.failed || root.lockedOut)
                                                     ? StyleTokens.danger
-                                                    : (root.buffer.length > 0 ? StyleTokens.accent : Qt.rgba(255, 255, 255, 0.14))
+                                                    : (root.buffer.length > 0 ? StyleTokens.accent : StyleTokens.surfaceHighlight)
+                                                antialiasing: true
 
                                                 Behavior on border.color {
                                                     ColorAnimation { duration: 180 }
@@ -1635,9 +1697,10 @@ Scope {
                                             height: 36
                                             width: weatherRow.implicitWidth + 24
                                             radius: 18
-                                            color: Qt.rgba(255, 255, 255, 0.05)
+                                            color: "#13ffffff"
                                             border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.09)
+                                            border.color: StyleTokens.surfaceHighlight
+                                            antialiasing: true
 
                                             RowLayout {
                                                 id: weatherRow
@@ -1669,9 +1732,10 @@ Scope {
                                             height: 36
                                             width: batteryRow.implicitWidth + 24
                                             radius: 18
-                                            color: Qt.rgba(255, 255, 255, 0.05)
+                                            color: "#13ffffff"
                                             border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.09)
+                                            border.color: StyleTokens.surfaceHighlight
+                                            antialiasing: true
 
                                             RowLayout {
                                                 id: batteryRow
@@ -1729,12 +1793,13 @@ Scope {
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
-                                                                                     : Qt.rgba(255, 255, 255, 0.06))
+                                                                                     : "#13ffffff")
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (sleepMouse.containsMouse ? StyleTokens.accent
-                                                                                            : Qt.rgba(255, 255, 255, 0.10))
+                                                                                            : StyleTokens.surfaceHighlight)
                                             scale: sleepMouse.pressed ? 0.92 : (sleepMouse.containsMouse ? 1.05 : 1.0)
+                                            antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -1798,12 +1863,13 @@ Scope {
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
-                                                                                      : Qt.rgba(255, 255, 255, 0.06))
+                                                                                      : "#13ffffff")
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (rebootMouse.containsMouse ? StyleTokens.accent
-                                                                                             : Qt.rgba(255, 255, 255, 0.10))
+                                                                                             : StyleTokens.surfaceHighlight)
                                             scale: rebootMouse.pressed ? 0.92 : (rebootMouse.containsMouse ? 1.05 : 1.0)
+                                            antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -1867,12 +1933,13 @@ Scope {
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.25)
-                                                                                        : Qt.rgba(255, 255, 255, 0.06))
+                                                                                        : "#13ffffff")
                                             border.width: 1
                                             border.color: armed ? StyleTokens.danger
                                                                 : (shutdownMouse.containsMouse ? StyleTokens.danger
-                                                                                               : Qt.rgba(255, 255, 255, 0.10))
+                                                                                               : StyleTokens.surfaceHighlight)
                                             scale: shutdownMouse.pressed ? 0.92 : (shutdownMouse.containsMouse ? 1.05 : 1.0)
+                                            antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
