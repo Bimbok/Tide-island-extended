@@ -684,7 +684,7 @@ Scope {
                         NumberAnimation { duration: 300 }
                     }
 
-                    layer.enabled: root.blurEnabled
+                    layer.enabled: root.locked && root.blurEnabled
                     layer.effect: MultiEffect {
                         autoPaddingEnabled: false
                         blurEnabled: root.blurEnabled

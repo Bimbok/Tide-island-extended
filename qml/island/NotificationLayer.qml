@@ -434,7 +434,7 @@ Item {
                         anchors.fill: parent
                         radius: 17
                         visible: false
-                        layer.enabled: true
+                        layer.enabled: root.showCondition && root.hasSenderAvatar
                     }
 
                     Rectangle {
@@ -453,7 +453,7 @@ Item {
                         mipmap: true
                         sourceSize: Qt.size(68, 68)
                         visible: status === Image.Ready
-                        layer.enabled: true
+                        layer.enabled: root.showCondition && root.hasSenderAvatar && status === Image.Ready
                         layer.effect: OpacityMask {
                             maskSource: compactAvatarMask
                         }
@@ -791,7 +791,7 @@ Item {
                             anchors.fill: parent
                             radius: 12
                             visible: false
-                            layer.enabled: true
+                            layer.enabled: root.showCondition && root.hasSenderAvatar
                         }
 
                         Image {
@@ -803,7 +803,7 @@ Item {
                             smooth: true
                             mipmap: true
                             sourceSize: Qt.size(56, 56)
-                            layer.enabled: true
+                            layer.enabled: root.showCondition && root.hasSenderAvatar && status === Image.Ready
                             layer.effect: OpacityMask {
                                 maskSource: expandedAvatarMask
                             }

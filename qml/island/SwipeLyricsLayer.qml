@@ -196,7 +196,7 @@ Item {
                 radius: root.coverRadius
                 antialiasing: true
                 visible: false
-                layer.enabled: true
+                layer.enabled: root.showCondition
             }
 
             Text {
@@ -215,7 +215,7 @@ Item {
                 fillMode: Image.PreserveAspectCrop
                 visible: source.toString() !== "" && status === Image.Ready
                 sourceSize: Qt.size(root.coverSize * 2, root.coverSize * 2)
-                layer.enabled: true
+                layer.enabled: root.showCondition && status === Image.Ready
                 layer.effect: OpacityMask {
                     maskSource: coverMask
                 }

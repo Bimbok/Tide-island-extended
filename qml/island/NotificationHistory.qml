@@ -284,7 +284,7 @@ Item {
                             anchors.fill: parent
                             radius: 14
                             visible: false
-                            layer.enabled: true
+                            layer.enabled: delegateItem.hasAvatar
                         }
 
                         Rectangle {
@@ -304,7 +304,7 @@ Item {
                             smooth: true
                             mipmap: true
                             sourceSize: Qt.size(56, 56)
-                            layer.enabled: true
+                            layer.enabled: delegateItem.hasAvatar && status === Image.Ready
                             layer.effect: OpacityMask {
                                 maskSource: historyAvatarMask
                             }
