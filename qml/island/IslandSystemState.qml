@@ -1,6 +1,5 @@
 import QtQuick
 import IslandBackend
-import Quickshell.Io
 
 Item {
     id: root
@@ -18,6 +17,7 @@ Item {
     property string currentArtUrl: ""
     property int currentWorkspace: 1
     property bool customSwipeActive: false
+    property bool statsVisible: customSwipeActive
     property bool lyricsCavaActive: false
     property var weatherService: null
 
@@ -57,10 +57,10 @@ Item {
     property real currentMicVolume: -1
     property bool isMicMuted: false
     property real currentBrightness: -1
-    property real currentCpuUsage: -1
-    property real currentRamUsage: -1
+    readonly property real currentCpuUsage: SystemStats.cpuUsage
+    readonly property real currentRamUsage: SystemStats.ramUsage
     property var cavaLevels: [0, 0, 0, 0, 0, 0, 0, 0]
-    property real currentStorageUsage: -1
+    readonly property real currentStorageUsage: SystemStats.storageUsage
     readonly property string storageStatusIcon: "\u{F1C0}"
     property var customLeftItems: []
 
@@ -81,19 +81,13 @@ Item {
         syncCustomLeftItems();
         refreshMissingValues();
         updateCavaSubscription();
+        updateStatsSubscription();
     }
-    onUsesSystemStatsModuleChanged: refreshMissingValues()
-    onUsesStorageModuleChanged: refreshMissingValues()
+    onUsesSystemStatsModuleChanged: updateStatsSubscription()
+    onUsesStorageModuleChanged: updateStatsSubscription()
     onUsesCavaModuleChanged: updateCavaSubscription()
-    onCustomSwipeActiveChanged: {
-        if (customSwipeActive) {
-            if (usesSystemStatsModule)
-                SystemServices.requestSystemStats();
-            if (usesStorageModule)
-                updateStorageStats();
-        }
-        updateCavaSubscription();
-    }
+    onCustomSwipeActiveChanged: updateCavaSubscription()
+    onStatsVisibleChanged: updateStatsSubscription()
     onLyricsCavaActiveChanged: updateCavaSubscription()
     onBatteryCapacityChanged: syncCustomLeftItems()
     onIsChargingChanged: syncCustomLeftItems()
@@ -114,11 +108,13 @@ Item {
         syncCustomLeftItems();
         refreshMissingValues();
         updateCavaSubscription();
+        updateStatsSubscription();
         SystemServices.requestMicVolume();
     }
 
     Component.onDestruction: {
         SystemServices.setCavaClientActive(systemServicesClientId, false);
+        SystemStats.setClientActive(systemServicesClientId, false, false);
     }
 
     function statusIcon(name) {
@@ -199,18 +195,13 @@ Item {
             SystemServices.requestBrightness();
         if (currentVolume < 0)
             SystemServices.requestVolume();
-        if (usesSystemStatsModule && customSwipeActive)
-            SystemServices.requestSystemStats();
-        if (usesStorageModule)
-            updateStorageStats();
+        SystemStats.refresh();
     }
 
-    function updateStorageStats() {
-        if (!usesStorageModule)
-            return;
-        const pct = SystemServices.queryDiskUsagePercent("/");
-        if (pct >= 0)
-            currentStorageUsage = Math.round(pct);
+    function updateStatsSubscription() {
+        SystemStats.setClientActive(systemServicesClientId,
+                                    statsVisible && usesSystemStatsModule,
+                                    statsVisible && usesStorageModule);
     }
 
     function updateCavaSubscription() {
@@ -422,23 +413,6 @@ Item {
         )
     }
 
-    Timer {
-        id: systemStatsPollTimer
-
-        interval: 3000
-        repeat: true
-        running: (root.usesSystemStatsModule || root.usesStorageModule) && root.customSwipeActive
-        triggeredOnStart: false
-
-        onTriggered: {
-            if (root.usesSystemStatsModule)
-                SystemServices.requestSystemStats();
-            if (root.usesStorageModule)
-                root.updateStorageStats();
-        }
-    }
-
-
     Connections {
         target: SystemServices
 
@@ -459,15 +433,6 @@ Item {
                 return;
             root.currentMicVolume = root.clamp01(value);
             root.isMicMuted = muted;
-        }
-
-        function onSystemStatsReady(cpuUsage, ramUsage, errorString) {
-            if (errorString !== "")
-                return;
-            if (cpuUsage >= 0)
-                root.currentCpuUsage = root.clamp01(cpuUsage);
-            if (ramUsage >= 0)
-                root.currentRamUsage = root.clamp01(ramUsage);
         }
 
         function onCavaLevelsChanged() {

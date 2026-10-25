@@ -21,6 +21,8 @@ class StyleTokensBackend final : public QObject {
     Q_PROPERTY(QColor clearBlack READ clearBlack CONSTANT FINAL)
 
     Q_PROPERTY(QColor panel READ panel NOTIFY colorsChanged FINAL)
+    Q_PROPERTY(QColor surfaceBorder READ surfaceBorder NOTIFY colorsChanged FINAL)
+    Q_PROPERTY(QColor surfaceHighlight READ surfaceHighlight NOTIFY colorsChanged FINAL)
     Q_PROPERTY(QColor module READ module NOTIFY colorsChanged FINAL)
     Q_PROPERTY(QColor moduleHover READ moduleHover NOTIFY colorsChanged FINAL)
     Q_PROPERTY(QColor track READ track NOTIFY colorsChanged FINAL)
@@ -104,6 +106,8 @@ public:
     QColor white() const;
     QColor clearBlack() const;
     QColor panel() const;
+    QColor surfaceBorder() const;
+    QColor surfaceHighlight() const;
     QColor module() const;
     QColor moduleHover() const;
     QColor track() const;
@@ -191,6 +195,8 @@ private:
     QString m_activeColorsFilePath;
 
     QColor m_panel;
+    QColor m_surfaceBorder;
+    QColor m_surfaceHighlight;
     QColor m_module;
     QColor m_moduleHover;
     QColor m_track;

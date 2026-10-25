@@ -10,7 +10,7 @@ set(CMAKE_AUTOUIC ON)
 
 option(TIDE_ISLAND_WITH_NIRI "Build niri compositor integration" ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Network DBus Test Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Network DBus Test Concurrent)
 find_library(UDEV_LIB NAMES udev REQUIRED)
 
 add_executable(lyricsmpris
@@ -35,6 +35,29 @@ target_link_libraries(lyricsmpris PRIVATE
 )
 
 enable_testing()
+
+add_executable(clipboard_preview_tests tests/clipboard_preview_tests.cpp)
+target_link_libraries(clipboard_preview_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+target_compile_definitions(clipboard_preview_tests PRIVATE
+    CLIPBOARD_PREVIEW_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/island/ClipboardPreviewImage.qml"
+)
+add_test(NAME clipboard_preview COMMAND clipboard_preview_tests)
+set_tests_properties(clipboard_preview PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(wifi_controller_tests
+    tests/wifi_controller_tests.cpp
+    backend/BluetoothPairingAgent.cpp backend/BluetoothPairingAgent.h
+    backend/WifiController.cpp backend/WifiController.h
+    backend/WifiNetworkModel.cpp backend/WifiNetworkModel.h
+)
+target_include_directories(wifi_controller_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend)
+target_link_libraries(wifi_controller_tests PRIVATE Qt6::Core Qt6::Qml Qt6::DBus Qt6::Concurrent Qt6::Test)
+find_program(DBUS_RUN_SESSION_EXECUTABLE NAMES dbus-run-session REQUIRED)
+add_test(NAME wifi_controller
+    COMMAND "${DBUS_RUN_SESSION_EXECUTABLE}" -- "${CMAKE_COMMAND}" -E env
+        TIDE_ISLAND_WIFI_TEST_ISOLATED=1 "$<TARGET_FILE:wifi_controller_tests>"
+)
+set_tests_properties(wifi_controller PROPERTIES TIMEOUT 40)
 
 find_program(PYTHON3_EXECUTABLE NAMES python3 REQUIRED)
 add_test(
@@ -165,20 +188,37 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/user_config_backend_tests.cpp")
         tests/user_config_backend_tests.cpp
         backend/UserConfigBackend.h
         backend/UserConfigBackend.cpp
+        Tide-island-app/backend.hpp
+        Tide-island-app/backend.cpp
     )
 
     target_include_directories(user_config_backend_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/backend
+        ${CMAKE_CURRENT_SOURCE_DIR}/Tide-island-app
     )
 
     target_link_libraries(user_config_backend_tests PRIVATE
         Qt6::Core
+        Qt6::Gui
         Qt6::Qml
         Qt6::Test
     )
 
     add_test(NAME user_config_backend COMMAND user_config_backend_tests)
 endif()
+
+add_executable(system_stats_tests
+    tests/system_stats_tests.cpp
+    backend/SystemStats.h
+    backend/SystemStats.cpp
+)
+target_include_directories(system_stats_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend)
+target_link_libraries(system_stats_tests PRIVATE Qt6::Core Qt6::Qml Qt6::Quick Qt6::Concurrent Qt6::Test)
+target_compile_definitions(system_stats_tests PRIVATE
+    ISLAND_SYSTEM_STATE_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/island/IslandSystemState.qml"
+)
+add_test(NAME system_stats COMMAND system_stats_tests)
+set_tests_properties(system_stats PROPERTIES TIMEOUT 40 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/style_tokens_backend_tests.cpp")
     add_executable(style_tokens_backend_tests
@@ -290,6 +330,8 @@ qt_add_qml_module(IslandBackend
         backend/SysBackend.cpp
         backend/SystemServices.h
         backend/SystemServices.cpp
+        backend/SystemStats.h
+        backend/SystemStats.cpp
         backend/CompositorBackend.h
         backend/CompositorBackend.cpp
         backend/StyleTokensBackend.h

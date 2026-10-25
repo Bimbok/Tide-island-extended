@@ -49,8 +49,10 @@ private slots:
 
         // Default radii and durations
         QCOMPARE(backend.radiusPanel(), 28);
-        QCOMPARE(backend.radiusModule(), 24);
-        QCOMPARE(backend.durationStandard(), 280);
+        QCOMPARE(backend.radiusModule(), 20);
+        QCOMPARE(backend.durationStandard(), 240);
+        QCOMPARE(backend.surfaceBorder(), QColor("#26ffffff"));
+        QCOMPARE(backend.surfaceHighlight(), QColor("#0cffffff"));
     }
 
     void testWithAlpha()

@@ -18,6 +18,7 @@ Item {
     property string heroFontFamily: ""
 
     property real revealProgress: 0
+    readonly property alias surfaceItem: panelBody
 
     readonly property real capsuleX: mainCapsule ? mainCapsule.x : 0
     readonly property real capsuleY: mainCapsule ? mainCapsule.y : 0
@@ -26,25 +27,22 @@ Item {
     readonly property real shownX: rightSide
         ? Math.min(availableWidth - width - 16, capsuleX + capsuleWidth + detailGap)
         : Math.max(16, capsuleX - width - detailGap)
-    readonly property real hiddenX: rightSide
-        ? capsuleX + capsuleWidth - width - 28
-        : capsuleX + 28
-    readonly property real hiddenY: capsuleY + 20
-    readonly property real panelScale: revealProgress
+    readonly property real hiddenX: shownX + (rightSide ? -12 : 12)
+    readonly property real hiddenY: capsuleY + 4
+    readonly property real panelScale: 0.96 + revealProgress * 0.04
 
     function startPanelAnimation(nextOpen) {
         revealAnimation.stop();
 
         if (nextOpen) {
             revealAnimation.to = 1;
-            revealAnimation.duration = 420;
-            revealAnimation.easing.type = Easing.OutBack;
-            revealAnimation.easing.overshoot = 0.5;
+            revealAnimation.duration = 240;
+            revealAnimation.easing.type = Easing.OutCubic;
             revealAnimation.start();
         } else {
             revealAnimation.to = 0;
-            revealAnimation.duration = 180;
-            revealAnimation.easing.type = Easing.InCubic;
+            revealAnimation.duration = 160;
+            revealAnimation.easing.type = Easing.OutCubic;
             revealAnimation.start();
         }
     }

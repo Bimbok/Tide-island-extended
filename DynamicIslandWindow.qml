@@ -104,7 +104,72 @@ PanelWindow {
     }
 
     color: StyleTokens.transparent
+    WlrLayershell.namespace: "tide-island"
     anchors { top: true; left: true; right: true }
+
+    // Blur only the visible material, never the full-width layer surface or
+    // the invisible gesture strip. The input mask remains independent.
+    BackgroundEffect.blurRegion: root.userConfig.islandBlurEnabled ? nativeBlurRegion : null
+
+    readonly property Region nativeBlurRegions: Region {
+        id: nativeBlurRegion
+
+        InsetBlurRegion {
+            surface: mainCapsule
+            active: mainCapsule.opacity > 0.01 && root.userConfig.islandBackgroundOpacity > 0
+                && root.userConfig.islandBackgroundOpacity < 100
+            surfaceRadius: mainCapsule.radius
+            flatTop: islandContainer.isNotchMode
+        }
+        InsetBlurRegion {
+            surface: fileShelfBubble
+            active: fileShelfBubble.visible && fileShelfBubble.opacity > 0.01
+            surfaceRadius: fileShelfBubble.width / 2
+        }
+        InsetBlurRegion {
+            surface: wifiConnectivityDetailShell.surfaceItem
+            active: wifiConnectivityDetailShell.visible && wifiConnectivityDetailShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [wifiConnectivityDetailShell.x, wifiConnectivityDetailShell.y,
+                wifiConnectivityDetailShell.panelScale, mainCapsule.height]
+        }
+        InsetBlurRegion {
+            surface: bluetoothConnectivityDetailShell.surfaceItem
+            active: bluetoothConnectivityDetailShell.visible && bluetoothConnectivityDetailShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [bluetoothConnectivityDetailShell.x, bluetoothConnectivityDetailShell.y,
+                bluetoothConnectivityDetailShell.panelScale, mainCapsule.height]
+        }
+        InsetBlurRegion {
+            surface: powerConnectivityDetailShell.surfaceItem
+            active: powerConnectivityDetailShell.visible && powerConnectivityDetailShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [powerConnectivityDetailShell.x, powerConnectivityDetailShell.y,
+                powerConnectivityDetailShell.panelScale, mainCapsule.height]
+        }
+        InsetBlurRegion {
+            surface: audioConnectivityDetailShell.surfaceItem
+            active: audioConnectivityDetailShell.visible && audioConnectivityDetailShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [audioConnectivityDetailShell.x, audioConnectivityDetailShell.y,
+                audioConnectivityDetailShell.panelScale, mainCapsule.height]
+        }
+        InsetBlurRegion {
+            surface: calendarNoteShell.surfaceItem
+            active: calendarNoteShell.visible && calendarNoteShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [calendarNoteShell.x, calendarNoteShell.y, calendarNoteShell.panelScale]
+        }
+        // Clip the completed union before sending it to the compositor. During
+        // auto-hide the capsule leaves the window before its opacity reaches
+        // zero. Hyprland can treat a nonempty, wholly offscreen blur region as
+        // unrestricted blur after clipping it, flashing the full layer surface.
+        Region {
+            intersection: Intersection.Intersect
+            width: root.width
+            height: root.height
+        }
+    }
     mask: Region {
         // Input is the union of the island's visible surfaces plus a compact top
         // gesture strip. The gesture strip must not grow with expanded content.
@@ -1312,10 +1377,11 @@ PanelWindow {
 
         onControlCenterLayerVisibleChanged: {
             if (!controlCenterLayerVisible) {
+                // The shells belong to this window, so close them even if
+                // clearing a provider's prompts or backend messages fails.
+                root.closeAllConnectivityDetails();
                 if (controlCenterLoader.item)
                     controlCenterLoader.item.closeConnectivityPanels();
-                else
-                    root.closeAllConnectivityDetails();
             }
         }
 
@@ -1362,6 +1428,7 @@ PanelWindow {
             currentArtUrl: islandContainer.currentArtUrl
             currentWorkspace: islandContainer.currentWs
             customSwipeActive: customSwipeLoader.active
+            statsVisible: customSwipeLoader.active && root.autoHideProgress > 0.001
             lyricsCavaActive: islandContainer.lyricsSwipeVisible
                 && islandContainer.rightSwipeProgress > 0.001
 
@@ -2392,13 +2459,13 @@ PanelWindow {
         Rectangle {
             id: mainCapsule
             z: 5
-            property int morphDuration: 400
+            property int morphDuration: 280
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
             readonly property bool isCriticalNotification: islandContainer.islandState === "notification" && islandContainer.notificationUrgency === 2
-            property real outlineWidth: (root.overviewContentVisible && !islandContainer.isNotchMode) || isCriticalNotification ? 1 : 0
+            property real outlineWidth: islandContainer.isNotchMode ? 0 : 1
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
-                : (isCriticalNotification ? StyleTokens.danger : StyleTokens.clearBlack)
+                : (isCriticalNotification ? StyleTokens.danger : StyleTokens.surfaceBorder)
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
@@ -2493,21 +2560,21 @@ PanelWindow {
 
                 switch (islandContainer.islandState) {
                 case "control_center":
-                    return 34;
+                    return 28;
                 case "notification_center":
-                    return mainCapsule.targetHeight * 36 / 165;
+                    return 28;
                 case "wallpaper_picker":
                 case "application_launcher":
                 case "file_shelf":
                 case "clipboard":
                 case "weather":
                 case "calendar":
-                    return 34;
+                    return 28;
                 case "privacy_hud":
                 case "glance":
-                    return 34;
+                    return 28;
                 case "expanded":
-                    return 40;
+                    return 32;
                 case "notification":
                     return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
                 default:
@@ -2575,6 +2642,8 @@ PanelWindow {
             border.width: outlineWidth
             border.color: outlineColor
 
+            antialiasing: true
+
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
@@ -2586,14 +2655,7 @@ PanelWindow {
                 color: StyleTokens.transparent
                 border.width: islandContainer.isNotchMode ? 0 : 1
                 border.color: StyleTokens.overviewInnerBorder
-                opacity: root.overviewContentVisible ? 1 : 0
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: root.overviewContentVisible ? 260 : 140
-                        easing.type: Easing.InOutQuad
-                    }
-                }
+                antialiasing: true
             }
 
 
@@ -3220,7 +3282,7 @@ PanelWindow {
                         iconFontFamily: root.iconFontFamily
                         textFontFamily: root.textFontFamily
                         heroFontFamily: root.heroFontFamily
-                        sliderIntroDelay: mainCapsule.morphDuration
+                        sliderIntroDelay: 0
                         currentTime: timeObj.currentTime
                         currentDateLabel: timeObj.currentDateLabel
                         batteryCapacity: islandContainer.batteryCapacity
@@ -3638,10 +3700,11 @@ PanelWindow {
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: StyleTokens.black
+                color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.86)
                 border.width: 1
-                border.color: StyleTokens.inputBorder
+                border.color: StyleTokens.surfaceBorder
 
+                antialiasing: true
                 Text {
                     anchors.centerIn: parent
                     anchors.horizontalCenterOffset: -1

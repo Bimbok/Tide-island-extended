@@ -94,7 +94,6 @@ public:
     Q_INVOKABLE void toggleAppStreamMute(int streamIndex);
     Q_INVOKABLE void setAudioMonitoringActive(bool active);
     void refreshAudioIfActive();
-    Q_INVOKABLE void requestSystemStats();
     Q_INVOKABLE void requestTlpState();
     Q_INVOKABLE void setTlpMode(const QString &mode,
                                 const QString &sudoPassword = QString(),
@@ -150,7 +149,6 @@ signals:
     void volumeSetFinished(double value, bool success, const QString &errorString);
     void micVolumeSnapshotReady(double value, bool muted, const QString &errorString);
     void micVolumeSetFinished(double value, bool success, const QString &errorString);
-    void systemStatsReady(double cpuUsage, double ramUsage, const QString &errorString);
     void tlpStateReady(bool available, const QString &profile, const QString &output, const QString &errorString);
     void tlpSetFinished(bool success, int exitCode, const QString &output, const QString &errorString);
     void batteryThresholdChanged();

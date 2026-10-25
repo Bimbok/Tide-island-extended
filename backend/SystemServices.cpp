@@ -2279,65 +2279,6 @@ void SystemServices::toggleAppStreamMute(int streamIndex) {
     });
 }
 
-void SystemServices::requestSystemStats() {
-    QFile statFile(QStringLiteral("/proc/stat"));
-    if (!statFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        emit systemStatsReady(-1.0, -1.0, statFile.errorString());
-        return;
-    }
-
-    QTextStream statStream(&statFile);
-    const QString cpuLine = statStream.readLine();
-    statFile.close();
-
-    const QStringList cpuParts = cpuLine.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-    if (cpuParts.size() < 6 || cpuParts.first() != QLatin1String("cpu")) {
-        emit systemStatsReady(-1.0, -1.0, QStringLiteral("Could not parse CPU stats."));
-        return;
-    }
-
-    qint64 total = 0;
-    for (int index = 1; index < cpuParts.size(); ++index)
-        total += cpuParts.at(index).toLongLong();
-    const qint64 idle = cpuParts.at(4).toLongLong() + cpuParts.at(5).toLongLong();
-
-    double cpuUsage = 0.0;
-    if (m_lastCpuTotal >= 0 && m_lastCpuIdle >= 0 && total > m_lastCpuTotal) {
-        const qint64 totalDiff = total - m_lastCpuTotal;
-        const qint64 idleDiff = idle - m_lastCpuIdle;
-        cpuUsage = totalDiff > 0
-            ? std::clamp(double(totalDiff - idleDiff) / double(totalDiff), 0.0, 1.0)
-            : 0.0;
-    }
-    m_lastCpuTotal = total;
-    m_lastCpuIdle = idle;
-
-    QFile memFile(QStringLiteral("/proc/meminfo"));
-    if (!memFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        emit systemStatsReady(cpuUsage, -1.0, memFile.errorString());
-        return;
-    }
-
-    qint64 totalMem = 0;
-    qint64 availableMem = 0;
-    const QStringList memLines = QString::fromUtf8(memFile.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
-    for (const QString &line : memLines) {
-        if (line.startsWith(QStringLiteral("MemTotal:"))) {
-            const QStringList parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-            if (parts.size() >= 2) totalMem = parts.at(1).toLongLong();
-        } else if (line.startsWith(QStringLiteral("MemAvailable:"))) {
-            const QStringList parts = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-            if (parts.size() >= 2) availableMem = parts.at(1).toLongLong();
-        }
-    }
-    memFile.close();
-
-    const double ramUsage = totalMem > 0
-        ? std::clamp(double(totalMem - availableMem) / double(totalMem), 0.0, 1.0)
-        : -1.0;
-    emit systemStatsReady(cpuUsage, ramUsage, QString());
-}
-
 QString SystemServices::parseTlpProfile(const QString &text) const {
     static const QRegularExpression profilePattern(QStringLiteral("TLP profile\\s*=\\s*([a-z-]+)"),
                                                    QRegularExpression::CaseInsensitiveOption);

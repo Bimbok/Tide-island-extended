@@ -1,4 +1,5 @@
 #include "UserConfigBackend.h"
+#include "../common/JsonComments.h"
 
 #include <QDir>
 #include <QFile>
@@ -33,33 +34,6 @@ QVariantList defaultDynamicIslandLeftSwipeItems()
         QStringLiteral("albumcover"),
         QStringLiteral("trackname"),
     };
-}
-
-QByteArray stripJsonComments(const QByteArray &input)
-{
-    QString text = QString::fromUtf8(input);
-
-    // Remove /* ... */ block comments
-    static const QRegularExpression blockRe(QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption);
-    text.replace(blockRe, QString());
-
-    // Remove // line comments
-    const QStringList lines = text.split(u'\n');
-    QStringList stripped;
-    bool inString = false;
-    for (const QString &line : lines) {
-        QString result;
-        for (int i = 0; i < line.size(); ++i) {
-            const QChar ch = line.at(i);
-            if (ch == u'"' && (i == 0 || line.at(i - 1) != u'\\'))
-                inString = !inString;
-            if (!inString && ch == u'/' && i + 1 < line.size() && line.at(i + 1) == u'/')
-                break;
-            result.append(ch);
-        }
-        stripped.append(result);
-    }
-    return stripped.join(u'\n').toUtf8();
 }
 
 QString jsonString(const QJsonObject &object, QLatin1String key, const QString &fallback)
@@ -400,6 +374,11 @@ int UserConfigBackend::islandWidth() const
 int UserConfigBackend::islandBackgroundOpacity() const
 {
     return m_islandBackgroundOpacity;
+}
+
+bool UserConfigBackend::islandBlurEnabled() const
+{
+    return m_islandBlurEnabled;
 }
 
 int UserConfigBackend::islandHeight() const
@@ -781,12 +760,12 @@ void UserConfigBackend::loadConfig()
 
     QFile configFile(m_userConfigPath);
     if (configFile.exists()) {
-        if (!configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (!configFile.open(QIODevice::ReadOnly)) {
             nextConfigError = QStringLiteral("Could not read %1: %2").arg(m_userConfigPath, configFile.errorString());
         } else {
             const QByteArray configBytes = configFile.readAll();
             if (!configBytes.trimmed().isEmpty()) {
-                const QByteArray strippedBytes = stripJsonComments(configBytes);
+                const QByteArray strippedBytes = JsonComments::strip(configBytes);
                 QJsonParseError parseError;
                 const QJsonDocument document = QJsonDocument::fromJson(strippedBytes, &parseError);
                 if (parseError.error != QJsonParseError::NoError) {
@@ -848,6 +827,7 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_islandStyle, loadedIslandStyle, &UserConfigBackend::islandStyleChanged);
     updateField(this, m_islandWidth, jsonInt(configObject, QLatin1String("islandWidth"), 140), &UserConfigBackend::islandWidthChanged);
     updateField(this, m_islandBackgroundOpacity, jsonBoundedInt(configObject, QLatin1String("islandBackgroundOpacity"), 60, 0, 100), &UserConfigBackend::islandBackgroundOpacityChanged);
+    updateField(this, m_islandBlurEnabled, jsonBool(configObject, QLatin1String("islandBlurEnabled"), true), &UserConfigBackend::islandBlurEnabledChanged);
     updateField(this, m_islandHeight, jsonInt(configObject, QLatin1String("islandHeight"), 38), &UserConfigBackend::islandHeightChanged);
     updateField(this, m_islandExclusiveZone, jsonBoundedInt(configObject, QLatin1String("islandExclusiveZone"), 45, 0, 1000), &UserConfigBackend::islandExclusiveZoneChanged);
     updateField(this, m_islandTopMargin, jsonBoundedInt(configObject, QLatin1String("islandTopMargin"), 4, 0, 1000), &UserConfigBackend::islandTopMarginChanged);
@@ -881,7 +861,7 @@ void UserConfigBackend::loadConfig()
         // Check ChillPill-Shell config for fallback
         QFile cpFile(home + QStringLiteral("/.config/chillpill-shell/config.jsonc"));
         if (cpFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            const QJsonDocument cpDoc = QJsonDocument::fromJson(stripJsonComments(cpFile.readAll()));
+            const QJsonDocument cpDoc = QJsonDocument::fromJson(JsonComments::strip(cpFile.readAll()));
             if (cpDoc.isObject()) {
                 QString cpPic = cpDoc.object().value(QStringLiteral("displayPicture")).toString().trimmed();
                 if (!cpPic.isEmpty()) {

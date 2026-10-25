@@ -168,6 +168,77 @@ PagePanel {
 
                     SplitLine { width: parent.width }
 
+                    Item {
+                        width: parent.width
+                        height: Math.max(49, blurLabels.implicitHeight)
+
+                        Column {
+                            id: blurLabels
+                            anchors.left: parent.left
+                            anchors.right: blurSwitch.left
+                            anchors.rightMargin: 18
+                            anchors.top: parent.top
+                            spacing: 5
+
+                            Text {
+                                text: "Background Blur"
+                                font.family: Theme.textFontFamily
+                                font.pixelSize: 18
+                                color: Theme.textColor
+                            }
+                            Text {
+                                width: parent.width
+                                text: "Blur behind the island and all detail panels"
+                                font.family: Theme.textFontFamily
+                                font.pixelSize: 14
+                                color: Theme.subtleTextColor
+                                wrapMode: Text.Wrap
+                            }
+                        }
+
+                        Switch {
+                            id: blurSwitch
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 40
+                            height: 28
+                            padding: 0
+                            checked: {
+                                const value = ConfigStore.value("islandBlurEnabled", true)
+                                return typeof value === "boolean" ? value : true
+                            }
+                            Accessible.name: "Background Blur"
+                            onToggled: {
+                                ConfigStore.setValue("islandBlurEnabled", checked)
+                                ConfigStore.save()
+                            }
+
+                            indicator: Rectangle {
+                                width: 36
+                                height: 22
+                                y: (blurSwitch.height - height) / 2
+                                radius: 11
+                                color: blurSwitch.checked ? Theme.accentColor : Theme.controlPressedColor
+                                border.width: blurSwitch.visualFocus ? 2 : 0
+                                border.color: Theme.focusBorderColor
+
+                                Rectangle {
+                                    x: blurSwitch.checked ? 16 : 2
+                                    y: 2
+                                    width: 18
+                                    height: 18
+                                    radius: 9
+                                    color: "#ffffff"
+                                    Behavior on x {
+                                        NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    SplitLine { width: parent.width }
+
                     ClockFormatRow { width: parent.width }
 
                     SplitLine { width: parent.width }

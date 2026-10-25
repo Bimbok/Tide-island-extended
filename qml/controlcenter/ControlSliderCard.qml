@@ -32,7 +32,7 @@ Rectangle {
         return Math.max(0, Math.min(1, nextValue));
     }
 
-    radius: 24
+    radius: StyleTokens.radiusModule
     color: StyleTokens.clearBlack
     clip: true
 
@@ -119,11 +119,11 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: 22
-            radius: 11
-            color: root.trackColor
+            height: 24
+            radius: 12
+            color: "#30000000"
             border.width: 1
-            border.color: StyleTokens.inputBorder
+            border.color: StyleTokens.surfaceHighlight
             clip: true
 
             Rectangle {

@@ -26,13 +26,13 @@ Item {
     property string heroFontFamily: userConfig.heroFontFamily
     // ... rest of properties ...
 
-    scale: showCondition ? 1.0 : 0.12
+    scale: showCondition ? 1.0 : 0.97
     transformOrigin: Item.Top
 
     Behavior on scale {
         NumberAnimation {
-            duration: 400
-            easing.type: Easing.OutQuint
+            duration: showCondition ? 240 : 160
+            easing.type: Easing.OutCubic
         }
     }
     property string currentTime: "00:00"
@@ -52,7 +52,7 @@ Item {
     property real brightnessLevel: -1
     property real micLevel: -1
     property bool micMuted: false
-    property int sliderIntroDelay: 400
+    property int sliderIntroDelay: 0
     property int currentWorkspace: 1
     property string currentTrack: ""
     property string currentArtist: ""
@@ -2002,6 +2002,11 @@ Item {
 
                 Rectangle {
                     id: wifiCard
+                    scale: wifiCardMouse.pressed ? 0.98 : 1
+
+                    Behavior on scale {
+                        NumberAnimation { duration: StyleTokens.durationFast; easing.type: Easing.OutCubic }
+                    }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
                     radius: 20
@@ -2128,6 +2133,11 @@ Item {
 
                 Rectangle {
                     id: bluetoothCard
+                    scale: bluetoothCardMouse.pressed ? 0.98 : 1
+
+                    Behavior on scale {
+                        NumberAnimation { duration: StyleTokens.durationFast; easing.type: Easing.OutCubic }
+                    }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
                     radius: 20

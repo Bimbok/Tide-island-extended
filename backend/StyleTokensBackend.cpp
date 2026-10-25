@@ -1,4 +1,5 @@
 #include "StyleTokensBackend.h"
+#include "../common/JsonComments.h"
 
 #include <QDir>
 #include <QFile>
@@ -56,27 +57,6 @@ QColor getColor(const QJsonObject &obj, const QStringList &keys, const QColor &f
     }
     return fallback;
 }
-
-QByteArray stripJsonComments(const QByteArray &input)
-{
-    const QString text = QString::fromUtf8(input);
-    const QStringList lines = text.split(u'\n');
-    QStringList stripped;
-    bool inString = false;
-    for (const QString &line : lines) {
-        QString result;
-        for (int i = 0; i < line.size(); ++i) {
-            const QChar ch = line.at(i);
-            if (ch == u'"' && (i == 0 || line.at(i - 1) != u'\\'))
-                inString = !inString;
-            if (!inString && ch == u'/' && i + 1 < line.size() && line.at(i + 1) == u'/')
-                break;
-            result.append(ch);
-        }
-        stripped.append(result);
-    }
-    return stripped.join(u'\n').toUtf8();
-}
 }
 
 StyleTokensBackend::StyleTokensBackend(QObject *parent)
@@ -97,6 +77,8 @@ StyleTokensBackend::StyleTokensBackend(QObject *parent)
 void StyleTokensBackend::initDefaults()
 {
     m_panel = Qt::black;
+    m_surfaceBorder = hex("#26ffffff");
+    m_surfaceHighlight = hex("#0cffffff");
     m_module = hex("#1c1c1e");
     m_moduleHover = hex("#232326");
     m_track = hex("#2c2c2e");
@@ -179,7 +161,7 @@ QString StyleTokensBackend::effectiveColorsFilePath() const
     const QString userConfigPath = resolveConfigHome() + QStringLiteral("/tide-island/userconfig.json");
     QFile file(userConfigPath);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        const QByteArray data = stripJsonComments(file.readAll());
+        const QByteArray data = JsonComments::strip(file.readAll());
         const QJsonDocument doc = QJsonDocument::fromJson(data);
         if (doc.isObject()) {
             const QJsonObject root = doc.object();
@@ -243,7 +225,7 @@ void StyleTokensBackend::loadPalette()
     bool paletteEnabledByUser = true;
     QFile userConfigFile(userConfigPath);
     if (userConfigFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        const QByteArray data = stripJsonComments(userConfigFile.readAll());
+        const QByteArray data = JsonComments::strip(userConfigFile.readAll());
         const QJsonDocument doc = QJsonDocument::fromJson(data);
         if (doc.isObject()) {
             const QJsonObject root = doc.object();
@@ -275,7 +257,7 @@ void StyleTokensBackend::loadPalette()
         return;
     }
 
-    const QByteArray rawData = stripJsonComments(colorsFile.readAll());
+    const QByteArray rawData = JsonComments::strip(colorsFile.readAll());
     const QJsonDocument doc = QJsonDocument::fromJson(rawData);
     if (!doc.isObject()) {
         return;
@@ -307,6 +289,14 @@ void StyleTokensBackend::loadPalette()
     m_panel = getColor(paletteObj,
         {QStringLiteral("panel"), QStringLiteral("background"), QStringLiteral("surface_container_lowest"), QStringLiteral("surface")},
         m_panel);
+
+    m_surfaceBorder = getColor(paletteObj,
+        {QStringLiteral("surfaceBorder"), QStringLiteral("border")},
+        m_surfaceBorder);
+
+    m_surfaceHighlight = getColor(paletteObj,
+        {QStringLiteral("surfaceHighlight"), QStringLiteral("highlight")},
+        m_surfaceHighlight);
 
     // 2. Module / Card surfaces
     m_module = getColor(paletteObj,
@@ -528,6 +518,8 @@ QColor StyleTokensBackend::white() const { return Qt::white; }
 QColor StyleTokensBackend::clearBlack() const { return QColor(0, 0, 0, 0); }
 
 QColor StyleTokensBackend::panel() const { return m_panel; }
+QColor StyleTokensBackend::surfaceBorder() const { return m_surfaceBorder; }
+QColor StyleTokensBackend::surfaceHighlight() const { return m_surfaceHighlight; }
 QColor StyleTokensBackend::module() const { return m_module; }
 QColor StyleTokensBackend::moduleHover() const { return m_moduleHover; }
 QColor StyleTokensBackend::track() const { return m_track; }
@@ -579,13 +571,13 @@ QColor StyleTokensBackend::workspaceOverlayHover() const { return m_workspaceOve
 QColor StyleTokensBackend::workspaceActiveBorder() const { return m_workspaceActiveBorder; }
 
 int StyleTokensBackend::radiusPanel() const { return 28; }
-int StyleTokensBackend::radiusModule() const { return 24; }
+int StyleTokensBackend::radiusModule() const { return 20; }
 int StyleTokensBackend::radiusPrompt() const { return 16; }
 int StyleTokensBackend::radiusButton() const { return 12; }
 int StyleTokensBackend::durationFast() const { return 120; }
 int StyleTokensBackend::durationControl() const { return 130; }
 int StyleTokensBackend::durationQuick() const { return 140; }
-int StyleTokensBackend::durationStandard() const { return 280; }
+int StyleTokensBackend::durationStandard() const { return 240; }
 
 QColor StyleTokensBackend::batteryCharging() const { return m_batteryCharging; }
 QColor StyleTokensBackend::batteryHigh() const { return m_batteryHigh; }

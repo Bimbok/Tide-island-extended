@@ -833,17 +833,13 @@ FocusScope {
                         border.width: 0
                         clip: true
 
-                        Image {
+                        ClipboardPreviewImage {
                             id: fullPreviewImg
                             anchors.centerIn: parent
                             width: parent.width - 24
                             height: parent.height - 24
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: false
-                            source: previewArea.currentImgPath !== ""
-                                ? ("file://" + previewArea.currentImgPath)
-                                : ""
+                            imagePath: previewArea.currentImgPath
+                            previewActive: root.showCondition && root.imgFullPreview
 
                             property real slideY: 0
                             transform: Translate { y: fullPreviewImg.slideY }

@@ -1,5 +1,6 @@
 import QtQuick
 import IslandBackend
+import "../common"
 
 Item {
     id: shell
@@ -12,6 +13,8 @@ Item {
     property string textFontFamily: ""
     property string heroFontFamily: ""
     property real revealProgress: 0
+    readonly property alias surfaceItem: panelBody
+    readonly property real panelScale: 0.96 + revealProgress * 0.04
 
     readonly property real detailGap: 16
     readonly property real capsuleX: mainCapsule ? mainCapsule.x : 0
@@ -23,10 +26,8 @@ Item {
     readonly property real shownX: rightSide
         ? Math.min(availableWidth - width - 16, capsuleX + capsuleWidth + detailGap)
         : Math.max(16, capsuleX - width - detailGap)
-    readonly property real hiddenX: rightSide
-        ? capsuleX + capsuleWidth - width - 28
-        : capsuleX + 28
-    readonly property real hiddenY: capsuleY + 20
+    readonly property real hiddenX: shownX + (rightSide ? -12 : 12)
+    readonly property real hiddenY: capsuleY + (capsuleHeight - height) / 2 + 4
 
     x: hiddenX + (shownX - hiddenX) * revealProgress
     y: hiddenY + (capsuleY + (capsuleHeight - height) / 2 - hiddenY) * revealProgress
@@ -56,15 +57,14 @@ Item {
             mounted = true;
             syncDraft();
             revealAnimation.to = 1;
-            revealAnimation.duration = 380;
-            revealAnimation.easing.type = Easing.OutBack;
-            revealAnimation.easing.overshoot = 0.45;
+            revealAnimation.duration = 240;
+            revealAnimation.easing.type = Easing.OutCubic;
             revealAnimation.start();
             Qt.callLater(shell.focusEditor);
         } else {
             revealAnimation.to = 0;
-            revealAnimation.duration = 180;
-            revealAnimation.easing.type = Easing.InCubic;
+            revealAnimation.duration = 160;
+            revealAnimation.easing.type = Easing.OutCubic;
             revealAnimation.start();
             hideTimer.restart();
         }
@@ -112,16 +112,13 @@ Item {
         transform: Scale {
             origin.x: shell.rightSide ? 0 : panelBody.width
             origin.y: panelBody.height / 2
-            xScale: shell.revealProgress
-            yScale: shell.revealProgress
+            xScale: shell.panelScale
+            yScale: shell.panelScale
         }
 
-        Rectangle {
+        GlassSurface {
             anchors.fill: parent
             radius: 28
-            color: StyleTokens.panel
-            border.width: 1
-            border.color: StyleTokens.inputBorder
             clip: true
 
             Text {
