@@ -451,6 +451,7 @@ Item {
                         asynchronous: true
                         smooth: true
                         mipmap: true
+                        sourceSize: Qt.size(68, 68)
                         visible: status === Image.Ready
                         layer.enabled: true
                         layer.effect: OpacityMask {
@@ -462,6 +463,7 @@ Item {
                         anchors.centerIn: parent
                         width: 20
                         height: 20
+                        sourceSize: Qt.size(40, 40)
                         visible: compactAvatarImg.status !== Image.Ready && root.hasResolvedAppIcon
                         source: root.resolvedAppIcon
                         fillMode: Image.PreserveAspectFit
@@ -504,6 +506,7 @@ Item {
                         anchors.centerIn: parent
                         width: 11
                         height: 11
+                        sourceSize: Qt.size(22, 22)
                         source: root.resolvedAppIcon
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
@@ -532,6 +535,7 @@ Item {
                         anchors.centerIn: parent
                         width: 20
                         height: 20
+                        sourceSize: Qt.size(40, 40)
                         visible: root.hasResolvedAppIcon && status !== Image.Error
                         source: root.resolvedAppIcon
                         fillMode: Image.PreserveAspectFit
@@ -798,6 +802,7 @@ Item {
                             asynchronous: true
                             smooth: true
                             mipmap: true
+                            sourceSize: Qt.size(56, 56)
                             layer.enabled: true
                             layer.effect: OpacityMask {
                                 maskSource: expandedAvatarMask
@@ -809,6 +814,7 @@ Item {
                             anchors.centerIn: parent
                             width: 16
                             height: 16
+                            sourceSize: Qt.size(32, 32)
                             visible: !root.hasSenderAvatar && root.hasResolvedAppIcon && status !== Image.Error
                             source: root.resolvedAppIcon
                             fillMode: Image.PreserveAspectFit
@@ -1014,6 +1020,7 @@ Item {
                             source: root.imagePath
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
+                            sourceSize: Qt.size(440, 200)
                         }
                     }
                 }

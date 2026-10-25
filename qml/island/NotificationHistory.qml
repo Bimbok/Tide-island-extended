@@ -303,6 +303,7 @@ Item {
                             asynchronous: true
                             smooth: true
                             mipmap: true
+                            sourceSize: Qt.size(56, 56)
                             layer.enabled: true
                             layer.effect: OpacityMask {
                                 maskSource: historyAvatarMask
@@ -315,6 +316,7 @@ Item {
                             anchors.centerIn: parent
                             width: 18
                             height: 18
+                            sourceSize: Qt.size(36, 36)
                             visible: !delegateItem.hasAvatar && delegateItem.resolvedAppIcon !== "" && status === Image.Ready
                             source: delegateItem.resolvedAppIcon
                             fillMode: Image.PreserveAspectFit
@@ -329,6 +331,7 @@ Item {
                             anchors.centerIn: parent
                             width: 18
                             height: 18
+                            sourceSize: Qt.size(36, 36)
                             visible: delegateItem.hasAvatar && historyAvatarImg.status !== Image.Ready && delegateItem.fallbackAppIcon !== "" && status === Image.Ready
                             source: delegateItem.fallbackAppIcon
                             fillMode: Image.PreserveAspectFit

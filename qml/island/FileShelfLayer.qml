@@ -426,6 +426,7 @@ FocusScope {
                             anchors.centerIn: parent
                             width: 108
                             height: 108
+                            sourceSize: Qt.size(216, 216)
                             source: fileDelegate.iconSource !== ""
                                 ? fileDelegate.iconSource
                                 : Quickshell.iconPath(fileDelegate.fallbackIconName, true)

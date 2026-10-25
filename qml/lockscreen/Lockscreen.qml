@@ -674,6 +674,7 @@ Scope {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
+                    sourceSize: Qt.size(Math.ceil(parent.width * 1.05), Math.ceil(parent.height * 1.05))
 
                     // Smooth cinematic zoom: 1.0 -> 1.05 during lock, eases back to 1.0 on unlock
                     scale: 1.00 + 0.05 * scene.animProgress * (1 - scene.exitProgress)
@@ -1044,6 +1045,7 @@ Scope {
                                                                 source: root.trackArtUrl
                                                                 fillMode: Image.PreserveAspectCrop
                                                                 asynchronous: true
+                                                                sourceSize: Qt.size(96, 96)
                                                             }
                                                         }
 
@@ -1487,6 +1489,7 @@ Scope {
                                                         }
                                                         fillMode: Image.PreserveAspectCrop
                                                         asynchronous: true
+                                                        sourceSize: Qt.size(172, 172)
                                                         visible: status === Image.Ready
                                                     }
                                                 }

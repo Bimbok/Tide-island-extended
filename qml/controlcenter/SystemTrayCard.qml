@@ -168,6 +168,7 @@ Item {
                                     anchors.centerIn: parent
                                     width: 20
                                     height: 20
+                                    sourceSize: Qt.size(40, 40)
                                     source: modelData.icon || ""
                                     fillMode: Image.PreserveAspectFit
                                     asynchronous: true

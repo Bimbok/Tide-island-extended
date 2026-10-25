@@ -580,6 +580,7 @@ Item {
                                 id: appImg
                                 anchors.fill: parent
                                 anchors.margins: 2
+                                sourceSize: Qt.size(48, 48)
                                 source: Quickshell.iconPath(modelData.iconName, true) || ""
                                 fillMode: Image.PreserveAspectFit
                                 visible: source.toString() !== "" && status === Image.Ready
