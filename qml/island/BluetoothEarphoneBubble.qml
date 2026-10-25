@@ -139,13 +139,15 @@ Item {
         }
     }
 
-    // Inner dark circular capsule matching fileShelfBubble aesthetic
+    // Inner glass circular capsule matching fileShelfBubble aesthetic
     Rectangle {
         id: bubbleBody
         anchors.fill: parent
         anchors.margins: 2.5
         radius: width / 2
-        color: StyleTokens.black
+        color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.86)
+        border.width: 1
+        border.color: StyleTokens.surfaceBorder
         antialiasing: true
 
         // 1. Headphone icon (optically and mathematically centered)

@@ -127,6 +127,30 @@ PanelWindow {
             surfaceRadius: fileShelfBubble.width / 2
         }
         InsetBlurRegion {
+            surface: bluetoothEarphoneBubble
+            active: bluetoothEarphoneBubble.visible && bluetoothEarphoneBubble.opacity > 0.01
+            surfaceRadius: bluetoothEarphoneBubble.width / 2
+            transformDependencies: [bluetoothEarphoneBubble.x, bluetoothEarphoneBubble.y, bluetoothEarphoneBubble.scale]
+        }
+        InsetBlurRegion {
+            surface: cameraBubble
+            active: cameraBubble.visible && cameraBubble.opacity > 0.01
+            surfaceRadius: cameraBubble.width / 2
+            transformDependencies: [cameraBubble.x, cameraBubble.y, cameraBubble.scale]
+        }
+        InsetBlurRegion {
+            surface: micBubble
+            active: micBubble.visible && micBubble.opacity > 0.01
+            surfaceRadius: micBubble.width / 2
+            transformDependencies: [micBubble.x, micBubble.y, micBubble.scale]
+        }
+        InsetBlurRegion {
+            surface: timerBubble
+            active: timerBubble.visible && timerBubble.opacity > 0.01
+            surfaceRadius: timerBubble.width / 2
+            transformDependencies: [timerBubble.x, timerBubble.y, timerBubble.scale]
+        }
+        InsetBlurRegion {
             surface: wifiConnectivityDetailShell.surfaceItem
             active: wifiConnectivityDetailShell.visible && wifiConnectivityDetailShell.opacity > 0.01
             surfaceRadius: 28
@@ -3966,7 +3990,10 @@ PanelWindow {
                 anchors.fill: parent
                 anchors.margins: 2
                 radius: width / 2
-                color: StyleTokens.black
+                color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.86)
+                border.width: 1
+                border.color: StyleTokens.surfaceBorder
+                antialiasing: true
             }
 
             Canvas {

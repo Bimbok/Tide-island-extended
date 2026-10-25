@@ -628,10 +628,11 @@ FocusScope {
             width: parent.width
             height: 34
             radius: 10
-            color: searchInput.activeFocus ? StyleTokens.input : StyleTokens.prompt
-            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.inputBorder
+            color: searchInput.activeFocus ? StyleTokens.input : "#13ffffff"
+            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.surfaceHighlight
             border.width: 1
             visible: !root.imgFullPreview
+            antialiasing: true
 
             Behavior on color { ColorAnimation { duration: 140 } }
             Behavior on border.color { ColorAnimation { duration: 140 } }
@@ -829,9 +830,11 @@ FocusScope {
                         width: parent.width
                         height: parent.height - 34
                         radius: 14
-                        color: StyleTokens.module
-                        border.width: 0
+                        color: "#13ffffff"
+                        border.width: 1
+                        border.color: StyleTokens.surfaceHighlight
                         clip: true
+                        antialiasing: true
 
                         ClipboardPreviewImage {
                             id: fullPreviewImg
@@ -1018,8 +1021,8 @@ FocusScope {
                         if (isSelected)
                             return StyleTokens.cardFillActive;
                         if (rowMouse.containsMouse)
-                            return StyleTokens.moduleHover;
-                        return StyleTokens.module;
+                            return "#1fffffff";
+                        return "#13ffffff";
                     }
 
                     border.color: {
@@ -1027,9 +1030,12 @@ FocusScope {
                             return StyleTokens.danger;
                         if (isSelected)
                             return StyleTokens.accent;
-                        return StyleTokens.transparent;
+                        if (rowMouse.containsMouse)
+                            return "#2affffff";
+                        return StyleTokens.surfaceHighlight;
                     }
-                    border.width: isSelected || isDeleting ? 1 : 0
+                    border.width: 1
+                    antialiasing: true
 
                     Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }

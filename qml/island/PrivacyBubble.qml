@@ -92,14 +92,14 @@ Item {
         }
     }
 
-    // Main dark circular body matching fileShelfBubble aesthetic
+    // Main glass circular body matching fileShelfBubble aesthetic
     Rectangle {
         id: bubbleBody
         anchors.fill: parent
         radius: width / 2
-        color: StyleTokens.black
+        color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.86)
         border.width: 1
-        border.color: mouseArea.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.28) : StyleTokens.inputBorder
+        border.color: mouseArea.containsMouse ? StyleTokens.withAlpha(StyleTokens.white, 0.28) : StyleTokens.surfaceBorder
         antialiasing: true
 
         Behavior on border.color {
