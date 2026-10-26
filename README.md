@@ -354,12 +354,21 @@ Quickshell is used from `/usr/bin/quickshell` when available. Otherwise the inst
 
 Useful installer options:
 
-| Option | Description |
-| --- | --- |
-| `./install.sh --no-service` | Install Tide Island without enabling or starting the systemd user service. |
-| `./install.sh --skip-quickshell` | Skip building Quickshell from source and use existing `/usr/bin/quickshell`. |
-| `./install.sh --force-build-quickshell` | Rebuild and install the project's pinned Quickshell version even if Quickshell is already installed. |
-| `./install.sh --uninstall` | Remove the Tide Island files installed by the source installer. |
+| Flag / Option | Description | Notes |
+| :--- | :--- | :--- |
+| `--check-deps` | Audits the system and prints a status check for all mandatory and optional dependencies. | Non-destructive; requires no `sudo`. |
+| `--skip-deps` | Skips automatic distribution package manager dependency installation. | For manual installs or unsupported distros. |
+| `--skip-quickshell` | Requires an existing `/usr/bin/quickshell` (>= v0.3.0) and skips Quickshell source compilation. | Fails if Quickshell is not found. |
+| `--force-build-quickshell` | Forces building and installing the project's pinned Quickshell version from source. | Cannot be combined with `--skip-quickshell`. |
+| `--clean-build-deps` | Automatically uninstalls build-only dependencies (compilers, `-dev` headers) post-build. | Only removes packages installed by this script; protects pre-existing tools. |
+| `--keep-build-deps` | Retains build-only dependencies post-build without prompting. | Keeps them tracked for future uninstall. |
+| `--remove-deps` | Used with `--uninstall` to automatically remove dependencies installed by Tide Island. | Never removes pre-existing tools (like `cmake` or `wl-clipboard`). |
+| `--no-service` | Installs Tide Island without enabling or starting the `tide-island.service` user service. | Startup can be managed manually in compositor config. |
+| `--uninstall` | Completely removes Tide Island binaries, libraries, caches, and build files. | Prompts for dependency cleanup; user config is strictly preserved. |
+| `--dry-run` | Simulates actions and prints commands without making any changes to the system. | Safe for testing installation or uninstallation. |
+| `--force` | Allows overriding package manager conflicts and overwrites existing files. | Use when replacing manual or AUR packages. |
+| `-y`, `--yes` | Automatically confirms all interactive prompts (unattended mode). | Ideal for automated scripts and headless runs. |
+| `-h`, `--help` | Displays command-line usage and option references. | Exits immediately. |
 
 ### Updating
 
