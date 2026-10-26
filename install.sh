@@ -7,12 +7,19 @@ readonly PREFIX="/usr"
 readonly STATE_DIR="/var/lib/tide-island"
 readonly INSTALL_MANIFEST="$STATE_DIR/install-manifest.txt"
 readonly QUICKSHELL_BUILD_INFO="$STATE_DIR/quickshell-source-build.txt"
+readonly QUICKSHELL_INSTALL_MANIFEST="$STATE_DIR/quickshell-install-manifest.txt"
+readonly INSTALLED_BUILD_DEPS="$STATE_DIR/installed-build-deps.txt"
+readonly INSTALLED_RUNTIME_DEPS="$STATE_DIR/installed-runtime-deps.txt"
 readonly QUICKSHELL_REPOSITORY="https://git.outfoxxed.me/quickshell/quickshell.git"
 readonly QUICKSHELL_MIRROR="https://github.com/quickshell-mirror/quickshell.git"
 readonly QUICKSHELL_VERSION="v0.3.0"
 readonly QUICKSHELL_COMMIT="59e9c47b0eb48a9e4bcf9631fa062ee939bd2e83"
 
 INSTALL_DEPENDENCIES=1
+CHECK_DEPS=0
+CLEAN_BUILD_DEPS=0
+KEEP_BUILD_DEPS=0
+REMOVE_DEPS=0
 QUICKSHELL_MODE="auto"
 QUICKSHELL_SKIP_REQUESTED=0
 QUICKSHELL_FORCE_REQUESTED=0
@@ -65,16 +72,20 @@ usage() {
   cat <<EOF
 Usage: $SCRIPT_NAME [options]
 
-Build and install Tide Island from source to /usr.
+Build, install, check dependencies, and manage Tide Island from source to /usr.
 Run this script as a regular desktop user; it requests sudo when needed.
 
 Options:
+  --check-deps            Inspect system for required and optional feature tools.
   --skip-deps             Do not install distribution packages.
   --skip-quickshell       Require an existing /usr/bin/quickshell.
   --force-build-quickshell
-                          Rebuild the pinned Quickshell version.
+                          Rebuild the pinned Quickshell version from source.
+  --clean-build-deps      Automatically uninstall build-only dependencies post-build.
+  --keep-build-deps       Keep build-only dependencies without prompting.
+  --remove-deps           With --uninstall: automatically remove installed dependencies.
   --no-service            Do not enable or start the systemd user service.
-  --uninstall             Remove the source-installed Tide Island files.
+  --uninstall             Remove the source-installed Tide Island files and clean up.
   --dry-run               Print actions without changing the system.
   --force                 Allow Arch/source-package conflicts and overwrite.
   -y, --yes               Do not ask for confirmation.
@@ -88,6 +99,18 @@ EOF
 parse_args() {
   while (($#)); do
     case "$1" in
+      --check-deps)
+        CHECK_DEPS=1
+        ;;
+      --clean-build-deps)
+        CLEAN_BUILD_DEPS=1
+        ;;
+      --keep-build-deps)
+        KEEP_BUILD_DEPS=1
+        ;;
+      --remove-deps)
+        REMOVE_DEPS=1
+        ;;
       --skip-deps)
         INSTALL_DEPENDENCIES=0
         ;;
@@ -218,16 +241,173 @@ package_install_conflict() {
   fi
 }
 
+is_package_installed() {
+  local package="$1"
+  case "$DISTRO_FAMILY" in
+    arch)
+      pacman -Q "$package" >/dev/null 2>&1
+      ;;
+    apt)
+      dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'
+      ;;
+    dnf|zypper)
+      rpm -q "$package" >/dev/null 2>&1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_package_available() {
+  local package="$1"
+  case "$DISTRO_FAMILY" in
+    arch)
+      pacman -Si "$package" >/dev/null 2>&1
+      ;;
+    apt)
+      apt-cache show "$package" >/dev/null 2>&1
+      ;;
+    dnf)
+      rpm -q "$package" >/dev/null 2>&1 || dnf -q list "$package" >/dev/null 2>&1
+      ;;
+    zypper)
+      rpm -q "$package" >/dev/null 2>&1 \
+        || zypper --xmlout --non-interactive search --match-exact --type package "$package" 2>/dev/null \
+          | grep -Fq "name=\"$package\""
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+record_installed_packages() {
+  local type="$1"
+  shift
+  local packages=("$@")
+  ((${#packages[@]} > 0)) || return 0
+  ((DRY_RUN)) && return 0
+
+  local target_file
+  if [[ "$type" == "build" ]]; then
+    target_file="$INSTALLED_BUILD_DEPS"
+  else
+    target_file="$INSTALLED_RUNTIME_DEPS"
+  fi
+
+  local existing=()
+  if [[ -r "$target_file" ]]; then
+    mapfile -t existing < "$target_file"
+  fi
+
+  local to_write=()
+  local pkg
+  for pkg in "${existing[@]}" "${packages[@]}"; do
+    [[ -n "$pkg" ]] || continue
+    local dup=0
+    for w in "${to_write[@]}"; do
+      if [[ "$w" == "$pkg" ]]; then
+        dup=1
+        break
+      fi
+    done
+    ((dup)) || to_write+=("$pkg")
+  done
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+  printf '%s\n' "${to_write[@]}" > "$tmp_file"
+  sudo install -d -m 0755 "$STATE_DIR"
+  sudo install -m 0644 "$tmp_file" "$target_file"
+  rm -f "$tmp_file"
+}
+
+remove_distribution_packages() {
+  local pkgs=("$@")
+  ((${#pkgs[@]} > 0)) || return 0
+
+  case "$DISTRO_FAMILY" in
+    arch)
+      if ((DRY_RUN)); then
+        print_command sudo pacman -R --noconfirm "${pkgs[@]}"
+      else
+        sudo pacman -R --noconfirm "${pkgs[@]}" || warn "Failed to remove some packages: ${pkgs[*]}"
+      fi
+      ;;
+    apt)
+      if ((DRY_RUN)); then
+        print_command sudo env DEBIAN_FRONTEND=noninteractive apt-get remove -y "${pkgs[@]}"
+      else
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get remove -y "${pkgs[@]}" || warn "Failed to remove some packages: ${pkgs[*]}"
+      fi
+      ;;
+    dnf)
+      if ((DRY_RUN)); then
+        print_command sudo dnf remove -y "${pkgs[@]}"
+      else
+        sudo dnf remove -y "${pkgs[@]}" || warn "Failed to remove some packages: ${pkgs[*]}"
+      fi
+      ;;
+    zypper)
+      if ((DRY_RUN)); then
+        print_command sudo zypper --non-interactive remove "${pkgs[@]}"
+      else
+        sudo zypper --non-interactive remove "${pkgs[@]}" || warn "Failed to remove some packages: ${pkgs[*]}"
+      fi
+      ;;
+    *)
+      warn "Unknown distro family '$DISTRO_FAMILY'; please remove packages manually: ${pkgs[*]}"
+      ;;
+  esac
+}
+
+clean_build_dependencies() {
+  ((DRY_RUN)) && return 0
+  [[ -r "$INSTALLED_BUILD_DEPS" ]] || return 0
+  local build_pkgs=()
+  mapfile -t build_pkgs < "$INSTALLED_BUILD_DEPS"
+  ((${#build_pkgs[@]} > 0)) || return 0
+
+  log "Build-time dependencies were installed purely for compilation: ${build_pkgs[*]}"
+  local remove=0
+  if ((CLEAN_BUILD_DEPS)); then
+    remove=1
+  elif ((KEEP_BUILD_DEPS)); then
+    remove=0
+  elif ((ASSUME_YES)); then
+    remove=1
+  elif [[ -t 0 ]]; then
+    printf 'Remove build-only packages that are no longer needed? [y/N] '
+    local answer
+    read -r answer
+    [[ "$answer" == "y" || "$answer" == "Y" ]] && remove=1
+  fi
+
+  if ((remove)); then
+    log "Uninstalling build-only dependencies"
+    remove_distribution_packages "${build_pkgs[@]}"
+    run sudo rm -f -- "$INSTALLED_BUILD_DEPS"
+  else
+    log "Keeping build-only dependencies (tracked in $INSTALLED_BUILD_DEPS for future cleanup)"
+  fi
+}
+
 pacman_install_dependencies() {
-  local packages=(
+  local build_packages=(
     git base-devel cmake ninja pkgconf
+    vulkan-headers jemalloc cli11 spirv-tools
+  )
+  local runtime_packages=(
     qt6-base qt6-declarative qt6-5compat qt6-wayland
     qt6-shadertools qt6-svg
     libdrm wayland wayland-protocols mesa
-    vulkan-headers jemalloc cli11 spirv-tools
-    wireplumber brightnessctl upower bluez bluez-utils
+    wireplumber pipewire libpulse
+    brightnessctl upower bluez bluez-utils
     polkit zenity networkmanager wl-clipboard cliphist power-profiles-daemon
+    python psmisc cava
   )
+  local packages=("${build_packages[@]}" "${runtime_packages[@]}")
 
   log "Installing Arch Linux build and runtime dependencies"
   if ((DRY_RUN)); then
@@ -237,32 +417,61 @@ pacman_install_dependencies() {
 
   local available=()
   local missing=()
+  local new_build=()
+  local new_runtime=()
   local package
-  for package in "${packages[@]}"; do
-    if pacman -Si "$package" >/dev/null 2>&1; then
+
+  for package in "${build_packages[@]}"; do
+    if is_package_available "$package"; then
       available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_build+=("$package")
+      fi
     else
       missing+=("$package")
     fi
   done
-  ((${#available[@]} > 0)) && sudo pacman -S --needed --noconfirm "${available[@]}"
+
+  for package in "${runtime_packages[@]}"; do
+    if is_package_available "$package"; then
+      available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_runtime+=("$package")
+      fi
+    else
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#available[@]} > 0)); then
+    sudo pacman -S --needed --noconfirm "${available[@]}"
+    ((${#new_build[@]} > 0)) && record_installed_packages "build" "${new_build[@]}"
+    ((${#new_runtime[@]} > 0)) && record_installed_packages "runtime" "${new_runtime[@]}"
+  fi
+
   ((${#missing[@]} == 0)) \
     || warn "packages unavailable in enabled pacman repositories: ${missing[*]}"
 }
 
 apt_install_dependencies() {
-  local packages=(
+  local build_packages=(
     git build-essential cmake ninja-build pkg-config
     qt6-base-dev qt6-base-private-dev
     qt6-declarative-dev qt6-declarative-private-dev
-    qml6-module-qt5compat-graphicaleffects
     qt6-wayland qt6-wayland-dev qt6-wayland-private-dev
     qt6-shadertools-dev libqt6svg6 libqt6svg6-dev
     libudev-dev libdrm-dev libwayland-dev wayland-protocols
     libgbm-dev vulkan-headers libjemalloc-dev libcli11-dev spirv-tools
-    wireplumber pulseaudio-utils brightnessctl dbus upower bluez
-    policykit-1 zenity network-manager wl-clipboard cliphist power-profiles-daemon
   )
+  local runtime_packages=(
+    qml6-module-qt5compat-graphicaleffects
+    qml6-module-qtquick-controls qml6-module-qtquick-dialogs
+    qt6-wayland libqt6svg6
+    wireplumber pipewire pulseaudio-utils brightnessctl dbus upower bluez
+    policykit-1 zenity network-manager wl-clipboard cliphist power-profiles-daemon
+    python3 psmisc cava
+  )
+  local packages=("${build_packages[@]}" "${runtime_packages[@]}")
 
   log "Installing Debian/Ubuntu build and runtime dependencies"
   run sudo apt-get update
@@ -273,32 +482,58 @@ apt_install_dependencies() {
 
   local available=()
   local missing=()
+  local new_build=()
+  local new_runtime=()
   local package
-  for package in "${packages[@]}"; do
-    if apt-cache show "$package" >/dev/null 2>&1; then
+
+  for package in "${build_packages[@]}"; do
+    if is_package_available "$package"; then
       available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_build+=("$package")
+      fi
     else
       missing+=("$package")
     fi
   done
-  ((${#available[@]} > 0)) \
-    && sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${available[@]}"
+
+  for package in "${runtime_packages[@]}"; do
+    if is_package_available "$package"; then
+      available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_runtime+=("$package")
+      fi
+    else
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#available[@]} > 0)); then
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${available[@]}"
+    ((${#new_build[@]} > 0)) && record_installed_packages "build" "${new_build[@]}"
+    ((${#new_runtime[@]} > 0)) && record_installed_packages "runtime" "${new_runtime[@]}"
+  fi
+
   ((${#missing[@]} == 0)) \
     || warn "packages unavailable in enabled apt repositories: ${missing[*]}"
 }
 
 dnf_install_dependencies() {
-  local packages=(
+  local build_packages=(
     git gcc-c++ cmake ninja-build pkgconf-pkg-config
     qt6-qtbase-devel qt6-qtbase-private-devel
     qt6-qtdeclarative-devel qt6-qtwayland-devel
-    qt6-qt5compat
     qt6-qtshadertools-devel qt6-qtsvg-devel
     systemd-devel libdrm-devel wayland-devel wayland-protocols-devel
     mesa-libgbm-devel vulkan-headers jemalloc-devel cli11-devel spirv-tools-devel
-    wireplumber pulseaudio-utils brightnessctl dbus-daemon upower bluez bluez-tools
-    polkit zenity NetworkManager wl-clipboard cliphist power-profiles-daemon
   )
+  local runtime_packages=(
+    qt6-qt5compat
+    wireplumber pipewire pulseaudio-utils brightnessctl dbus-daemon upower bluez bluez-tools
+    polkit zenity NetworkManager wl-clipboard cliphist power-profiles-daemon
+    python3 psmisc cava
+  )
+  local packages=("${build_packages[@]}" "${runtime_packages[@]}")
 
   log "Installing Fedora/RHEL build and runtime dependencies"
   if ((DRY_RUN)); then
@@ -308,30 +543,57 @@ dnf_install_dependencies() {
 
   local available=()
   local missing=()
+  local new_build=()
+  local new_runtime=()
   local package
-  for package in "${packages[@]}"; do
-    if rpm -q "$package" >/dev/null 2>&1 || dnf -q list "$package" >/dev/null 2>&1; then
+
+  for package in "${build_packages[@]}"; do
+    if is_package_available "$package"; then
       available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_build+=("$package")
+      fi
     else
       missing+=("$package")
     fi
   done
-  ((${#available[@]} > 0)) && sudo dnf install -y "${available[@]}"
+
+  for package in "${runtime_packages[@]}"; do
+    if is_package_available "$package"; then
+      available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_runtime+=("$package")
+      fi
+    else
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#available[@]} > 0)); then
+    sudo dnf install -y "${available[@]}"
+    ((${#new_build[@]} > 0)) && record_installed_packages "build" "${new_build[@]}"
+    ((${#new_runtime[@]} > 0)) && record_installed_packages "runtime" "${new_runtime[@]}"
+  fi
+
   ((${#missing[@]} == 0)) \
     || warn "packages unavailable in enabled dnf repositories: ${missing[*]}"
 }
 
 zypper_install_dependencies() {
-  local packages=(
+  local build_packages=(
     git gcc-c++ cmake ninja pkg-config
     qt6-base-devel qt6-declarative-devel qt6-wayland-devel
-    qt6-qt5compat-imports
     qt6-shadertools-devel qt6-svg-devel
     systemd-devel libdrm-devel wayland-devel wayland-protocols-devel
     Mesa-libgbm-devel vulkan-headers libjemalloc-devel cli11-devel spirv-tools-devel
-    wireplumber pulseaudio-utils brightnessctl dbus-1 upower bluez
-    polkit zenity NetworkManager wl-clipboard cliphist power-profiles-daemon
   )
+  local runtime_packages=(
+    qt6-qt5compat-imports
+    wireplumber pipewire pulseaudio-utils brightnessctl dbus-1 upower bluez
+    polkit zenity NetworkManager wl-clipboard cliphist power-profiles-daemon
+    python3 psmisc cava
+  )
+  local packages=("${build_packages[@]}" "${runtime_packages[@]}")
 
   log "Installing openSUSE build and runtime dependencies"
   if ((DRY_RUN)); then
@@ -341,18 +603,38 @@ zypper_install_dependencies() {
 
   local available=()
   local missing=()
+  local new_build=()
+  local new_runtime=()
   local package
-  for package in "${packages[@]}"; do
-    if rpm -q "$package" >/dev/null 2>&1 \
-        || zypper --xmlout --non-interactive search --match-exact --type package "$package" 2>/dev/null \
-          | grep -Fq "name=\"$package\""; then
+
+  for package in "${build_packages[@]}"; do
+    if is_package_available "$package"; then
       available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_build+=("$package")
+      fi
     else
       missing+=("$package")
     fi
   done
-  ((${#available[@]} > 0)) \
-    && sudo zypper --non-interactive install --no-recommends "${available[@]}"
+
+  for package in "${runtime_packages[@]}"; do
+    if is_package_available "$package"; then
+      available+=("$package")
+      if ! is_package_installed "$package"; then
+        new_runtime+=("$package")
+      fi
+    else
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#available[@]} > 0)); then
+    sudo zypper --non-interactive install --no-recommends "${available[@]}"
+    ((${#new_build[@]} > 0)) && record_installed_packages "build" "${new_build[@]}"
+    ((${#new_runtime[@]} > 0)) && record_installed_packages "runtime" "${new_runtime[@]}"
+  fi
+
   ((${#missing[@]} == 0)) \
     || warn "packages unavailable in enabled zypper repositories: ${missing[*]}"
 }
@@ -511,6 +793,9 @@ build_quickshell() {
     sudo install -d -m 0755 "$STATE_DIR"
     sudo install -m 0644 "$build_info" "$QUICKSHELL_BUILD_INFO"
     rm -f "$build_info"
+    if [[ -f "$build_dir/install_manifest.txt" ]]; then
+      sudo install -m 0644 "$build_dir/install_manifest.txt" "$QUICKSHELL_INSTALL_MANIFEST"
+    fi
   else
     print_command sudo install -m 0644 quickshell-source-build.txt "$QUICKSHELL_BUILD_INFO"
   fi
@@ -610,6 +895,157 @@ configure_service() {
   SERVICE_WAS_ACTIVE=0
 }
 
+check_tool() {
+  local cmd="$1"
+  local pkg="$2"
+  local desc="$3"
+  local mandatory="${4:-0}"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "$cmd" "$desc"
+  else
+    if ((mandatory)); then
+      printf '  [✗] %-22s - %s (MISSING - Required! Install: %s)\n' "$cmd" "$desc" "$pkg"
+    else
+      printf '  [ ] %-22s - %s (Optional, package: %s)\n' "$cmd" "$desc" "$pkg"
+    fi
+  fi
+}
+
+check_feature() {
+  local cmd="$1"
+  local pkg="$2"
+  local desc="$3"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "$cmd" "$desc"
+  else
+    printf '  [ ] %-22s - %s (Optional, package: %s)\n' "$cmd" "$desc" "$pkg"
+    missing_optional+=("$pkg")
+  fi
+}
+
+check_night_light() {
+  if command -v hyprsunset >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "hyprsunset" "Night Light temperature filter (Hyprland)"
+  elif command -v gammastep >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "gammastep" "Night Light temperature filter (Wayland)"
+  else
+    local pkg="gammastep"
+    [[ "$DISTRO_FAMILY" == "arch" ]] && pkg="hyprsunset (or gammastep)"
+    printf '  [ ] %-22s - %s (Optional, package: %s)\n' "hyprsunset/gammastep" "Night Light temperature filter" "$pkg"
+    if [[ "$DISTRO_FAMILY" == "arch" ]]; then
+      missing_optional+=("hyprsunset")
+    else
+      missing_optional+=("gammastep")
+    fi
+  fi
+}
+
+check_wallpaper_backend() {
+  local found=""
+  local b
+  for b in awww swww hyprpaper mpvpaper; do
+    if command -v "$b" >/dev/null 2>&1; then
+      found="$b"
+      break
+    fi
+  done
+  if [[ -n "$found" ]]; then
+    printf '  [✓] %-22s - %s (%s)\n' "wallpaper engine" "Wallpaper transition daemon" "$found"
+  else
+    local pkg="swww"
+    [[ "$DISTRO_FAMILY" == "arch" ]] && pkg="awww"
+    printf '  [ ] %-22s - %s (Optional, package: %s)\n' "wallpaper engine" "Wallpaper transition daemon" "$pkg"
+    missing_optional+=("$pkg")
+  fi
+}
+
+check_power_profile() {
+  if command -v powerprofilesctl >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "powerprofilesctl" "Power profile management & battery conservation"
+  elif command -v tlp >/dev/null 2>&1; then
+    printf '  [✓] %-22s - %s\n' "tlp" "Power profile management & battery conservation"
+  else
+    printf '  [ ] %-22s - %s (Optional, package: power-profiles-daemon)\n' "powerprofilesctl" "Power profile management"
+    missing_optional+=("power-profiles-daemon")
+  fi
+}
+
+check_dependencies() {
+  log "Tide Island Dependency Status"
+
+  local missing_optional=()
+
+  printf '\nCore Runtime Dependencies (Mandatory):\n'
+  check_tool "quickshell" "quickshell" "Wayland desktop shell runtime host" 1
+  check_tool "dbus-monitor" "dbus" "D-Bus lock & idle event monitoring" 1
+  check_tool "wpctl" "wireplumber" "PipeWire session manager & audio device control" 1
+  check_tool "pactl" "libpulse / pulseaudio-utils" "PulseAudio / PipeWire event subscriber & volume mixer" 1
+  check_tool "wl-copy" "wl-clipboard" "Wayland clipboard copy command" 1
+  check_tool "wl-paste" "wl-clipboard" "Wayland clipboard paste command" 1
+  check_tool "cliphist" "cliphist" "Clipboard history manager daemon" 1
+  check_tool "python3" "python3" "Wallpaper color & palette extraction script runner" 1
+
+  printf '\nFeature-Specific Dependencies (Optional):\n'
+  check_feature "cava" "cava" "8-bar audio spectrum visualizer (Player & Lockscreen)"
+  check_feature "fuser" "psmisc" "Camera & video device privacy tracking (/dev/video*)"
+  check_feature "gpu-screen-recorder" "gpu-screen-recorder" "Hardware accelerated screen & replay recorder"
+  check_night_light
+  check_wallpaper_backend
+  check_feature "brightnessctl" "brightnessctl" "Backlight brightness adjustment"
+  check_power_profile
+  check_feature "bluetoothctl" "bluez" "Bluetooth device pairing & control"
+  check_feature "nmcli" "networkmanager" "Wi-Fi scanning & connection manager"
+  check_feature "pkexec" "polkit" "Privileged elevation (faillock reset, battery limit)"
+  check_feature "zenity" "zenity" "GUI dialog fallback prompt"
+
+  if ((${#missing_optional[@]} > 0)); then
+    printf '\nOptional packages can be installed to unlock full features:\n'
+    case "$DISTRO_FAMILY" in
+      arch)
+        printf '  sudo pacman -S --needed %s\n' "${missing_optional[*]}"
+        ;;
+      apt)
+        printf '  sudo apt-get install -y %s\n' "${missing_optional[*]}"
+        ;;
+      dnf)
+        printf '  sudo dnf install -y %s\n' "${missing_optional[*]}"
+        ;;
+      zypper)
+        printf '  sudo zypper install %s\n' "${missing_optional[*]}"
+        ;;
+      *)
+        printf '  Packages: %s\n' "${missing_optional[*]}"
+        ;;
+    esac
+  else
+    printf '\nAll core and optional dependencies are satisfied! Tide Island is fully featured.\n'
+  fi
+}
+
+clean_installer_directories() {
+  local cache_dir
+  cache_dir="$(installer_cache_dir)"
+  if [[ -d "$cache_dir" ]]; then
+    log "Removing installer cache ($cache_dir)"
+    run rm -rf -- "$cache_dir"
+  fi
+
+  local root
+  root="$(repo_root)"
+  if [[ -d "$root/build-release-installer" ]]; then
+    log "Removing build directory ($root/build-release-installer)"
+    run rm -rf -- "$root/build-release-installer"
+  fi
+
+  local app_cache="${XDG_CACHE_HOME:-$HOME/.cache}/tide-island"
+  if [[ -d "$app_cache" ]]; then
+    log "Removing runtime cache ($app_cache)"
+    run rm -rf -- "$app_cache"
+  fi
+}
+
 uninstall_tide_island() {
   require_regular_user
   sudo_init
@@ -617,18 +1053,97 @@ uninstall_tide_island() {
     || die "no source installation manifest was found at $INSTALL_MANIFEST"
 
   if command -v systemctl >/dev/null 2>&1; then
+    log "Stopping and disabling Tide Island user service"
     run systemctl --user disable --now tide-island.service || true
   fi
   remove_manifest_files
   run sudo rm -f -- "$INSTALL_MANIFEST"
-  run sudo rmdir --ignore-fail-on-non-empty "$STATE_DIR"
+  run sudo rm -f -- "/usr/bin/tide-island-lock"
+
+  if [[ -f "$QUICKSHELL_INSTALL_MANIFEST" ]]; then
+    local remove_qs=0
+    if ((REMOVE_DEPS)); then
+      remove_qs=1
+    elif [[ -t 0 && ASSUME_YES -eq 0 ]]; then
+      printf 'Quickshell was built and installed from source by Tide Island. Uninstall Quickshell? [y/N] '
+      local answer
+      read -r answer
+      [[ "$answer" == "y" || "$answer" == "Y" ]] && remove_qs=1
+    fi
+    if ((remove_qs)); then
+      log "Uninstalling source-built Quickshell"
+      local qs_paths=()
+      mapfile -t qs_paths < "$QUICKSHELL_INSTALL_MANIFEST"
+      local i
+      for ((i=${#qs_paths[@]} - 1; i >= 0; --i)); do
+        local p="${qs_paths[i]}"
+        [[ "$p" == /usr/* ]] && run sudo rm -f -- "$p"
+      done
+      run sudo rm -f -- "$QUICKSHELL_INSTALL_MANIFEST" "$QUICKSHELL_BUILD_INFO"
+    fi
+  fi
+
+  if [[ -f "$INSTALLED_BUILD_DEPS" ]]; then
+    local build_pkgs=()
+    mapfile -t build_pkgs < "$INSTALLED_BUILD_DEPS"
+    if ((${#build_pkgs[@]} > 0)); then
+      local remove_b=0
+      if ((REMOVE_DEPS || ASSUME_YES)); then
+        remove_b=1
+      elif [[ -t 0 ]]; then
+        printf 'Uninstall build dependencies installed by Tide Island (%s)? [y/N] ' "${build_pkgs[*]}"
+        local answer
+        read -r answer
+        [[ "$answer" == "y" || "$answer" == "Y" ]] && remove_b=1
+      fi
+      if ((remove_b)); then
+        log "Uninstalling build dependencies"
+        remove_distribution_packages "${build_pkgs[@]}"
+        run sudo rm -f -- "$INSTALLED_BUILD_DEPS"
+      fi
+    fi
+  fi
+
+  if [[ -f "$INSTALLED_RUNTIME_DEPS" ]]; then
+    local runtime_pkgs=()
+    mapfile -t runtime_pkgs < "$INSTALLED_RUNTIME_DEPS"
+    if ((${#runtime_pkgs[@]} > 0)); then
+      local remove_r=0
+      if ((REMOVE_DEPS)); then
+        remove_r=1
+      elif [[ -t 0 && ASSUME_YES -eq 0 ]]; then
+        printf 'Do you want to uninstall core runtime dependencies that were installed by Tide Island (%s)? [y/N] ' "${runtime_pkgs[*]}"
+        local answer
+        read -r answer
+        [[ "$answer" == "y" || "$answer" == "Y" ]] && remove_r=1
+      fi
+      if ((remove_r)); then
+        log "Uninstalling core runtime dependencies"
+        remove_distribution_packages "${runtime_pkgs[@]}"
+        run sudo rm -f -- "$INSTALLED_RUNTIME_DEPS"
+      else
+        log "Leaving runtime dependencies installed"
+      fi
+    fi
+  fi
+
+  clean_installer_directories
+
+  run sudo rm -f -- "$QUICKSHELL_BUILD_INFO" "$STATE_DIR"/*.txt 2>/dev/null || true
+  run sudo rmdir --ignore-fail-on-non-empty "$STATE_DIR" 2>/dev/null || true
   command -v systemctl >/dev/null 2>&1 && run systemctl --user daemon-reload || true
-  log "Tide Island was removed. Quickshell and distribution dependencies were left installed."
+  log "Tide Island uninstallation complete."
+  printf 'Note: Your user configuration in %s has been preserved.\n' "${XDG_CONFIG_HOME:-$HOME/.config}/tide-island"
 }
 
 main() {
   parse_args "$@"
   load_os_release
+
+  if ((CHECK_DEPS)); then
+    check_dependencies
+    return 0
+  fi
 
   if ((UNINSTALL)); then
     uninstall_tide_island
@@ -644,6 +1159,8 @@ main() {
   build_quickshell
   build_tide_island
   configure_service
+  clean_build_dependencies
+  check_dependencies
   SERVICE_WAS_ACTIVE=0
 
   log "Tide Island installation completed"

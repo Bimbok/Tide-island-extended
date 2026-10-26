@@ -78,4 +78,15 @@ if "$ROOT/install.sh" --dry-run --skip-quickshell --force-build-quickshell >/dev
   exit 1
 fi
 
+# Verify --check-deps outputs dependency reporting
+check_output="$("$ROOT/install.sh" --check-deps)"
+grep -Fq -- "Tide Island Dependency Status" <<< "$check_output"
+grep -Fq -- "Core Runtime Dependencies" <<< "$check_output"
+grep -Fq -- "Feature-Specific Dependencies" <<< "$check_output"
+
+# Verify dry-run uninstall executes cleanly
+uninstall_output="$("$ROOT/install.sh" --dry-run --uninstall)"
+grep -Fq -- "Tide Island uninstallation complete" <<< "$uninstall_output"
+grep -Fq -- "preserved" <<< "$uninstall_output"
+
 printf 'Installer tests passed.\n'
