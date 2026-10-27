@@ -336,6 +336,7 @@ The installer builds Tide Island, writes it to `/usr`, registers desktop and ser
 - **Debian, Ubuntu, Linux Mint, Pop!_OS** (using `apt`)
 - **Fedora, RHEL, Nobara** (using `dnf`)
 - **openSUSE** (using `zypper`)
+- **Nix / NixOS** (declaratively via Flakes, Home Manager, and native derivation; see [Nix & NixOS](#nix--nixos))
 
 > [!TIP]
 > If you previously installed the older AUR `tide-island` package, remove it before running the installer:
