@@ -370,6 +370,69 @@ Useful installer options:
 | `-y`, `--yes` | Automatically confirms all interactive prompts (unattended mode). | Ideal for automated scripts and headless runs. |
 | `-h`, `--help` | Displays command-line usage and option references. | Exits immediately. |
 
+### Nix & NixOS
+
+Tide Island Extended provides first-class support for **Nix**, **NixOS**, and **Home Manager** via Nix Flakes and native derivations.
+
+#### Quick Run with Flakes
+You can run Tide Island immediately without installing it globally:
+
+```bash
+nix run github:Bimbok/Tide-island-extended
+```
+
+#### NixOS Module
+Add Tide Island to your `flake.nix` inputs:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    tide-island = {
+      url = "github:Bimbok/Tide-island-extended";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, tide-island, ... }: {
+    nixosConfigurations.yourhostname = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        tide-island.nixosModules.default
+        {
+          programs.tide-island.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+#### Home Manager Module
+Add Tide Island to your Home Manager configuration (`home.nix`):
+
+```nix
+{ inputs, ... }: {
+  imports = [ inputs.tide-island.homeManagerModules.default ];
+
+  programs.tide-island = {
+    enable = true;
+    systemd.enable = true; # Automatically starts with your graphical session
+  };
+}
+```
+
+#### Building with Nix
+```bash
+# Using Flakes
+nix build github:Bimbok/Tide-island-extended
+
+# Or locally inside the repository
+nix build
+# (or with legacy nix-build)
+nix-build
+```
+
 ### Updating
 
 To update Tide Island Extended to the latest version:

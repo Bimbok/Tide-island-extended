@@ -64,12 +64,14 @@ write_os_release ubuntu ubuntu debian
 write_os_release fedora fedora "rhel fedora"
 write_os_release opensuse opensuse-tumbleweed suse
 write_os_release arch arch arch
+write_os_release nixos nixos nixos
 write_os_release unknown void ""
 
 run_case ubuntu "apt-get install" " dbus "
 run_case fedora "sudo dnf install" " dbus-daemon " " cli11-devel "
 run_case opensuse "sudo zypper --non-interactive install" " dbus-1 "
 run_case arch "sudo pacman -S --needed" " wireplumber " " cli11 "
+run_failure_case nixos "6.8.0" "NixOS uses declarative package management" --force
 run_failure_case unknown "6.8.0" "unsupported distribution 'void'" --force
 run_failure_case ubuntu "6.4.2" "Qt 6.4.2 is too old" --skip-deps --force
 

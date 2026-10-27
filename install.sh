@@ -187,6 +187,9 @@ load_os_release() {
     arch|endeavouros|manjaro|cachyos|garuda)
       DISTRO_FAMILY="arch"
       ;;
+    nixos)
+      DISTRO_FAMILY="nix"
+      ;;
     *)
       if [[ "$ID_LIKE" == *" debian "* || "$ID_LIKE" == *" ubuntu "* ]]; then
         DISTRO_FAMILY="apt"
@@ -196,6 +199,8 @@ load_os_release() {
         DISTRO_FAMILY="zypper"
       elif [[ "$ID_LIKE" == *" arch "* ]]; then
         DISTRO_FAMILY="arch"
+      elif [[ "$ID_LIKE" == *" nix "* || "$ID_LIKE" == *" nixos "* ]]; then
+        DISTRO_FAMILY="nix"
       else
         DISTRO_FAMILY="unknown"
       fi
@@ -657,6 +662,13 @@ install_dependencies() {
       ;;
     arch)
       pacman_install_dependencies
+      ;;
+    nix)
+      die "NixOS uses declarative package management. To install Tide-Island on Nix / NixOS:
+  - Run directly:       nix run github:Bimbok/Tide-island-extended
+  - NixOS / Flake:      Use the provided flake.nix (inputs.tide-island.url = \"...\")
+  - Home Manager:       programs.tide-island.enable = true;
+See README.md for complete NixOS and Home Manager configuration examples."
       ;;
     *)
       die "unsupported distribution '$ID'; install dependencies manually and rerun with --skip-deps"

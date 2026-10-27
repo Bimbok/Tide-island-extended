@@ -19,6 +19,12 @@ if [[ "$QML_MODULE_PATH" == *"@CMAKE_INSTALL_LIBDIR@"* ]]; then
 fi
 SERVICE_NAME="tide-island.service"
 
+# Resolve quickshell binary path dynamically
+QUICKSHELL_BIN="${QUICKSHELL_BIN:-$(command -v quickshell 2>/dev/null || echo "/usr/bin/quickshell")}"
+if [[ ! -x "$QUICKSHELL_BIN" && -x "/usr/bin/quickshell" ]]; then
+  QUICKSHELL_BIN="/usr/bin/quickshell"
+fi
+
 export QML_IMPORT_PATH="$QML_MODULE_PATH${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 export QUICKSHELL_LYRICS_BACKEND="${QUICKSHELL_LYRICS_BACKEND:-$QML_PATH/bin/lyricsmpris}"
 # Quickshell uses jemalloc. Reclaim released Loader/image allocations in the
@@ -30,25 +36,25 @@ if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" 
   # 1. Try targeting running quickshell instance directly by PID
   running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
   if [[ -n "$running_pid" ]]; then
-    if /usr/bin/quickshell ipc --pid "$running_pid" call lock lock >/dev/null 2>&1; then
+    if "$QUICKSHELL_BIN" ipc --pid "$running_pid" call lock lock >/dev/null 2>&1; then
       exit 0
     fi
   fi
 
   # 2. Fallback to path-based IPC across known install locations
-  for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island" "${HOME}/.local/share/tide-island"; do
+  for test_path in "$QML_PATH" "$INSTALL_PREFIX/share/tide-island" "/usr/share/tide-island" "/usr/local/share/tide-island" "${HOME}/.local/share/tide-island"; do
     if [[ -d "$test_path" ]]; then
-      if /usr/bin/quickshell ipc --any-display -p "$test_path" call lock lock >/dev/null 2>&1; then
+      if "$QUICKSHELL_BIN" ipc --any-display -p "$test_path" call lock lock >/dev/null 2>&1; then
         exit 0
       fi
     fi
   done
 
   # 3. If no active instance was reachable, launch standalone lockscreen
-  for lock_qml in "$QML_PATH/qml/lockscreen/Lockscreen.qml" "/usr/share/tide-island/qml/lockscreen/Lockscreen.qml" "/usr/local/share/tide-island/qml/lockscreen/Lockscreen.qml"; do
+  for lock_qml in "$QML_PATH/qml/lockscreen/Lockscreen.qml" "$INSTALL_PREFIX/share/tide-island/qml/lockscreen/Lockscreen.qml" "/usr/share/tide-island/qml/lockscreen/Lockscreen.qml" "/usr/local/share/tide-island/qml/lockscreen/Lockscreen.qml"; do
     if [[ -f "$lock_qml" ]]; then
       export LOCK_NOW=1
-      exec /usr/bin/quickshell -p "$lock_qml"
+      exec "$QUICKSHELL_BIN" -p "$lock_qml"
     fi
   done
   exit 1
@@ -57,13 +63,13 @@ fi
 if [[ "${SYSTEMD_EXEC_PID:-}" != "$$" ]]; then
   running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
   if [[ -n "$running_pid" ]]; then
-    if /usr/bin/quickshell ipc --pid "$running_pid" call island show >/dev/null 2>&1; then
+    if "$QUICKSHELL_BIN" ipc --pid "$running_pid" call island show >/dev/null 2>&1; then
       exit 0
     fi
   fi
-  for test_path in "$QML_PATH" "/usr/share/tide-island" "/usr/local/share/tide-island"; do
+  for test_path in "$QML_PATH" "$INSTALL_PREFIX/share/tide-island" "/usr/share/tide-island" "/usr/local/share/tide-island"; do
     if [[ -d "$test_path" ]]; then
-      if /usr/bin/quickshell ipc --any-display -p "$test_path" call island show >/dev/null 2>&1; then
+      if "$QUICKSHELL_BIN" ipc --any-display -p "$test_path" call island show >/dev/null 2>&1; then
         exit 0
       fi
     fi
@@ -88,4 +94,4 @@ if [[ "$compositor_override" == "niri" ]] \
   "$CONFIG_APP" --ensure-niri-shortcuts || true
 fi
 
-exec /usr/bin/quickshell -p "$QML_PATH" "$@"
+exec "$QUICKSHELL_BIN" -p "$QML_PATH" "$@"
