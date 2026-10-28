@@ -439,15 +439,22 @@ Item {
                             Item {
                                 width: 28
                                 height: 28
-                                scale: prevArea.pressed ? 0.8 : 1.0
+                                scale: prevArea.pressed ? 0.90 : (prevArea.containsMouse ? 1.10 : 1.0)
 
                                 Behavior on scale {
-                                    NumberAnimation { duration: 100 }
+                                    NumberAnimation {
+                                        duration: 140
+                                        easing.type: Easing.OutCubic
+                                    }
                                 }
 
                                 Canvas {
                                     anchors.fill: parent
-                                    property color fillColor: prevArea.pressed ? StyleTokens.textMuted : StyleTokens.textPrimaryBright
+                                    property color fillColor: prevArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+
+                                    Behavior on fillColor {
+                                        ColorAnimation { duration: 120 }
+                                    }
 
                                     onFillColorChanged: requestPaint()
                                     onPaint: {
@@ -476,6 +483,8 @@ Item {
                                     id: prevArea
                                     anchors.fill: parent
                                     anchors.margins: -15
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     preventStealing: true
                                     onPressed: (mouse) => {
                                         controlPressed();
@@ -488,10 +497,13 @@ Item {
                             Item {
                                 width: 28
                                 height: 28
-                                scale: playArea.pressed ? 0.8 : 1.0
+                                scale: playArea.pressed ? 0.90 : (playArea.containsMouse ? 1.10 : 1.0)
 
                                 Behavior on scale {
-                                    NumberAnimation { duration: 100 }
+                                    NumberAnimation {
+                                        duration: 140
+                                        easing.type: Easing.OutCubic
+                                    }
                                 }
 
                                 Row {
@@ -499,14 +511,34 @@ Item {
                                     spacing: 6
                                     visible: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
 
-                                    Rectangle { width: 6; height: 20; radius: 2; color: playArea.pressed ? StyleTokens.textMuted : StyleTokens.textPrimaryBright }
-                                    Rectangle { width: 6; height: 20; radius: 2; color: playArea.pressed ? StyleTokens.textMuted : StyleTokens.textPrimaryBright }
+                                    Rectangle {
+                                        width: 6
+                                        height: 20
+                                        radius: 2
+                                        color: playArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+                                        Behavior on color {
+                                            ColorAnimation { duration: 120 }
+                                        }
+                                    }
+                                    Rectangle {
+                                        width: 6
+                                        height: 20
+                                        radius: 2
+                                        color: playArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+                                        Behavior on color {
+                                            ColorAnimation { duration: 120 }
+                                        }
+                                    }
                                 }
 
                                 Canvas {
                                     anchors.fill: parent
                                     visible: !activePlayer || activePlayer.playbackState !== MprisPlaybackState.Playing
-                                    property color fillColor: playArea.pressed ? StyleTokens.textMuted : StyleTokens.textPrimaryBright
+                                    property color fillColor: playArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+
+                                    Behavior on fillColor {
+                                        ColorAnimation { duration: 120 }
+                                    }
 
                                     onFillColorChanged: requestPaint()
                                     onPaint: {
@@ -530,6 +562,8 @@ Item {
                                     id: playArea
                                     anchors.fill: parent
                                     anchors.margins: -15
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     preventStealing: true
                                     onPressed: (mouse) => {
                                         controlPressed();
@@ -542,15 +576,22 @@ Item {
                             Item {
                                 width: 28
                                 height: 28
-                                scale: nextArea.pressed ? 0.8 : 1.0
+                                scale: nextArea.pressed ? 0.90 : (nextArea.containsMouse ? 1.10 : 1.0)
 
                                 Behavior on scale {
-                                    NumberAnimation { duration: 100 }
+                                    NumberAnimation {
+                                        duration: 140
+                                        easing.type: Easing.OutCubic
+                                    }
                                 }
 
                                 Canvas {
                                     anchors.fill: parent
-                                    property color fillColor: nextArea.pressed ? StyleTokens.textMuted : StyleTokens.textPrimaryBright
+                                    property color fillColor: nextArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
+
+                                    Behavior on fillColor {
+                                        ColorAnimation { duration: 120 }
+                                    }
 
                                     onFillColorChanged: requestPaint()
                                     onPaint: {
@@ -579,6 +620,8 @@ Item {
                                     id: nextArea
                                     anchors.fill: parent
                                     anchors.margins: -15
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     preventStealing: true
                                     onPressed: (mouse) => {
                                         controlPressed();

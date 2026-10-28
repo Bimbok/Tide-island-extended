@@ -1,5 +1,6 @@
 import QtQuick
 import IslandBackend
+import "../controlcenter"
 
 Item {
     id: root
@@ -21,24 +22,29 @@ Item {
 
     width: 28
     height: 28
-    scale: controlArea.pressed ? 0.8 : 1.0
+    scale: controlArea.pressed ? 0.90 : (controlArea.containsMouse ? 1.10 : 1.0)
     opacity: enabled ? 1.0 : 0.45
 
     Behavior on scale {
         NumberAnimation {
-            duration: 100
+            duration: 140
+            easing.type: Easing.OutCubic
         }
     }
 
     Text {
         anchors.centerIn: parent
         text: root.iconText
-        color: controlArea.pressed ? "#888888" : "#ffffff"
+        color: controlArea.containsMouse ? StyleTokens.accent : StyleTokens.textPrimaryBright
         font.pixelSize: root.kind === "play" ? userConfig.iconFontSize + 7 : userConfig.iconFontSize + 5
         font.family: root.textFontFamily
         font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+
+        Behavior on color {
+            ColorAnimation { duration: 120 }
+        }
     }
 
     MouseArea {
@@ -46,6 +52,8 @@ Item {
         anchors.fill: parent
         anchors.margins: -15
         enabled: root.enabled
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
         preventStealing: true
 
         onPressed: function(mouse) {
