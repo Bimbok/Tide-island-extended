@@ -52,6 +52,30 @@ private slots:
         QVERIFY(runtime.islandBlurEnabled());
     }
 
+    void lyricsCavaDefaultsAndLiveReload() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
+        QVERIFY(writeConfig(directory.path(), "{}"));
+        UserConfigBackend runtime;
+        QVERIFY(runtime.lyricsCavaEnabled());
+        QSignalSpy changed(&runtime, &UserConfigBackend::lyricsCavaEnabledChanged);
+
+        Backend settings;
+        auto config = settings.userConfig();
+        config.insert("lyricsCavaEnabled", false);
+        QVERIFY(settings.save(config));
+        runtime.reload();
+        QVERIFY(!runtime.lyricsCavaEnabled());
+        QCOMPARE(changed.count(), 1);
+
+        config.insert("lyricsCavaEnabled", true);
+        QVERIFY(settings.save(config));
+        runtime.reload();
+        QVERIFY(runtime.lyricsCavaEnabled());
+        QCOMPARE(changed.count(), 2);
+    }
+
     void stringsAndCommentsMatchAcrossBothConsumers_data() {
         QTest::addColumn<QByteArray>("input");
         QTest::addColumn<QString>("command");

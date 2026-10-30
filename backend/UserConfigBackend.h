@@ -76,6 +76,7 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(QString colorsFilePath READ colorsFilePath NOTIFY colorsFilePathChanged FINAL)
     Q_PROPERTY(bool dynamicBatteryColorEnabled READ dynamicBatteryColorEnabled NOTIFY dynamicBatteryColorEnabledChanged FINAL)
     Q_PROPERTY(bool marqueeTrackTitleEnabled READ marqueeTrackTitleEnabled NOTIFY marqueeTrackTitleEnabledChanged FINAL)
+    Q_PROPERTY(bool lyricsCavaEnabled READ lyricsCavaEnabled WRITE setLyricsCavaEnabled NOTIFY lyricsCavaEnabledChanged FINAL)
     Q_PROPERTY(bool privacyCameraBubbleEnabled READ privacyCameraBubbleEnabled NOTIFY privacyCameraBubbleEnabledChanged FINAL)
     Q_PROPERTY(bool privacyMicBubbleEnabled READ privacyMicBubbleEnabled NOTIFY privacyMicBubbleEnabledChanged FINAL)
     Q_PROPERTY(QString avatarPath READ avatarPath WRITE setAvatarPath NOTIFY avatarPathChanged FINAL)
@@ -149,6 +150,8 @@ public:
     QString colorsFilePath() const;
     bool dynamicBatteryColorEnabled() const;
     bool marqueeTrackTitleEnabled() const;
+    bool lyricsCavaEnabled() const;
+    void setLyricsCavaEnabled(bool enabled);
     bool privacyCameraBubbleEnabled() const;
     bool privacyMicBubbleEnabled() const;
     QString avatarPath() const;
@@ -235,6 +238,7 @@ signals:
     void colorsFilePathChanged();
     void dynamicBatteryColorEnabledChanged();
     void marqueeTrackTitleEnabledChanged();
+    void lyricsCavaEnabledChanged();
     void privacyCameraBubbleEnabledChanged();
     void privacyMicBubbleEnabledChanged();
     void avatarPathChanged();
@@ -313,6 +317,7 @@ private:
     QString m_colorsFilePath;
     bool m_dynamicBatteryColorEnabled = true;
     bool m_marqueeTrackTitleEnabled = true;
+    bool m_lyricsCavaEnabled = true;
     bool m_privacyCameraBubbleEnabled = true;
     bool m_privacyMicBubbleEnabled = true;
     QString m_avatarPath;

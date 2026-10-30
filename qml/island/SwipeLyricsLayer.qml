@@ -19,6 +19,7 @@ Item {
     property bool showCondition: false
     property bool showSecondaryText: true
     property bool recordingActive: false
+    property bool cavaEnabled: activeConfig && activeConfig.lyricsCavaEnabled !== undefined ? activeConfig.lyricsCavaEnabled : true
     property real transitionProgress: 0
     property int textPixelSize: userConfig.bodyFontSize
     property real minimumWidth: 220
@@ -37,9 +38,10 @@ Item {
     readonly property real clampedProgress: Math.max(0, Math.min(1, transitionProgress))
     readonly property bool lyricMostlyVisible: clampedProgress > 0.92
     readonly property real textWidth: Math.max(0, width - horizontalPadding * 2)
+    readonly property real effectiveRightItemWidth: root.cavaEnabled ? cavaBars.implicitWidth : coverSize
     readonly property real lyricTextWidth: Math.max(
         0,
-        textWidth - coverSize - cavaBars.implicitWidth - visualSpacing * 2
+        textWidth - coverSize - effectiveRightItemWidth - visualSpacing * 2
     )
     readonly property real centeredX: horizontalPadding
     readonly property real lyricHiddenLeftX: -textWidth - hiddenLeftPadding
@@ -64,7 +66,7 @@ Item {
             lyricMetrics.advanceWidth
                 + horizontalPadding * 2
                 + coverSize
-                + cavaBars.implicitWidth
+                + effectiveRightItemWidth
                 + visualSpacing * 2
         )
     )
@@ -227,8 +229,8 @@ Item {
 
             anchors.left: coverFrame.right
             anchors.leftMargin: root.visualSpacing
-            anchors.right: cavaBars.left
-            anchors.rightMargin: root.visualSpacing
+            anchors.right: root.cavaEnabled ? cavaBars.left : parent.right
+            anchors.rightMargin: root.cavaEnabled ? root.visualSpacing : (root.visualSpacing + root.coverSize)
             height: parent.height
             clip: true
 
@@ -269,6 +271,7 @@ Item {
         SwipeCavaBars {
             id: cavaBars
 
+            visible: root.cavaEnabled
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             levels: root.cavaLevels

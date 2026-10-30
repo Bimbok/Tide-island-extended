@@ -172,6 +172,17 @@ PagePanel {
         revision += 1
     }
 
+    function lyricsCavaEnabled() {
+        revision
+        return boolValue("lyricsCavaEnabled", true)
+    }
+
+    function setLyricsCavaEnabled(enabled) {
+        ConfigStore.setValue("lyricsCavaEnabled", enabled)
+        ConfigStore.save()
+        revision += 1
+    }
+
     function privacyCameraBubbleEnabled() {
         revision
         return boolValue("privacyCameraBubbleEnabled", true)
@@ -407,8 +418,15 @@ PagePanel {
                     anchors.leftMargin: 18
                     anchors.right: parent.right
                     anchors.rightMargin: 18
+                    spacing: 15
 
                     AutoExpandTrackRow {
+                        width: parent.width
+                    }
+
+                    SplitLine { width: parent.width }
+
+                    LyricsCavaRow {
                         width: parent.width
                     }
                 }
@@ -600,6 +618,47 @@ PagePanel {
 
             onToggled: function(checked) {
                 root.setAutoExpandOnTrackChange(checked)
+            }
+        }
+    }
+
+    component LyricsCavaRow: Item {
+        id: row
+
+        height: 49
+
+        Text {
+            id: rowTitle
+
+            text: "Lyrics Capsule Cava"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            color: Theme.textColor
+            font.family: Theme.textFontFamily
+            font.pixelSize: 18
+        }
+
+        Text {
+            text: "Show audio visualizer bars in the lyrics showing capsule"
+            anchors.left: rowTitle.left
+            anchors.top: rowTitle.bottom
+            anchors.topMargin: 5
+            width: Math.max(80, parent.width - lyricsCavaSwitch.width - 28)
+            color: Theme.subtleTextColor
+            elide: Text.ElideRight
+            font.family: Theme.textFontFamily
+            font.pixelSize: 14
+        }
+
+        StyledSwitch {
+            id: lyricsCavaSwitch
+
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.lyricsCavaEnabled()
+
+            onToggled: function(checked) {
+                root.setLyricsCavaEnabled(checked)
             }
         }
     }

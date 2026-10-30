@@ -1453,7 +1453,8 @@ PanelWindow {
             currentWorkspace: islandContainer.currentWs
             customSwipeActive: customSwipeLoader.active
             statsVisible: customSwipeLoader.active && root.autoHideProgress > 0.001
-            lyricsCavaActive: islandContainer.lyricsSwipeVisible
+            lyricsCavaActive: root.userConfig.lyricsCavaEnabled
+                && islandContainer.lyricsSwipeVisible
                 && islandContainer.rightSwipeProgress > 0.001
 
             onTransientRequested: function(icon, progress, text) {
@@ -3099,6 +3100,7 @@ PanelWindow {
 
                 sourceComponent: Component {
                     SwipeLyricsLayer {
+                        cavaEnabled: root.userConfig.lyricsCavaEnabled
                         lyricText: islandContainer.lyricsDisplayText
                         currentArtUrl: islandContainer.currentArtUrl
                         cavaLevels: islandContainer.cavaLevels

@@ -48,6 +48,7 @@ Rectangle {
 
     property bool dynamicBatteryColor: boolValue("dynamicBatteryColorEnabled", true)
     property bool marqueeTrackTitle: boolValue("marqueeTrackTitleEnabled", true)
+    property bool lyricsCavaEnabled: boolValue("lyricsCavaEnabled", true)
 
     function boolValue(key, fallback) {
         const val = ConfigStore.value(key, fallback);
@@ -141,6 +142,7 @@ Rectangle {
     function loadFromConfig() {
         root.dynamicBatteryColor = root.boolValue("dynamicBatteryColorEnabled", true);
         root.marqueeTrackTitle = root.boolValue("marqueeTrackTitleEnabled", true);
+        root.lyricsCavaEnabled = root.boolValue("lyricsCavaEnabled", true);
         const source = listValues(ConfigStore.value(configKey, defaultItems));
         const seen = {};
         let removedLyrics = false;
@@ -490,6 +492,46 @@ Rectangle {
                     checked = val;
                     root.marqueeTrackTitle = val;
                     ConfigStore.setValue("marqueeTrackTitleEnabled", val);
+                    ConfigStore.save();
+                }
+            }
+        }
+
+        SplitLine { width: parent.width }
+
+        Item {
+            width: parent.width
+            height: 49
+
+            Text {
+                id: lyricsCavaTitle
+                text: "Lyrics Capsule Cava"
+                font.family: Theme.textFontFamily
+                font.pixelSize: 18
+                color: Theme.textColor
+                anchors.top: parent.top
+                anchors.left: parent.left
+            }
+
+            Text {
+                text: "Show audio visualizer bars in the lyrics showing capsule"
+                font.family: Theme.textFontFamily
+                font.pixelSize: 14
+                anchors.top: lyricsCavaTitle.bottom
+                anchors.topMargin: 5
+                anchors.left: lyricsCavaTitle.left
+                color: Theme.subtleTextColor
+            }
+
+            StyledSwitch {
+                id: lyricsCavaSwitch
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                checked: root.lyricsCavaEnabled
+                onToggled: function(val) {
+                    checked = val;
+                    root.lyricsCavaEnabled = val;
+                    ConfigStore.setValue("lyricsCavaEnabled", val);
                     ConfigStore.save();
                 }
             }
