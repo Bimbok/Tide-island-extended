@@ -13,8 +13,8 @@ Item {
     property string sourcePath: ""
     property int targetWidth: 960
     property int targetHeight: 540
-    property int quality: 86
-    property int refreshDebounceInterval: 140
+    property int quality: 68
+    property int refreshDebounceInterval: 60
     property int retryBackoffInterval: 1500
     property int maxFailureRetries: 2
 
@@ -73,7 +73,7 @@ Item {
     function scheduleRefresh() {
         consecutiveFailureCount = 0;
         refreshPending = true;
-        refreshDebounceTimer.interval = refreshDebounceInterval;
+        refreshDebounceTimer.interval = hasCacheOnDisk() ? refreshDebounceInterval : 0;
         refreshDebounceTimer.restart();
     }
 

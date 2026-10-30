@@ -160,7 +160,14 @@ ThumbnailResult createWallpaperThumbnail(const QString &sourcePath,
     }
 
     const QSize targetSize(targetWidth, targetHeight);
-    const QImage scaled = sourceImage.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    QImage scaled;
+    if (sourceImage.width() > targetWidth * 2 && sourceImage.height() > targetHeight * 2) {
+        const QSize intermediateSize(targetWidth * 2, targetHeight * 2);
+        const QImage fastScaled = sourceImage.scaled(intermediateSize, Qt::KeepAspectRatioByExpanding, Qt::FastTransformation);
+        scaled = fastScaled.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    } else {
+        scaled = sourceImage.scaled(targetSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    }
     const int cropX = std::max(0, (scaled.width() - targetWidth) / 2);
     const int cropY = std::max(0, (scaled.height() - targetHeight) / 2);
     const QImage cropped = scaled.copy(cropX, cropY, targetWidth, targetHeight);

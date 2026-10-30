@@ -24,7 +24,7 @@ PanelWindow {
         ? !!overviewLoader.item.overviewDataReady
         : false
     readonly property bool overviewWallpaperReady: overviewWallpaperCache.ready
-    readonly property bool overviewVisualReady: overviewDataReady && overviewWallpaperReady
+    readonly property bool overviewVisualReady: overviewDataReady
     readonly property bool overviewContentVisible: (overviewPhase === "opening" || overviewPhase === "open")
         && overviewVisualReady
     readonly property bool compositorIsNiri: CompositorBackend.compositor === "niri"
@@ -1185,7 +1185,7 @@ PanelWindow {
     OverviewWallpaperCacheController {
         id: overviewWallpaperCache
 
-        active: root.overviewLoaderActive
+        active: !compositorIsNiri
         wallpaperPath: userConfig.wallpaperCustomCommandEnabled === true && root.wallpaperPickerActiveWallpaper !== ""
             ? root.wallpaperPickerActiveWallpaper
             : userConfig.wallpaperPath

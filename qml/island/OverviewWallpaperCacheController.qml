@@ -25,13 +25,15 @@ Item {
         const screenWidth = hyprMonitor ? hyprMonitor.width : (screenObject ? screenObject.width : 1920);
         const monitorScale = hyprMonitor && hyprMonitor.scale ? hyprMonitor.scale : 1;
         const workspaceWidth = Math.max(180, screenWidth * wallpaperScale / monitorScale);
-        return Math.max(1, Math.round(workspaceWidth * cacheScaleMultiplier));
+        const raw = Math.max(1, Math.round(workspaceWidth * cacheScaleMultiplier));
+        return Math.max(64, Math.round(raw / 16) * 16);
     }
     readonly property int targetHeight: {
         const screenHeight = hyprMonitor ? hyprMonitor.height : (screenObject ? screenObject.height : 1080);
         const monitorScale = hyprMonitor && hyprMonitor.scale ? hyprMonitor.scale : 1;
         const workspaceHeight = Math.max(120, screenHeight * wallpaperScale / monitorScale);
-        return Math.max(1, Math.round(workspaceHeight * cacheScaleMultiplier));
+        const raw = Math.max(1, Math.round(workspaceHeight * cacheScaleMultiplier));
+        return Math.max(64, Math.round(raw / 16) * 16);
     }
 
     property bool refreshPending: false
