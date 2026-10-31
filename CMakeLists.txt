@@ -437,6 +437,16 @@ install(PROGRAMS scripts/cliphist-helper.sh
 # Install desktop entry
 install(FILES tide-island.desktop tide-island-lock.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
+# Install application icons
+foreach(SIZE 16 32 48 64 128 256 512)
+    install(FILES assets/icons/hicolor/${SIZE}x${SIZE}/apps/tide-island.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${SIZE}x${SIZE}/apps
+    )
+endforeach()
+install(FILES assets/icons/hicolor/256x256/apps/tide-island.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+)
+
 # Install systemd user service
 install(FILES tide-island.service DESTINATION lib/systemd/user)
 

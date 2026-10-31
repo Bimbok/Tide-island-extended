@@ -880,6 +880,12 @@ build_tide_island() {
   if command -v systemd-tmpfiles >/dev/null 2>&1; then
     run sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/tide-island-battery.conf 2>/dev/null || true
   fi
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    run sudo gtk-update-icon-cache -q -t -f "$PREFIX/share/icons/hicolor" 2>/dev/null || true
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    run sudo update-desktop-database -q "$PREFIX/share/applications" 2>/dev/null || true
+  fi
 }
 
 configure_service() {
@@ -1156,6 +1162,8 @@ uninstall_tide_island() {
   run sudo rm -f -- "$QUICKSHELL_BUILD_INFO" "$STATE_DIR"/*.txt 2>/dev/null || true
   run sudo rmdir --ignore-fail-on-non-empty "$STATE_DIR" 2>/dev/null || true
   command -v systemctl >/dev/null 2>&1 && run systemctl --user daemon-reload || true
+  command -v gtk-update-icon-cache >/dev/null 2>&1 && run sudo gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+  command -v update-desktop-database >/dev/null 2>&1 && run sudo update-desktop-database -q /usr/share/applications 2>/dev/null || true
   log "Tide Island uninstallation complete."
   printf 'Note: Your user configuration in %s has been preserved.\n' "${XDG_CONFIG_HOME:-$HOME/.config}/tide-island"
 }

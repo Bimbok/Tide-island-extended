@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/preview/tide-island-logo.png" width="128" height="128" alt="Tide Island Extended Logo">
+</p>
+
 <h1 align="center">Tide Island Extended</h1>
 
 <p align="center">

@@ -2,7 +2,7 @@
 Name=Lock Screen (Tide Island Extended)
 Comment=Lock screen for Tide Island Extended on Hyprland and Niri
 Exec=/usr/bin/tide-island --lock
-Icon=system-lock-screen
+Icon=tide-island
 Terminal=false
 Type=Application
 Categories=System;Security;

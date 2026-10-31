@@ -83,6 +83,7 @@ jobs:
           test -f "$stage/usr/$libdir/libIslandBackend.so"
           test -f "$stage/usr/$libdir/qt6/qml/IslandBackend/libIslandBackendplugin.so"
           test -f "$stage/usr/lib/systemd/user/tide-island.service"
+          test -f "$stage/usr/share/icons/hicolor/512x512/apps/tide-island.png"
           test ! -e "$stage/usr/$libdir/qt6/qml/TideIsland/Document.qml"
           test -z "$(find "$stage" -name '*qml_module_dir_map.qrc' -print -quit)"
           grep -Fq "/$libdir/qt6/qml\"" "$stage/usr/bin/tide-island"
@@ -134,6 +135,7 @@ jobs:
           test -f /usr/share/tide-island/shell.qml
           test -f /usr/lib/systemd/user/tide-island.service
           test -f /usr/share/licenses/tide-island-extended/LICENSE
+          test -f /usr/share/icons/hicolor/512x512/apps/tide-island.png
           QT_QPA_PLATFORM=offscreen /usr/bin/tide-island-config-app --validate-qml
 
       - name: Prepare package release assets

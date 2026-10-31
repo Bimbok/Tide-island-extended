@@ -2,7 +2,7 @@
 Name=Tide Island Extended
 Comment=Dynamic Island for Hyprland and niri
 Exec=/usr/bin/tide-island
-Icon=preferences-desktop-notification
+Icon=tide-island
 Terminal=false
 Type=Application
 Categories=Utility;

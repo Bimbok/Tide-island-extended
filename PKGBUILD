@@ -1,7 +1,7 @@
 # Maintainer: Bimbok <https://github.com/Bimbok>
 pkgname=tide-island-extended
 pkgver=1.1.3
-pkgrel=1
+pkgrel=2
 pkgdesc="Dynamic Island widget and system companion for Wayland compositors (Hyprland & Niri)"
 arch=('x86_64')
 url="https://github.com/Bimbok/Tide-island-extended"
