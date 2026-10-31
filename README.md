@@ -322,15 +322,19 @@ Tide Island Extended is engineered to deliver fluid 60fps+ animations while main
 
 ### Arch Linux (Direct Pacman Package)
 
-Pre-compiled Arch Linux binary packages (`.pkg.tar.zst`) are automatically built and attached to every release. You can install directly with `pacman` in one command—all dependencies (`quickshell`, Qt 6, etc.) are automatically resolved from the official Arch repositories:
+Pre-compiled Arch Linux binary packages (`.pkg.tar.zst`) are automatically built and attached to every release. Download and install in one step—all dependencies (`quickshell`, Qt 6, etc.) are automatically resolved from the official Arch repositories:
 
 ```bash
-sudo pacman -U https://github.com/Bimbok/Tide-island-extended/releases/latest/download/tide-island-extended-x86_64.pkg.tar.zst
+curl -LO https://github.com/Bimbok/Tide-island-extended/releases/latest/download/tide-island-extended-x86_64.pkg.tar.zst && sudo pacman -U tide-island-extended-x86_64.pkg.tar.zst
 ```
 
-Or download `tide-island-extended-x86_64.pkg.tar.zst` from [Releases](https://github.com/Bimbok/Tide-island-extended/releases) and install locally:
+Or step-by-step:
 
 ```bash
+# 1. Download the latest package
+curl -LO https://github.com/Bimbok/Tide-island-extended/releases/latest/download/tide-island-extended-x86_64.pkg.tar.zst
+
+# 2. Install with pacman
 sudo pacman -U tide-island-extended-x86_64.pkg.tar.zst
 ```
 
