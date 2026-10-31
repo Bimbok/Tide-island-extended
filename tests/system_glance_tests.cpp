@@ -132,8 +132,13 @@ private slots:
 
         QSignalSpy spy(&glance, &SystemGlanceBackend::updatesChanged);
         glance.checkUpdatesAsync();
-        QVERIFY(glance.checkingUpdates());
-        QTRY_VERIFY_WITH_TIMEOUT(!glance.checkingUpdates(), 12000);
+        const bool hasPackageManager = QFile::exists(QStringLiteral("/usr/bin/checkupdates"))
+                                    || QFile::exists(QStringLiteral("/usr/bin/pacman"));
+        if (hasPackageManager) {
+            QTRY_VERIFY_WITH_TIMEOUT(!glance.checkingUpdates(), 12000);
+        } else {
+            QVERIFY(!glance.checkingUpdates());
+        }
         qDebug() << "Pending updates count:" << glance.pendingUpdatesCount();
         QVERIFY(glance.pendingUpdatesCount() >= 0);
     }

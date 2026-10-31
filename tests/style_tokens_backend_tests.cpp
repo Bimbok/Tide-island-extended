@@ -169,5 +169,5 @@ private slots:
     }
 };
 
-QTEST_MAIN(StyleTokensBackendTests)
+QTEST_GUILESS_MAIN(StyleTokensBackendTests)
 #include "style_tokens_backend_tests.moc"

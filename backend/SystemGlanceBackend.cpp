@@ -1077,6 +1077,8 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
         proc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
     } else {
         m_checkingUpdates = false;
+        m_lastUpdateCheckTime.restart();
+        m_pendingUpdatesCount = 0;
         emit updatesChanged();
         emit statsUpdated();
         proc->deleteLater();

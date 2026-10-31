@@ -239,6 +239,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/style_tokens_backend_tests.cpp")
     )
 
     add_test(NAME style_tokens_backend COMMAND style_tokens_backend_tests)
+    set_tests_properties(style_tokens_backend PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/system_glance_tests.cpp")
