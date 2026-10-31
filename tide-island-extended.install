@@ -1,0 +1,43 @@
+post_install() {
+  cat << 'EOF'
+
+========================================================================
+ Tide Island Extended installation complete!
+========================================================================
+
+ To start Tide Island now:
+   systemctl --user start tide-island.service
+
+ To enable Tide Island autostart on login:
+   systemctl --user enable tide-island.service
+
+ To configure Tide Island (Capsules, Lyrics, Overview, Themes, etc.):
+   tide-island-config-app
+
+========================================================================
+EOF
+}
+
+post_upgrade() {
+  cat << 'EOF'
+
+========================================================================
+ Tide Island Extended updated!
+========================================================================
+
+ Restart the user service to apply changes:
+   systemctl --user restart tide-island.service
+
+========================================================================
+EOF
+}
+
+post_remove() {
+  cat << 'EOF'
+
+==> Tide Island Extended has been removed.
+==> If you enabled the user service, you can clean up with:
+==>   systemctl --user daemon-reload
+
+EOF
+}
