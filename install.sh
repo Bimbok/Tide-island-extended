@@ -1141,6 +1141,18 @@ uninstall_tide_island() {
 
   clean_installer_directories
 
+  # Clean up installation directories and legacy unmanaged local files
+  run sudo rm -rf -- "/usr/share/tide-island" 2>/dev/null || true
+  run sudo rm -rf -- \
+    /usr/local/bin/tide-island* \
+    /usr/local/lib/libIslandBackend.so \
+    /usr/local/lib/qt6/qml/IslandBackend \
+    /usr/local/lib/qt6/qml/TideIsland \
+    /usr/local/lib/systemd/user/tide-island.service \
+    /usr/local/lib/tmpfiles.d/tide-island-battery.conf \
+    /usr/local/share/tide-island \
+    /usr/local/share/applications/tide-island*.desktop 2>/dev/null || true
+
   run sudo rm -f -- "$QUICKSHELL_BUILD_INFO" "$STATE_DIR"/*.txt 2>/dev/null || true
   run sudo rmdir --ignore-fail-on-non-empty "$STATE_DIR" 2>/dev/null || true
   command -v systemctl >/dev/null 2>&1 && run systemctl --user daemon-reload || true
