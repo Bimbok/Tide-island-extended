@@ -65,7 +65,17 @@ BluetoothPairingAgent::BluetoothPairingAgent(QObject *parent)
 }
 
 BluetoothPairingAgent::~BluetoothPairingAgent() {
+    if (m_request.delayedReply) {
+        finishWithErrorReply(
+            QString::fromLatin1(kCanceledError),
+            QStringLiteral("The pairing agent was destroyed.")
+        );
+    }
     unregisterAgent();
+    if (m_objectExported) {
+        QDBusConnection::systemBus().unregisterObject(QString::fromLatin1(kAgentObjectPath));
+        m_objectExported = false;
+    }
 }
 
 bool BluetoothPairingAgent::registered() const {

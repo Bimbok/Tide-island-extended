@@ -305,6 +305,25 @@ private slots:
         const double pct = services.queryDiskUsagePercent(QStringLiteral("/"));
         QVERIFY(pct >= 0.0 && pct <= 100.0);
     }
+
+    void testSpecialCharactersInFocusSenderWindow()
+    {
+        SystemServices services;
+        // Verify app names and summaries containing backslashes, quotes, and newlines don't crash
+        services.focusSenderWindow(QStringLiteral("app\"with\\backslash\nnewline"), 0,
+                                   QStringLiteral("Test's \"quoted\" summary\\"),
+                                   QStringLiteral("body with \\ special characters"));
+        QTest::qWait(100);
+    }
+
+    void testAudioDeviceSwitchingWithSpecialChars()
+    {
+        SystemServices services;
+        // Verify audio device names with single quotes don't crash or break
+        services.setAudioOutput(QStringLiteral("alsa_output.pci.Bob's_Headphones"), QStringLiteral("analog-output'headphone"));
+        services.setAudioInput(QStringLiteral("alsa_input.pci.Alice's_Mic"), QStringLiteral("analog-input'mic"));
+        QTest::qWait(100);
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

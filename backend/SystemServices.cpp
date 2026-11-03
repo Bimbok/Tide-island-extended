@@ -42,6 +42,20 @@ namespace {
 
 constexpr qsizetype kMaximumStreamBufferBytes = 64 * 1024;
 
+QString escapeLuaString(const QString &str) {
+    QString escaped;
+    escaped.reserve(str.size() * 2);
+    for (const QChar ch : str) {
+        if (ch == QLatin1Char('\\')) escaped.append(QStringLiteral("\\\\"));
+        else if (ch == QLatin1Char('"')) escaped.append(QStringLiteral("\\\""));
+        else if (ch == QLatin1Char('\n')) escaped.append(QStringLiteral("\\n"));
+        else if (ch == QLatin1Char('\r')) escaped.append(QStringLiteral("\\r"));
+        else if (ch == QLatin1Char('\t')) escaped.append(QStringLiteral("\\t"));
+        else escaped.append(ch);
+    }
+    return escaped;
+}
+
 struct ThumbnailResult {
     QString sourcePath;
     QString cachePath;
@@ -433,6 +447,20 @@ void SystemServices::startBusMonitor() {
         QStringLiteral("type='signal',sender='org.freedesktop.portal.Desktop',interface='org.freedesktop.portal.Session',member='Closed'")
     });
     connect(m_busMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handleBusMonitorOutput);
+    connect(m_busMonitor, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            if (m_busMonitor) {
+                m_busMonitor->deleteLater();
+                m_busMonitor = nullptr;
+            }
+            m_busMonitorBuffer.clear();
+            m_notificationCaptureActive = false;
+            m_pendingScreenCastMember.clear();
+            m_pendingSessionCandidate.clear();
+            if (!m_shuttingDown && !m_busMonitorRestartTimer.isActive())
+                m_busMonitorRestartTimer.start();
+        }
+    });
     connect(m_busMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus) {
         m_busMonitor->deleteLater();
@@ -464,6 +492,17 @@ void SystemServices::startPipeWireMonitor() {
     m_pipeWireMonitor->setProgram(executable);
     m_pipeWireMonitor->setArguments({QStringLiteral("-p"), QStringLiteral("-a")});
     connect(m_pipeWireMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handlePipeWireOutput);
+    connect(m_pipeWireMonitor, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            if (m_pipeWireMonitor) {
+                m_pipeWireMonitor->deleteLater();
+                m_pipeWireMonitor = nullptr;
+            }
+            m_pipeWireBuffer.clear();
+            if (!m_shuttingDown && !m_pipeWireRestartTimer.isActive())
+                m_pipeWireRestartTimer.start();
+        }
+    });
     connect(m_pipeWireMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus) {
         m_pipeWireMonitor->deleteLater();
@@ -1104,10 +1143,11 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
 
     QString kwTable;
     for (const QString &kw : extraKeywords) {
-        kwTable += QStringLiteral("\"%1\", ").arg(QString(kw).replace(QLatin1Char('"'), QStringLiteral("\\\"")));
+        kwTable += QStringLiteral("\"%1\", ").arg(escapeLuaString(kw));
     }
 
-    const QString cleanApp = QString(appName).toLower().replace(QLatin1Char('"'), QStringLiteral("\\\""));
+    const QString cleanApp = escapeLuaString(appName.toLower());
+    const QString cleanAgentKw = escapeLuaString(agentKeyword);
 
     // 4. Construct Lua script for Hyprland: Phase 1 (PID) then Phase 2 (Score/Title)
     const QString script = QStringLiteral(
@@ -1170,7 +1210,7 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
         "  activateTarget(bestW)\n"
         "  return\n"
         "end\n"
-    ).arg(pidsTable, cleanApp, agentKeyword, kwTable);
+    ).arg(pidsTable, cleanApp, cleanAgentKw, kwTable);
 
     startCommand(hyprctl, {QStringLiteral("eval"), script}, 1500, nullptr);
 }
@@ -2194,28 +2234,36 @@ void SystemServices::requestAppStreams() {
 void SystemServices::setAudioOutput(const QString &sinkName, const QString &portName) {
     if (sinkName.isEmpty()) return;
 
-    QString cmd = QStringLiteral("pactl set-default-sink '%1'").arg(sinkName);
-    if (!portName.isEmpty()) {
-        cmd += QStringLiteral(" && pactl set-sink-port '%1' '%2'").arg(sinkName, portName);
-    }
-
-    startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), cmd}, 1000, [this](const CommandResult &) {
-        requestAudioOutputs();
-        requestVolume();
+    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000,
+                 [this, sinkName, portName](const CommandResult &) {
+        if (!portName.isEmpty()) {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000,
+                         [this](const CommandResult &) {
+                requestAudioOutputs();
+                requestVolume();
+            });
+        } else {
+            requestAudioOutputs();
+            requestVolume();
+        }
     });
 }
 
 void SystemServices::setAudioInput(const QString &sourceName, const QString &portName) {
     if (sourceName.isEmpty()) return;
 
-    QString cmd = QStringLiteral("pactl set-default-source '%1'").arg(sourceName);
-    if (!portName.isEmpty()) {
-        cmd += QStringLiteral(" && pactl set-source-port '%1' '%2'").arg(sourceName, portName);
-    }
-
-    startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), cmd}, 1000, [this](const CommandResult &) {
-        requestAudioInputs();
-        requestMicVolume();
+    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-source"), sourceName}, 1000,
+                 [this, sourceName, portName](const CommandResult &) {
+        if (!portName.isEmpty()) {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-source-port"), sourceName, portName}, 1000,
+                         [this](const CommandResult &) {
+                requestAudioInputs();
+                requestMicVolume();
+            });
+        } else {
+            requestAudioInputs();
+            requestMicVolume();
+        }
     });
 }
 
@@ -2846,6 +2894,17 @@ void SystemServices::startCava() {
         m_cavaProcess->closeWriteChannel();
     });
     connect(m_cavaProcess, &QProcess::readyReadStandardOutput, this, &SystemServices::handleCavaOutput);
+    connect(m_cavaProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            if (m_cavaProcess) {
+                m_cavaProcess->deleteLater();
+                m_cavaProcess = nullptr;
+            }
+            m_cavaBuffer.clear();
+            if (!m_shuttingDown && !m_cavaClients.isEmpty() && !m_cavaRestartTimer.isActive())
+                m_cavaRestartTimer.start();
+        }
+    });
     connect(m_cavaProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus) {
         m_cavaProcess->deleteLater();

@@ -108,6 +108,10 @@ LyricsMprisApp::LyricsMprisApp(AppOptions options, QObject *parent)
     connect(&m_retryTimer, &QTimer::timeout, this, &LyricsMprisApp::retryCurrentTrack);
 }
 
+LyricsMprisApp::~LyricsMprisApp() {
+    abortNetwork();
+}
+
 void LyricsMprisApp::start() {
     if (m_options.lookupMode) {
         startLookup();

@@ -343,6 +343,28 @@ void SysBackend::setupAudio() {
     m_paSubscriber->setProcessChannelMode(QProcess::MergedChannels);
     connect(m_paSubscriber, &QProcess::readyReadStandardOutput, this, &SysBackend::handleVolumeEvent);
 
+    m_paRestartTimer = new QTimer(this);
+    m_paRestartTimer->setSingleShot(true);
+    m_paRestartTimer->setInterval(2000);
+    connect(m_paRestartTimer, &QTimer::timeout, this, [this]() {
+        if (m_paSubscriber && m_paSubscriber->state() == QProcess::NotRunning) {
+            m_paSubscriber->start("pactl", QStringList() << "subscribe");
+            fetchCurrentVolume();
+            fetchCurrentMicVolume();
+            checkDefaultAudioDevice();
+        }
+    });
+
+    connect(m_paSubscriber, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this](int, QProcess::ExitStatus) {
+        if (m_paRestartTimer && !m_paRestartTimer->isActive())
+            m_paRestartTimer->start();
+    });
+    connect(m_paSubscriber, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (m_paRestartTimer && !m_paRestartTimer->isActive())
+            m_paRestartTimer->start();
+    });
+
     m_volumeQueryProcess = new QProcess(this);
     m_volumeQueryTimeoutTimer = new QTimer(this);
     m_volumeQueryTimeoutTimer->setSingleShot(true);

@@ -499,6 +499,9 @@ void ScreenRecorderController::pollExternalState() {
     // Check recording PID
     const qint64 recPid = readPidFromFile(recordPidFilePath());
     const bool recRunning = isProcessRunning(recPid);
+    if (recPid > 0 && !recRunning) {
+        removePidFile(recordPidFilePath());
+    }
 
     if (recRunning != m_isRecording) {
         m_isRecording = recRunning;
@@ -509,6 +512,7 @@ void ScreenRecorderController::pollExternalState() {
         } else {
             m_tickTimer.stop();
             m_isPaused = false;
+            removePidFile(recordPidFilePath());
         }
         emit recordingStateChanged();
         if (SystemServices::instance())
@@ -518,10 +522,16 @@ void ScreenRecorderController::pollExternalState() {
     // Check replay PID
     const qint64 repPid = readPidFromFile(replayPidFilePath());
     const bool repRunning = isProcessRunning(repPid);
+    if (repPid > 0 && !repRunning) {
+        removePidFile(replayPidFilePath());
+    }
 
     if (repRunning != m_isReplayActive) {
         m_isReplayActive = repRunning;
         m_replayPid = repRunning ? repPid : 0;
+        if (!m_isReplayActive) {
+            removePidFile(replayPidFilePath());
+        }
         emit replayStateChanged();
     }
 }

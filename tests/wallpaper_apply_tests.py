@@ -59,6 +59,15 @@ printf '\\n' >> "$WALLPAPER_TEST_LOG"
 exit "${WAL_EXIT_CODE:-0}"
 """,
         )
+        self.write_fake_command(
+            "swww",
+            """#!/bin/sh
+printf 'swww' >> "$WALLPAPER_TEST_LOG"
+for argument in "$@"; do printf '\\t%s' "$argument" >> "$WALLPAPER_TEST_LOG"; done
+printf '\\n' >> "$WALLPAPER_TEST_LOG"
+exit "${SWWW_EXIT_CODE:-0}"
+""",
+        )
 
     def write_fake_command(self, name, contents):
         path = self.bin_directory / name
@@ -149,6 +158,27 @@ exit "${WAL_EXIT_CODE:-0}"
 
         self.assertEqual(result.returncode, 127)
         self.assertIn("the 'wal' command was not found in PATH", result.stderr)
+
+    def test_fallback_to_swww_when_awww_missing(self):
+        (self.bin_directory / "awww").unlink()
+        target_path = self.root / "target" / "current.jpg"
+
+        result = self.run_apply(target=str(target_path), extra_environment={"PATH": str(self.bin_directory)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = self.command_log()
+        self.assertEqual(len(commands), 2)
+        self.assertTrue(commands[0].startswith(f"swww\timg\t{target_path}\t"))
+        self.assertEqual(commands[1], f"wal\t-n\t-q\t-i\t{self.source_path}")
+
+    def test_missing_both_awww_and_swww_is_reported(self):
+        (self.bin_directory / "awww").unlink()
+        (self.bin_directory / "swww").unlink()
+
+        result = self.run_apply(extra_environment={"PATH": str(self.bin_directory)})
+
+        self.assertEqual(result.returncode, 127)
+        self.assertIn("Neither 'awww' nor 'swww' was found in PATH", result.stderr)
 
     def test_custom_command_disables_builtin_settings(self):
         qml = SETTINGS_QML.read_text(encoding="utf-8")

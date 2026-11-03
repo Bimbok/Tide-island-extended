@@ -101,9 +101,13 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
 
 SystemGlanceBackend::~SystemGlanceBackend()
 {
-    if (m_updateProcess && m_updateProcess->state() != QProcess::NotRunning) {
-        m_updateProcess->kill();
-        m_updateProcess->waitForFinished(300);
+    if (m_updateProcess) {
+        m_updateProcess->disconnect();
+        if (m_updateProcess->state() != QProcess::NotRunning) {
+            m_updateProcess->kill();
+            m_updateProcess->waitForFinished(300);
+        }
+        m_updateProcess = nullptr;
     }
 
     if (s_instance == this) {
@@ -1011,11 +1015,14 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
             m_pendingUpdatesCount = 0;
             emit updatesChanged();
             emit statsUpdated();
+            if (m_updateProcess == proc)
+                m_updateProcess = nullptr;
             proc->deleteLater();
             return;
         }
 
         QProcess *pacProc = new QProcess(this);
+        m_updateProcess = pacProc;
         connect(pacProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
                 [this, pacProc](int pCode, QProcess::ExitStatus pStatus) {
             m_checkingUpdates = false;
@@ -1028,6 +1035,8 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
             }
             emit updatesChanged();
             emit statsUpdated();
+            if (m_updateProcess == pacProc)
+                m_updateProcess = nullptr;
             pacProc->deleteLater();
         });
         connect(pacProc, &QProcess::errorOccurred, this, [this, pacProc](QProcess::ProcessError) {
@@ -1036,6 +1045,8 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
             m_pendingUpdatesCount = 0;
             emit updatesChanged();
             emit statsUpdated();
+            if (m_updateProcess == pacProc)
+                m_updateProcess = nullptr;
             pacProc->deleteLater();
         });
         pacProc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
@@ -1050,6 +1061,8 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
             m_pendingUpdatesCount = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
             emit updatesChanged();
             emit statsUpdated();
+            if (m_updateProcess == proc)
+                m_updateProcess = nullptr;
             proc->deleteLater();
         } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
             // checkupdates returns 2 when no updates are available
@@ -1058,6 +1071,8 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
             m_pendingUpdatesCount = 0;
             emit updatesChanged();
             emit statsUpdated();
+            if (m_updateProcess == proc)
+                m_updateProcess = nullptr;
             proc->deleteLater();
         } else {
             // Fallback: check local synced pacman database asynchronously
@@ -1081,6 +1096,7 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
         m_pendingUpdatesCount = 0;
         emit updatesChanged();
         emit statsUpdated();
+        m_updateProcess = nullptr;
         proc->deleteLater();
     }
 }

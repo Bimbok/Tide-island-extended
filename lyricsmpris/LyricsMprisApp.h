@@ -31,6 +31,7 @@ class LyricsMprisApp final : public QObject {
 
 public:
     explicit LyricsMprisApp(AppOptions options, QObject *parent = nullptr);
+    ~LyricsMprisApp() override;
 
 public slots:
     void start();

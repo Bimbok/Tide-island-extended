@@ -81,7 +81,7 @@ constexpr auto kRootPath = "/";
 constexpr uint kWifiDeviceType = 2;
 constexpr uint kAccessPointPrivacyFlag = 0x1;
 
-QDBusArgument &operator<<(QDBusArgument &argument, const ConnectionSettingsMap &settings) {
+[[maybe_unused]] QDBusArgument &operator<<(QDBusArgument &argument, const ConnectionSettingsMap &settings) {
     argument.beginMap(QMetaType::fromType<QString>(), QMetaType::fromType<QVariantMap>());
     for (auto it = settings.cbegin(); it != settings.cend(); ++it) {
         argument.beginMapEntry();
@@ -92,7 +92,7 @@ QDBusArgument &operator<<(QDBusArgument &argument, const ConnectionSettingsMap &
     return argument;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &argument, ConnectionSettingsMap &settings) {
+[[maybe_unused]] const QDBusArgument &operator>>(const QDBusArgument &argument, ConnectionSettingsMap &settings) {
     settings.clear();
     argument.beginMap();
     while (!argument.atEnd()) {
@@ -238,7 +238,7 @@ bool isIwdSecureNetwork(const QString &networkType) {
     return networkType != QLatin1String("open");
 }
 
-QString titleCaseBackendName(const QString &backendName) {
+[[maybe_unused]] QString titleCaseBackendName(const QString &backendName) {
     if (backendName == QLatin1String("iwd"))
         return QStringLiteral("iwd");
     if (backendName == QLatin1String("connman"))
@@ -1131,6 +1131,11 @@ void WifiController::connectBackendSignals() {
 WifiController::~WifiController() {
     if (m_refreshCancellation)
         m_refreshCancellation->store(true);
+    unregisterIwdAgent();
+    if (m_iwdAgentObjectExported) {
+        QDBusConnection::systemBus().unregisterObject(QString::fromLatin1(kIwdAgentObjectPath));
+        m_iwdAgentObjectExported = false;
+    }
 }
 
 void WifiController::invalidateRefresh() {

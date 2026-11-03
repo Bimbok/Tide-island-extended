@@ -142,6 +142,12 @@ private slots:
         qDebug() << "Pending updates count:" << glance.pendingUpdatesCount();
         QVERIFY(glance.pendingUpdatesCount() >= 0);
     }
+
+    void testDestructionDuringUpdateCheck() {
+        auto *glance = new SystemGlanceBackend();
+        glance->checkUpdatesAsync(true);
+        delete glance;
+    }
 };
 
 QTEST_MAIN(SystemGlanceTests)

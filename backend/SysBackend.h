@@ -91,6 +91,7 @@ private:
 
     bool m_isBluetoothAudio = false;
     QProcess *m_paSubscriber;
+    QTimer *m_paRestartTimer = nullptr;
     QProcess *m_volumeQueryProcess;
     QProcess *m_micQueryProcess = nullptr;
     QProcess *m_defaultSinkQueryProcess;
