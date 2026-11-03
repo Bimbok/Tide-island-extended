@@ -357,48 +357,47 @@ Scope {
         if (unlocking) return "󰄬";
         if (pamLocked) return "󰌾";
         if (lockedOut) return "󰒲";
-        if (checking) return "󱐋";
-        if (failed || isShakingFailed) return "󰚌";
+        if (checking) return "󰑮";
+        if (failed || isShakingFailed) return "󰀦";
         return "󰌾";
     }
 
     readonly property string statusText: {
         if (unlocking)
-            return "Welcome back, " + userName + "! ♡";
+            return "Welcome back, " + userName;
         if (pamLocked)
-            return "Locked by PAM · Admin reset required";
+            return "Session locked · System administrator reset required";
         if (lockedOut)
-            return "Too many attempts · Please wait " + cooldown + "s (•́ω•̀)";
+            return "Too many attempts · Please wait " + cooldown + "s";
         if (checking)
-            return "Verifying credentials… ✧";
+            return "Verifying credentials…";
         if (confirmArmed)
-            return "Press Enter again to confirm ♡";
+            return "Press Enter again to confirm";
         if (failed || isShakingFailed) {
-            if (failCount === 1) return "Oops, not quite right (｡•́︿•̀｡) · Try again";
-            if (failCount === 2) return "Still incorrect ₍ᐢ. .ᐢ₎ · Take your time";
+            if (failCount === 1) return "Incorrect password · Please try again";
             return "Incorrect password (" + failCount + " attempts) · Check Caps Lock";
         }
         if (pamRisky)
-            return "PAM recorded earlier failures · Press Enter to confirm";
-        return "Press Enter to unlock · Esc to clear ♡";
+            return "Prior authentication failure recorded · Press Enter to confirm";
+        return "Press Enter to unlock · Esc to clear";
     }
 
     signal shake()
 
     function greeting() {
         const h = clock.hours;
-        if (h >= 5 && h < 12) return "Good morning, " + userName + " ✧";
-        if (h >= 12 && h < 17) return "Good afternoon, " + userName + " ✦";
-        if (h >= 17 && h < 22) return "Good evening, " + userName + " ~";
-        return "Sweet dreams, " + userName + " ☾";
+        if (h >= 5 && h < 12) return "Good morning, " + userName;
+        if (h >= 12 && h < 17) return "Good afternoon, " + userName;
+        if (h >= 17 && h < 22) return "Good evening, " + userName;
+        return "Late night, " + userName;
     }
 
     function greetingIcon() {
         const h = clock.hours;
-        if (h >= 5 && h < 12) return "󰖙"; // Cute morning sun
-        if (h >= 12 && h < 17) return "󰖙"; // Cute bright sun
-        if (h >= 17 && h < 22) return "󰖐"; // Cute sunset cloud
-        return "󰖔"; // Cute crescent moon
+        if (h >= 5 && h < 12) return "󰖙"; // Morning sun
+        if (h >= 12 && h < 17) return "󰖙"; // Bright sun
+        if (h >= 17 && h < 22) return "󰖐"; // Sunset cloud
+        return "󰖔"; // Crescent moon
     }
 
     function onFailure() {
@@ -838,7 +837,7 @@ Scope {
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(clock.date, "dddd, MMMM d") + " ✦"
+                            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
                             font.family: root.textFont
                             font.pixelSize: 22
                             font.weight: Font.Medium
@@ -1084,12 +1083,12 @@ Scope {
                                                 }
                                             }
 
-                                            // Date Display with cute sparkle
+                                            // Date Display
                                             Text {
                                                 id: dateText
                                                 width: parent.width
                                                 horizontalAlignment: Text.AlignHCenter
-                                                text: Qt.formatDateTime(clock.date, "dddd, MMMM d") + " ✦"
+                                                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
                                                 font.family: root.textFont
                                                 font.pixelSize: root.hasMedia ? 12 : 14
                                                 font.weight: Font.Medium
@@ -1703,7 +1702,7 @@ Scope {
                                                     }
 
                                                     Text {
-                                                        text: "Active Session ✧"
+                                                        text: "Active Session"
                                                         font.family: root.textFont
                                                         font.pixelSize: 10
                                                         font.weight: Font.DemiBold
@@ -1858,7 +1857,7 @@ Scope {
                                                         }
 
                                                         Text {
-                                                            text: "Type password to unlock ♡"
+                                                            text: "Enter password to unlock"
                                                             font.family: root.textFont
                                                             font.pixelSize: 13
                                                             font.weight: Font.Medium
@@ -1970,7 +1969,7 @@ Scope {
                                                         Text {
                                                             id: goIcon
                                                             anchors.centerIn: parent
-                                                            text: root.unlocking ? "󰄬" : (root.checking ? "󱐋" : (root.pamLocked ? "󰌾" : "󰁔"))
+                                                            text: root.unlocking ? "󰄬" : (root.checking ? "󰑮" : (root.pamLocked ? "󰌾" : "󰁔"))
                                                             color: StyleTokens.textOnAccent
                                                             font.family: root.nerdFont
                                                             font.pixelSize: 17
@@ -2154,12 +2153,12 @@ Scope {
                                         spacing: 8
                                         visible: root.showPowerActions
 
-                                        // Sleep Button (Cute Snooze)
+                                        // Sleep Button
                                         Rectangle {
                                             id: sleepBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 100 : 36
+                                            width: armed ? 90 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
@@ -2180,7 +2179,7 @@ Scope {
                                                 anchors.centerIn: parent
                                                 spacing: 5
                                                 Text {
-                                                    text: "󰒲" // Cute Zzz snooze moon
+                                                    text: "󰒲"
                                                     font.family: root.nerdFont
                                                     font.pixelSize: 16
                                                     color: sleepBtn.armed ? StyleTokens.danger
@@ -2190,7 +2189,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: sleepBtn.armed
-                                                    text: "Snooze? zZz"
+                                                    text: "Sleep?"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
@@ -2224,12 +2223,12 @@ Scope {
                                             }
                                         }
 
-                                        // Reboot Button (Cute Rounded Refresh)
+                                        // Reboot Button
                                         Rectangle {
                                             id: rebootBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 98 : 36
+                                            width: armed ? 94 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
@@ -2250,7 +2249,7 @@ Scope {
                                                 anchors.centerIn: parent
                                                 spacing: 5
                                                 Text {
-                                                    text: "󰑓" // Cute rounded sync
+                                                    text: "󰑓"
                                                     font.family: root.nerdFont
                                                     font.pixelSize: 16
                                                     color: rebootBtn.armed ? StyleTokens.danger
@@ -2260,7 +2259,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: rebootBtn.armed
-                                                    text: "Restart? ✦"
+                                                    text: "Restart?"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
@@ -2294,12 +2293,12 @@ Scope {
                                             }
                                         }
 
-                                        // Shutdown Button (Cute Soft Power)
+                                        // Shutdown Button
                                         Rectangle {
                                             id: shutdownBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 106 : 36
+                                            width: armed ? 96 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.25)
@@ -2320,7 +2319,7 @@ Scope {
                                                 anchors.centerIn: parent
                                                 spacing: 5
                                                 Text {
-                                                    text: "󰐥" // Cute soft power
+                                                    text: "󰐥"
                                                     font.family: root.nerdFont
                                                     font.pixelSize: 16
                                                     color: shutdownBtn.armed ? StyleTokens.danger
@@ -2330,7 +2329,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: shutdownBtn.armed
-                                                    text: "Power off? ♡"
+                                                    text: "Power off?"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
