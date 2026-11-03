@@ -346,41 +346,58 @@ Scope {
     property int cooldown: 0
     property bool pamRecord: false
     property bool confirmArmed: false
+    property int failedBulletsCount: 0
+    property bool isShakingFailed: false
 
     readonly property bool lockedOut: cooldown > 0
     readonly property bool pamRisky: pamRecord || failCount > 0
     readonly property bool pamLocked: failCount >= 3
 
+    function statusIcon() {
+        if (unlocking) return "󰄬";
+        if (pamLocked) return "󰌾";
+        if (lockedOut) return "󰒲";
+        if (checking) return "󱐋";
+        if (failed || isShakingFailed) return "󰚌";
+        return "󰌾";
+    }
+
     readonly property string statusText: {
         if (unlocking)
-            return "Welcome back, " + userName;
+            return "Welcome back, " + userName + "! ♡";
         if (pamLocked)
             return "Locked by PAM · Admin reset required";
         if (lockedOut)
-            return "Too many attempts · Please wait " + cooldown + "s";
+            return "Too many attempts · Please wait " + cooldown + "s (•́ω•̀)";
         if (checking)
-            return "Verifying credentials…";
+            return "Verifying credentials… ✧";
         if (confirmArmed)
-            return "Press Enter again to submit";
-        if (failed)
-            return "Incorrect password · " + failCount + (failCount === 1 ? " attempt" : " attempts");
+            return "Press Enter again to confirm ♡";
+        if (failed || isShakingFailed) {
+            if (failCount === 1) return "Oops, not quite right (｡•́︿•̀｡) · Try again";
+            if (failCount === 2) return "Still incorrect ₍ᐢ. .ᐢ₎ · Take your time";
+            return "Incorrect password (" + failCount + " attempts) · Check Caps Lock";
+        }
         if (pamRisky)
             return "PAM recorded earlier failures · Press Enter to confirm";
-        return "Press Enter to unlock · Esc to clear";
+        return "Press Enter to unlock · Esc to clear ♡";
     }
 
     signal shake()
 
     function greeting() {
         const h = clock.hours;
-        const t = h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 22 ? "Good evening" : "Late night";
-        return t + ", " + userName;
+        if (h >= 5 && h < 12) return "Good morning, " + userName + " ✧";
+        if (h >= 12 && h < 17) return "Good afternoon, " + userName + " ✦";
+        if (h >= 17 && h < 22) return "Good evening, " + userName + " ~";
+        return "Sweet dreams, " + userName + " ☾";
     }
 
     function greetingIcon() {
         const h = clock.hours;
-        if (h >= 5 && h < 17) return "󰖙"; // Cute sun
-        if (h >= 17 && h < 21) return "󰖐"; // Cute sunset cloud
+        if (h >= 5 && h < 12) return "󰖙"; // Cute morning sun
+        if (h >= 12 && h < 17) return "󰖙"; // Cute bright sun
+        if (h >= 17 && h < 22) return "󰖐"; // Cute sunset cloud
         return "󰖔"; // Cute crescent moon
     }
 
@@ -388,16 +405,24 @@ Scope {
         root.checking = false;
         root.failed = true;
         root.failCount++;
+        root.failedBulletsCount = Math.max(1, Math.min(root.buffer.length, 16));
+        root.isShakingFailed = true;
         root.buffer = "";
         root.confirmArmed = false;
         root.shake();
         root.cooldown = root.failCount === 1 ? 0 : (root.failCount === 2 ? 5 : 60);
         refreshFailTally();
+        failBulletTimer.restart();
     }
 
     function submit() {
         if (checking || unlocking || lockedOut || buffer.length === 0)
             return;
+        if (root.isShakingFailed) {
+            failBulletTimer.stop();
+            root.isShakingFailed = false;
+            root.failedBulletsCount = 0;
+        }
         if (pamLocked) {
             resetPamTally();
             return;
@@ -442,6 +467,9 @@ Scope {
                 root.checking = false;
                 root.unlocking = true;
                 root.failed = false;
+                root.isShakingFailed = false;
+                root.failedBulletsCount = 0;
+                failBulletTimer.stop();
                 root.cooldown = 0;
                 unlockTimer.start();
             } else {
@@ -485,6 +513,17 @@ Scope {
         onTriggered: {
             root.failCount = 0;
             root.failed = false;
+            root.isShakingFailed = false;
+            root.failedBulletsCount = 0;
+        }
+    }
+
+    Timer {
+        id: failBulletTimer
+        interval: 520
+        onTriggered: {
+            root.isShakingFailed = false;
+            root.failedBulletsCount = 0;
         }
     }
 
@@ -495,6 +534,10 @@ Scope {
         onTriggered: {
             sessionLock.locked = false;
             root.buffer = "";
+            root.failed = false;
+            root.isShakingFailed = false;
+            root.failedBulletsCount = 0;
+            failBulletTimer.stop();
             root.unlocking = false;
             if (root.oneshot)
                 quitTimer.start();
@@ -543,6 +586,9 @@ Scope {
             if (locked) {
                 root.buffer = "";
                 root.failed = false;
+                root.isShakingFailed = false;
+                root.failedBulletsCount = 0;
+                failBulletTimer.stop();
                 root.checking = false;
                 root.unlocking = false;
                 root.cooldown = 0;
@@ -646,12 +692,27 @@ Scope {
                         return;
                     root.confirmArmed = false;
                     if (event.key === Qt.Key_Backspace) {
+                        if (root.isShakingFailed) {
+                            failBulletTimer.stop();
+                            root.isShakingFailed = false;
+                            root.failedBulletsCount = 0;
+                        }
                         root.buffer = root.buffer.slice(0, -1);
                     } else if (event.key === Qt.Key_Escape || (event.key === Qt.Key_U && (event.modifiers & Qt.ControlModifier))) {
+                        if (root.isShakingFailed) {
+                            failBulletTimer.stop();
+                            root.isShakingFailed = false;
+                            root.failedBulletsCount = 0;
+                        }
                         root.buffer = "";
                     } else if (event.text.length > 0 && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
                         const ch = event.text.charCodeAt(0);
                         if (ch >= 32 && ch !== 127) {
+                            if (root.isShakingFailed) {
+                                failBulletTimer.stop();
+                                root.isShakingFailed = false;
+                                root.failedBulletsCount = 0;
+                            }
                             root.buffer += event.text;
                             root.failed = false;
                             failReset.restart();
@@ -726,34 +787,75 @@ Scope {
                         anchors.centerIn: parent
                         spacing: 20
 
-                        Text {
+                        Row {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(clock.date, root.clockFmt)
-                            font.family: root.timeFont
-                            font.pixelSize: 96
-                            font.weight: Font.Bold
-                            font.letterSpacing: -2.5
-                            color: StyleTokens.textPrimaryBright
+                            spacing: 2
+
+                            Text {
+                                text: {
+                                    const str = Qt.formatDateTime(clock.date, root.clockFmt);
+                                    const idx = str.indexOf(":");
+                                    return idx !== -1 ? str.substring(0, idx) : str;
+                                }
+                                font.family: root.timeFont
+                                font.pixelSize: 96
+                                font.weight: Font.Bold
+                                font.letterSpacing: -2.5
+                                color: StyleTokens.textPrimaryBright
+                            }
+
+                            Text {
+                                visible: Qt.formatDateTime(clock.date, root.clockFmt).indexOf(":") !== -1
+                                text: ":"
+                                font.family: root.timeFont
+                                font.pixelSize: 96
+                                font.weight: Font.Bold
+                                color: StyleTokens.accent
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.verticalCenterOffset: -3
+
+                                SequentialAnimation on opacity {
+                                    loops: Animation.Infinite
+                                    running: true
+                                    NumberAnimation { to: 0.35; duration: 1000; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                                }
+                            }
+
+                            Text {
+                                text: {
+                                    const str = Qt.formatDateTime(clock.date, root.clockFmt);
+                                    const idx = str.indexOf(":");
+                                    return idx !== -1 ? str.substring(idx + 1) : "";
+                                }
+                                font.family: root.timeFont
+                                font.pixelSize: 96
+                                font.weight: Font.Bold
+                                font.letterSpacing: -2.5
+                                color: StyleTokens.textPrimaryBright
+                            }
                         }
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
+                            text: Qt.formatDateTime(clock.date, "dddd, MMMM d") + " ✦"
                             font.family: root.textFont
                             font.pixelSize: 22
                             font.weight: Font.Medium
+                            font.letterSpacing: 0.3
                             color: StyleTokens.textSecondary
                         }
 
                         // Cute ambient weather / greeting pill on secondary screens
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            height: 36
-                            width: secRow.implicitWidth + 32
-                            radius: 18
-                            color: Qt.rgba(255, 255, 255, 0.06)
+                            height: 38
+                            width: secRow.implicitWidth + 36
+                            radius: 19
+                            color: Qt.rgba(255, 255, 255, 0.08)
                             border.width: 1
-                            border.color: Qt.rgba(255, 255, 255, 0.10)
+                            border.color: StyleTokens.surfaceHighlight
+                            antialiasing: true
 
                             RowLayout {
                                 id: secRow
@@ -764,7 +866,7 @@ Scope {
                                     text: weatherService.hasData ? weatherService.iconGlyph : root.greetingIcon()
                                     color: weatherService.hasData ? weatherService.iconColor : StyleTokens.accent
                                     font.family: root.nerdFont
-                                    font.pixelSize: 16
+                                    font.pixelSize: 17
                                     Layout.alignment: Qt.AlignVCenter
                                 }
 
@@ -772,7 +874,7 @@ Scope {
                                     text: weatherService.hasData ? (weatherService.tempString + " · " + weatherService.condition) : root.greeting()
                                     font.family: root.textFont
                                     font.pixelSize: 13
-                                    font.weight: Font.Medium
+                                    font.weight: Font.DemiBold
                                     color: StyleTokens.textPrimaryBright
                                     Layout.alignment: Qt.AlignVCenter
                                 }
@@ -812,14 +914,14 @@ Scope {
                             function onShake() { shakeAnim.restart(); }
                         }
 
-                        // Organic decaying shake on password fail
+                        // Organic harmonic secondary shake on password fail
                         SequentialAnimation {
                             id: shakeAnim
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -18; duration: 45; easing.type: Easing.OutQuad }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 16; duration: 55; easing.type: Easing.InOutQuad }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -10; duration: 55; easing.type: Easing.InOutQuad }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 6; duration: 50; easing.type: Easing.InOutQuad }
-                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 0; duration: 45; easing.type: Easing.OutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -8; duration: 50; easing.type: Easing.OutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 7; duration: 60; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: -4; duration: 60; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 2; duration: 55; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: boxWrap; property: "shakeOff"; to: 0; duration: 50; easing.type: Easing.OutQuad }
                         }
 
                         // Deep diffused dark drop shadow
@@ -932,28 +1034,66 @@ Scope {
                                             width: parent.width - 28
                                             spacing: root.hasMedia ? 8 : 16
 
-                                            // Time Display (Modern, Bold, Perfectly Proportioned)
-                                            Text {
-                                                id: clockText
-                                                width: parent.width
-                                                horizontalAlignment: Text.AlignHCenter
-                                                text: Qt.formatDateTime(clock.date, root.clockFmt)
-                                                font.family: root.timeFont
-                                                font.pixelSize: root.hasMedia ? (root.is24h ? 50 : 42) : (root.is24h ? 78 : 68)
-                                                font.weight: Font.Bold
-                                                font.letterSpacing: -1.8
-                                                color: StyleTokens.textPrimaryBright
+                                            // Cute Living Clock Display with softly breathing colon
+                                            Row {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                spacing: 1
+
+                                                Text {
+                                                    text: {
+                                                         const str = Qt.formatDateTime(clock.date, root.clockFmt);
+                                                         const idx = str.indexOf(":");
+                                                         return idx !== -1 ? str.substring(0, idx) : str;
+                                                    }
+                                                    font.family: root.timeFont
+                                                    font.pixelSize: root.hasMedia ? (root.is24h ? 52 : 44) : (root.is24h ? 80 : 70)
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: -1.5
+                                                    color: StyleTokens.textPrimaryBright
+                                                }
+
+                                                Text {
+                                                    visible: Qt.formatDateTime(clock.date, root.clockFmt).indexOf(":") !== -1
+                                                    text: ":"
+                                                    font.family: root.timeFont
+                                                    font.pixelSize: root.hasMedia ? (root.is24h ? 52 : 44) : (root.is24h ? 80 : 70)
+                                                    font.weight: Font.Bold
+                                                    color: StyleTokens.accent
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    anchors.verticalCenterOffset: -2
+
+                                                    SequentialAnimation on opacity {
+                                                        loops: Animation.Infinite
+                                                        running: true
+                                                        NumberAnimation { to: 0.35; duration: 1000; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: {
+                                                         const str = Qt.formatDateTime(clock.date, root.clockFmt);
+                                                         const idx = str.indexOf(":");
+                                                         return idx !== -1 ? str.substring(idx + 1) : "";
+                                                    }
+                                                    font.family: root.timeFont
+                                                    font.pixelSize: root.hasMedia ? (root.is24h ? 52 : 44) : (root.is24h ? 80 : 70)
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: -1.5
+                                                    color: StyleTokens.textPrimaryBright
+                                                }
                                             }
 
-                                            // Date Display
+                                            // Date Display with cute sparkle
                                             Text {
                                                 id: dateText
                                                 width: parent.width
                                                 horizontalAlignment: Text.AlignHCenter
-                                                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
+                                                text: Qt.formatDateTime(clock.date, "dddd, MMMM d") + " ✦"
                                                 font.family: root.textFont
-                                                font.pixelSize: root.hasMedia ? 12 : 15
+                                                font.pixelSize: root.hasMedia ? 12 : 14
                                                 font.weight: Font.Medium
+                                                font.letterSpacing: 0.2
                                                 color: StyleTokens.textSecondary
                                             }
 
@@ -1214,11 +1354,11 @@ Scope {
                                                                     : "#13ffffff"
                                                                 border.width: 1
                                                                 border.color: prevMouse.containsMouse ? StyleTokens.accent : StyleTokens.surfaceHighlight
-                                                                scale: prevMouse.pressed ? 0.90 : (prevMouse.containsMouse ? 1.08 : 1.0)
+                                                                scale: prevMouse.pressed ? 0.88 : (prevMouse.containsMouse ? 1.10 : 1.0)
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 antialiasing: true
 
-                                                                Behavior on scale { NumberAnimation { duration: 100 } }
+                                                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
                                                                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -1244,10 +1384,10 @@ Scope {
                                                                 height: 44
                                                                 radius: 22
                                                                 color: StyleTokens.accent
-                                                                scale: playMouse.pressed ? 0.90 : (playMouse.containsMouse ? 1.08 : 1.0)
+                                                                scale: playMouse.pressed ? 0.88 : (playMouse.containsMouse ? 1.10 : 1.0)
                                                                 anchors.verticalCenter: parent.verticalCenter
 
-                                                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                                                Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutBack } }
 
                                                                 // Ambient glow on play button
                                                                 RectangularGlow {
@@ -1324,11 +1464,11 @@ Scope {
                                                                     : "#13ffffff"
                                                                 border.width: 1
                                                                 border.color: nextMouse.containsMouse ? StyleTokens.accent : StyleTokens.surfaceHighlight
-                                                                scale: nextMouse.pressed ? 0.90 : (nextMouse.containsMouse ? 1.08 : 1.0)
+                                                                scale: nextMouse.pressed ? 0.88 : (nextMouse.containsMouse ? 1.10 : 1.0)
                                                                 anchors.verticalCenter: parent.verticalCenter
                                                                 antialiasing: true
 
-                                                                Behavior on scale { NumberAnimation { duration: 100 } }
+                                                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                                                                 Behavior on color { ColorAnimation { duration: 120 } }
                                                                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -1427,7 +1567,7 @@ Scope {
                                         Column {
                                             anchors.centerIn: parent
                                             width: parent.width - 36
-                                            spacing: 12
+                                            spacing: 10
 
                                             // Avatar with Living Breathing Glass Halo
                                             Item {
@@ -1435,20 +1575,43 @@ Scope {
                                                 width: 96
                                                 height: 96
 
-                                                // Breathing halo glow
+                                                // Outer soft ambient pastel breathing aura
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    anchors.margins: -4
+                                                    radius: width / 2
+                                                    color: "transparent"
+                                                    border.width: 1.5
+                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.35)
+
+                                                    SequentialAnimation on scale {
+                                                        loops: Animation.Infinite
+                                                        running: true
+                                                        NumberAnimation { to: 1.06; duration: 2400; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 0.98; duration: 2400; easing.type: Easing.InOutSine }
+                                                    }
+                                                    SequentialAnimation on opacity {
+                                                        loops: Animation.Infinite
+                                                        running: true
+                                                        NumberAnimation { to: 0.8; duration: 2400; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 0.25; duration: 2400; easing.type: Easing.InOutSine }
+                                                    }
+                                                }
+
+                                                // Inner breathing halo glow
                                                 Rectangle {
                                                     id: avatarHalo
                                                     anchors.fill: parent
                                                     radius: width / 2
                                                     color: "transparent"
                                                     border.width: 2
-                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.50)
+                                                    border.color: StyleTokens.withAlpha(StyleTokens.accent, 0.55)
 
                                                     SequentialAnimation on opacity {
                                                         loops: Animation.Infinite
                                                         running: true
-                                                        NumberAnimation { to: 0.85; duration: 2200; easing.type: Easing.InOutSine }
-                                                        NumberAnimation { to: 0.35; duration: 2200; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 0.90; duration: 2200; easing.type: Easing.InOutSine }
+                                                        NumberAnimation { to: 0.40; duration: 2200; easing.type: Easing.InOutSine }
                                                     }
                                                 }
 
@@ -1501,161 +1664,358 @@ Scope {
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: root.userName
                                                 font.family: root.textFont
-                                                font.pixelSize: 20
+                                                font.pixelSize: 19
                                                 font.weight: Font.Bold
                                                 font.letterSpacing: 0.2
                                                 color: StyleTokens.textPrimaryBright
                                                 elide: Text.ElideRight
                                             }
 
-                                            // Password Input Field (Modern Frosted Glass Pill)
+                                            // Cute Session Status Badge
                                             Rectangle {
-                                                id: field
-                                                width: parent.width
-                                                height: 48
-                                                radius: 24
-                                                color: "#30000000"
-                                                border.width: 1.5
-                                                border.color: (root.failed || root.lockedOut)
-                                                    ? StyleTokens.danger
-                                                    : (root.buffer.length > 0 ? StyleTokens.accent : StyleTokens.surfaceHighlight)
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                height: 20
+                                                width: badgeRow.implicitWidth + 18
+                                                radius: 10
+                                                color: Qt.rgba(255, 255, 255, 0.06)
+                                                border.width: 1
+                                                border.color: Qt.rgba(255, 255, 255, 0.10)
                                                 antialiasing: true
 
-                                                Behavior on border.color {
-                                                    ColorAnimation { duration: 180 }
-                                                }
-
-                                                SequentialAnimation {
-                                                    id: typePulse
-                                                    NumberAnimation { target: field; property: "scale"; to: 1.018; duration: 60; easing.type: Easing.OutQuad }
-                                                    NumberAnimation { target: field; property: "scale"; to: 1.0; duration: 120; easing.type: Easing.OutQuad }
-                                                }
-
-                                                Connections {
-                                                    target: root
-                                                    function onBufferChanged() {
-                                                        if (root.buffer.length > 0)
-                                                            typePulse.restart();
-                                                    }
-                                                }
-
-                                                // Placeholder Text
-                                                Text {
+                                                RowLayout {
+                                                    id: badgeRow
                                                     anchors.centerIn: parent
-                                                    text: "Enter Password"
-                                                    font.family: root.textFont
-                                                    font.pixelSize: 13
-                                                    font.weight: Font.Medium
-                                                    color: StyleTokens.textMuted
-                                                    opacity: root.buffer.length === 0 ? 0.75 : 0
-                                                    Behavior on opacity {
-                                                        NumberAnimation { duration: 160 }
+                                                    spacing: 5
+
+                                                    Rectangle {
+                                                        width: 6
+                                                        height: 6
+                                                        radius: 3
+                                                        color: StyleTokens.accent
+                                                        Layout.alignment: Qt.AlignVCenter
+
+                                                        SequentialAnimation on opacity {
+                                                            loops: Animation.Infinite
+                                                            running: true
+                                                            NumberAnimation { to: 0.4; duration: 1200; easing.type: Easing.InOutSine }
+                                                            NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        text: "Active Session ✧"
+                                                        font.family: root.textFont
+                                                        font.pixelSize: 10
+                                                        font.weight: Font.DemiBold
+                                                        color: StyleTokens.textSecondary
+                                                        Layout.alignment: Qt.AlignVCenter
                                                     }
                                                 }
+                                            }
 
-                                                // Password Bullets (Cute Glowing Pearls)
-                                                Item {
+                                            // Password Input Container with Blushing Glow
+                                            Item {
+                                                width: parent.width
+                                                height: 50
+
+                                                // Soft anime blush pulse glow around the field on wrong password
+                                                RectangularGlow {
+                                                    anchors.fill: field
+                                                    anchors.margins: -4
+                                                    glowRadius: 28
+                                                    spread: 0.22
+                                                    color: "#ff5376"
+                                                    cornerRadius: field.radius + 4
+                                                    opacity: field.blushGlowOpacity
+                                                    visible: opacity > 0.01
+                                                    antialiasing: true
+                                                }
+
+                                                // Password Input Field (Modern Frosted Glass Pill)
+                                                Rectangle {
+                                                    id: field
                                                     anchors.fill: parent
-                                                    anchors.leftMargin: 44
-                                                    anchors.rightMargin: 44
-                                                    clip: true
+                                                    radius: height / 2
+                                                    color: "#30000000"
+                                                    border.width: 1.5
+                                                    border.color: (root.failed || root.isShakingFailed || root.lockedOut)
+                                                        ? "#ff5c7c"
+                                                        : (root.buffer.length > 0 ? StyleTokens.accent : StyleTokens.surfaceHighlight)
+                                                    antialiasing: true
 
+                                                    property real jiggleX: 0
+                                                    property real jiggleRotation: 0
+                                                    property real squashScaleX: 1.0
+                                                    property real squashScaleY: 1.0
+                                                    property real blushGlowOpacity: 0.0
+
+                                                    transform: [
+                                                        Translate { x: field.jiggleX },
+                                                        Rotation {
+                                                            origin.x: field.width / 2
+                                                            origin.y: field.height / 2
+                                                            angle: field.jiggleRotation
+                                                        },
+                                                        Scale {
+                                                            origin.x: field.width / 2
+                                                            origin.y: field.height / 2
+                                                            xScale: field.squashScaleX
+                                                            yScale: field.squashScaleY
+                                                        }
+                                                    ]
+
+                                                    Behavior on border.color {
+                                                        ColorAnimation { duration: 180 }
+                                                    }
+
+                                                    Connections {
+                                                        target: root
+                                                        function onShake() {
+                                                            cuteFailAnim.restart();
+                                                        }
+                                                    }
+
+                                                    // Adorable 4-track spring physics on wrong password
+                                                    ParallelAnimation {
+                                                        id: cuteFailAnim
+
+                                                        // 1. Playful horizontal jiggle (with natural harmonic damping)
+                                                        SequentialAnimation {
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: -16; duration: 55; easing.type: Easing.OutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: 14; duration: 65; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: -10; duration: 65; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: 7; duration: 60; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: -3; duration: 55; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleX"; to: 0; duration: 60; easing.type: Easing.OutQuad }
+                                                        }
+
+                                                        // 2. Playful cartoon tilt (cute head-shake "no no!")
+                                                        SequentialAnimation {
+                                                            NumberAnimation { target: field; property: "jiggleRotation"; to: -3.2; duration: 65; easing.type: Easing.OutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleRotation"; to: 2.8; duration: 75; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleRotation"; to: -1.8; duration: 70; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleRotation"; to: 1.0; duration: 65; easing.type: Easing.InOutQuad }
+                                                            NumberAnimation { target: field; property: "jiggleRotation"; to: 0; duration: 70; easing.type: Easing.OutQuad }
+                                                        }
+
+                                                        // 3. Cute jelly squash & stretch ("Oops!" bounce)
+                                                        SequentialAnimation {
+                                                            ParallelAnimation {
+                                                                NumberAnimation { target: field; property: "squashScaleX"; to: 1.05; duration: 80; easing.type: Easing.OutQuad }
+                                                                NumberAnimation { target: field; property: "squashScaleY"; to: 0.93; duration: 80; easing.type: Easing.OutQuad }
+                                                            }
+                                                            ParallelAnimation {
+                                                                NumberAnimation { target: field; property: "squashScaleX"; to: 0.97; duration: 110; easing.type: Easing.InOutQuad }
+                                                                NumberAnimation { target: field; property: "squashScaleY"; to: 1.04; duration: 110; easing.type: Easing.InOutQuad }
+                                                            }
+                                                            ParallelAnimation {
+                                                                NumberAnimation { target: field; property: "squashScaleX"; to: 1.02; duration: 90; easing.type: Easing.InOutQuad }
+                                                                NumberAnimation { target: field; property: "squashScaleY"; to: 0.98; duration: 90; easing.type: Easing.InOutQuad }
+                                                            }
+                                                            ParallelAnimation {
+                                                                NumberAnimation { target: field; property: "squashScaleX"; to: 1.0; duration: 100; easing.type: Easing.OutQuad }
+                                                                NumberAnimation { target: field; property: "squashScaleY"; to: 1.0; duration: 100; easing.type: Easing.OutQuad }
+                                                            }
+                                                        }
+
+                                                        // 4. Soft anime blush pulse glow around the field
+                                                        SequentialAnimation {
+                                                            NumberAnimation { target: field; property: "blushGlowOpacity"; to: 0.95; duration: 80; easing.type: Easing.OutQuad }
+                                                            NumberAnimation { target: field; property: "blushGlowOpacity"; to: 0.35; duration: 440; easing.type: Easing.InOutSine }
+                                                            NumberAnimation { target: field; property: "blushGlowOpacity"; to: 0.0; duration: 600; easing.type: Easing.OutQuad }
+                                                        }
+                                                    }
+
+                                                    SequentialAnimation {
+                                                        id: typePulse
+                                                        NumberAnimation { target: field; property: "scale"; to: 1.022; duration: 60; easing.type: Easing.OutQuad }
+                                                        NumberAnimation { target: field; property: "scale"; to: 1.0; duration: 120; easing.type: Easing.OutBack }
+                                                    }
+
+                                                    Connections {
+                                                        target: root
+                                                        function onBufferChanged() {
+                                                            if (root.buffer.length > 0)
+                                                                typePulse.restart();
+                                                        }
+                                                    }
+
+                                                    // Cute Placeholder Row
                                                     Row {
-                                                        anchors.horizontalCenter: parent.horizontalCenter
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        spacing: root.buffer.length > 8 ? Math.max(5, 9 - (root.buffer.length - 8) * 0.6) : 9
+                                                        anchors.centerIn: parent
+                                                        spacing: 7
+                                                        opacity: (root.buffer.length === 0 && !root.isShakingFailed) ? 0.85 : 0
+                                                        Behavior on opacity {
+                                                            NumberAnimation { duration: 160 }
+                                                        }
 
-                                                        Repeater {
-                                                            model: Math.min(root.buffer.length, 16)
+                                                        Text {
+                                                            text: "󰌾"
+                                                            font.family: root.nerdFont
+                                                            font.pixelSize: 13
+                                                            color: StyleTokens.withAlpha(StyleTokens.accent, 0.75)
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
 
-                                                            Rectangle {
-                                                                required property int index
-                                                                width: 14
-                                                                height: 14
-                                                                radius: 7
-                                                                color: root.failed ? StyleTokens.danger : StyleTokens.accent
+                                                        Text {
+                                                            text: "Type password to unlock ♡"
+                                                            font.family: root.textFont
+                                                            font.pixelSize: 13
+                                                            font.weight: Font.Medium
+                                                            color: StyleTokens.textMuted
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
 
-                                                                property real pop: 0
-                                                                opacity: 0.6 + 0.4 * pop
-                                                                scale: 0.4 + 0.6 * pop
+                                                        // Cute blinking pastel pill cursor
+                                                        Rectangle {
+                                                            width: 2
+                                                            height: 14
+                                                            radius: 1
+                                                            color: StyleTokens.accent
+                                                            anchors.verticalCenter: parent.verticalCenter
 
-                                                                NumberAnimation on pop {
-                                                                    from: 0
-                                                                    to: 1
-                                                                    duration: 220
-                                                                    easing.type: Easing.OutBack
-                                                                }
+                                                            SequentialAnimation on opacity {
+                                                                loops: Animation.Infinite
+                                                                running: root.buffer.length === 0 && !root.isShakingFailed
+                                                                NumberAnimation { to: 1.0; duration: 520 }
+                                                                NumberAnimation { to: 0.15; duration: 520 }
+                                                            }
+                                                        }
+                                                    }
 
-                                                                Behavior on color {
-                                                                    ColorAnimation { duration: 160 }
+                                                    // Password Bullets (Cute Glowing Jelly Boba Pearls)
+                                                    Item {
+                                                        anchors.fill: parent
+                                                        anchors.leftMargin: 44
+                                                        anchors.rightMargin: 44
+                                                        clip: true
+
+                                                        readonly property int count: root.isShakingFailed ? root.failedBulletsCount : Math.min(root.buffer.length, 16)
+
+                                                        Row {
+                                                            anchors.horizontalCenter: parent.horizontalCenter
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            spacing: parent.count > 8 ? Math.max(5, 9 - (parent.count - 8) * 0.6) : 9
+
+                                                            Repeater {
+                                                                model: parent.parent.count
+
+                                                                Rectangle {
+                                                                    required property int index
+                                                                    width: 13
+                                                                    height: 13
+                                                                    radius: 6.5
+                                                                    color: (root.failed || root.isShakingFailed) ? "#ff5c7c" : StyleTokens.accent
+                                                                    antialiasing: true
+
+                                                                    property real pop: 0
+                                                                    opacity: (0.7 + 0.3 * pop) * (root.isShakingFailed ? 0.92 : 1.0)
+                                                                    scale: 0.3 + 0.7 * pop
+
+                                                                    NumberAnimation on pop {
+                                                                        from: 0
+                                                                        to: 1
+                                                                        duration: 240
+                                                                        easing.type: Easing.OutBack
+                                                                        easing.overshoot: 2.2
+                                                                    }
+
+                                                                    Behavior on color {
+                                                                        ColorAnimation { duration: 180 }
+                                                                    }
+
+                                                                    // Cute glossy pearl reflection crescent
+                                                                    Rectangle {
+                                                                        width: 3.5
+                                                                        height: 3.5
+                                                                        radius: 1.75
+                                                                        x: 2.5
+                                                                        y: 2.5
+                                                                        color: Qt.rgba(255, 255, 255, 0.75)
+                                                                        antialiasing: true
+                                                                    }
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                }
 
-                                                // Submit Button with Cute Animated State
-                                                Rectangle {
-                                                    id: goBtn
-                                                    readonly property bool live: root.buffer.length > 0 || root.checking || root.unlocking || root.pamLocked
-                                                    width: 36
-                                                    height: 36
-                                                    radius: 18
-                                                    anchors.right: parent.right
-                                                    anchors.rightMargin: 6
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    color: root.unlocking ? StyleTokens.success : StyleTokens.accent
-                                                    opacity: live ? (root.lockedOut ? 0.4 : 1.0) : 0
-                                                    scale: goArea.pressed ? 0.90 : (live ? 1.0 : 0.6)
+                                                    // Submit Button with Cute Animated State
+                                                    Rectangle {
+                                                        id: goBtn
+                                                        readonly property bool live: root.buffer.length > 0 || root.checking || root.unlocking || root.pamLocked
+                                                        width: 36
+                                                        height: 36
+                                                        radius: 18
+                                                        anchors.right: parent.right
+                                                        anchors.rightMargin: 6
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        color: root.unlocking ? StyleTokens.success : ((root.failed || root.isShakingFailed) ? "#ff5c7c" : StyleTokens.accent)
+                                                        opacity: live ? (root.lockedOut ? 0.4 : 1.0) : 0
+                                                        scale: goArea.pressed ? 0.88 : (goArea.containsMouse ? 1.10 : (live ? 1.0 : 0.6))
 
-                                                    Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                                                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                                                    Behavior on color { ColorAnimation { duration: 180 } }
+                                                        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+                                                        Behavior on color { ColorAnimation { duration: 180 } }
 
-                                                    Text {
-                                                        id: goIcon
-                                                        anchors.centerIn: parent
-                                                        text: root.unlocking ? "󰄬" : (root.checking ? "󰑮" : (root.pamLocked ? "󰌾" : "󰁔"))
-                                                        color: StyleTokens.textOnAccent
-                                                        font.family: root.nerdFont
-                                                        font.pixelSize: 17
-                                                        font.weight: Font.Bold
-
-                                                        NumberAnimation on rotation {
-                                                            running: root.checking
-                                                            from: 0
-                                                            to: 360
-                                                            duration: 750
-                                                            loops: Animation.Infinite
-                                                            onRunningChanged: if (!running) goIcon.rotation = 0
+                                                        // Ambient soft glow on button
+                                                        RectangularGlow {
+                                                            anchors.fill: parent
+                                                            glowRadius: 10
+                                                            spread: 0.1
+                                                            color: StyleTokens.withAlpha(goBtn.color, 0.40)
+                                                            cornerRadius: 18
+                                                            opacity: goBtn.live ? 1.0 : 0.0
                                                         }
-                                                    }
 
-                                                    MouseArea {
-                                                        id: goArea
-                                                        anchors.fill: parent
-                                                        enabled: goBtn.live && !root.lockedOut
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            root.submit();
-                                                            scene.forceActiveFocus();
+                                                        Text {
+                                                            id: goIcon
+                                                            anchors.centerIn: parent
+                                                            text: root.unlocking ? "󰄬" : (root.checking ? "󱐋" : (root.pamLocked ? "󰌾" : "󰁔"))
+                                                            color: StyleTokens.textOnAccent
+                                                            font.family: root.nerdFont
+                                                            font.pixelSize: 17
+                                                            font.weight: Font.Bold
+
+                                                            NumberAnimation on rotation {
+                                                                running: root.checking
+                                                                from: 0
+                                                                to: 360
+                                                                duration: 750
+                                                                loops: Animation.Infinite
+                                                                onRunningChanged: if (!running) goIcon.rotation = 0
+                                                            }
+                                                        }
+
+                                                        MouseArea {
+                                                            id: goArea
+                                                            anchors.fill: parent
+                                                            enabled: goBtn.live && !root.lockedOut
+                                                            hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: {
+                                                                root.submit();
+                                                                scene.forceActiveFocus();
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
 
-                                            // Status Feedback Row
+                                            // Status Feedback Row with Cute Expressions
                                             RowLayout {
                                                 width: parent.width
                                                 spacing: 6
 
                                                 Text {
-                                                    visible: root.failed || root.lockedOut
-                                                    text: "󰀦" // Warning
-                                                    color: StyleTokens.danger
+                                                    text: root.statusIcon()
+                                                    color: (root.failed || root.isShakingFailed || root.lockedOut) ? "#ff5c7c" : StyleTokens.accent
                                                     font.family: root.nerdFont
-                                                    font.pixelSize: 13
+                                                    font.pixelSize: 14
                                                     Layout.alignment: Qt.AlignVCenter
+
+                                                    scale: (root.failed || root.isShakingFailed) ? 1.25 : 1.0
+                                                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
+                                                    Behavior on color { ColorAnimation { duration: 160 } }
                                                 }
 
                                                 Text {
@@ -1666,8 +2026,9 @@ Scope {
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Medium
-                                                    color: (root.failed || root.lockedOut) ? StyleTokens.danger : StyleTokens.textSecondary
+                                                    color: (root.failed || root.isShakingFailed || root.lockedOut) ? "#ff5c7c" : StyleTokens.textSecondary
                                                     text: root.statusText
+                                                    Behavior on color { ColorAnimation { duration: 160 } }
                                                 }
                                             }
                                         }
@@ -1763,6 +2124,13 @@ Scope {
                                                         font.family: root.nerdFont
                                                         font.pixelSize: 12
                                                         anchors.verticalCenter: parent.verticalCenter
+
+                                                        SequentialAnimation on opacity {
+                                                            loops: Animation.Infinite
+                                                            running: root.batCharging
+                                                            NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+                                                            NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+                                                        }
                                                     }
                                                 }
 
@@ -1791,7 +2159,7 @@ Scope {
                                             id: sleepBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 90 : 36
+                                            width: armed ? 100 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (sleepMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
@@ -1800,13 +2168,13 @@ Scope {
                                             border.color: armed ? StyleTokens.danger
                                                                 : (sleepMouse.containsMouse ? StyleTokens.accent
                                                                                             : StyleTokens.surfaceHighlight)
-                                            scale: sleepMouse.pressed ? 0.92 : (sleepMouse.containsMouse ? 1.05 : 1.0)
+                                            scale: sleepMouse.pressed ? 0.88 : (sleepMouse.containsMouse ? 1.08 : 1.0)
                                             antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            Behavior on scale { NumberAnimation { duration: 100 } }
+                                            Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
@@ -1822,7 +2190,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: sleepBtn.armed
-                                                    text: "Sleep?"
+                                                    text: "Snooze? zZz"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
@@ -1861,7 +2229,7 @@ Scope {
                                             id: rebootBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 94 : 36
+                                            width: armed ? 98 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (rebootMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.accent, 0.22)
@@ -1870,13 +2238,13 @@ Scope {
                                             border.color: armed ? StyleTokens.danger
                                                                 : (rebootMouse.containsMouse ? StyleTokens.accent
                                                                                              : StyleTokens.surfaceHighlight)
-                                            scale: rebootMouse.pressed ? 0.92 : (rebootMouse.containsMouse ? 1.05 : 1.0)
+                                            scale: rebootMouse.pressed ? 0.88 : (rebootMouse.containsMouse ? 1.08 : 1.0)
                                             antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            Behavior on scale { NumberAnimation { duration: 100 } }
+                                            Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
@@ -1892,7 +2260,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: rebootBtn.armed
-                                                    text: "Restart?"
+                                                    text: "Restart? ✦"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
@@ -1931,7 +2299,7 @@ Scope {
                                             id: shutdownBtn
                                             property bool armed: false
                                             height: 36
-                                            width: armed ? 90 : 36
+                                            width: armed ? 106 : 36
                                             radius: 18
                                             color: armed ? StyleTokens.withAlpha(StyleTokens.danger, 0.45)
                                                          : (shutdownMouse.containsMouse ? StyleTokens.withAlpha(StyleTokens.danger, 0.25)
@@ -1940,13 +2308,13 @@ Scope {
                                             border.color: armed ? StyleTokens.danger
                                                                 : (shutdownMouse.containsMouse ? StyleTokens.danger
                                                                                                : StyleTokens.surfaceHighlight)
-                                            scale: shutdownMouse.pressed ? 0.92 : (shutdownMouse.containsMouse ? 1.05 : 1.0)
+                                            scale: shutdownMouse.pressed ? 0.88 : (shutdownMouse.containsMouse ? 1.08 : 1.0)
                                             antialiasing: true
 
                                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            Behavior on scale { NumberAnimation { duration: 100 } }
+                                            Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
                                             RowLayout {
                                                 anchors.centerIn: parent
@@ -1962,7 +2330,7 @@ Scope {
                                                 }
                                                 Text {
                                                     visible: shutdownBtn.armed
-                                                    text: "Power?"
+                                                    text: "Power off? ♡"
                                                     font.family: root.textFont
                                                     font.pixelSize: 11
                                                     font.weight: Font.Bold
