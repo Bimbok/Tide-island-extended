@@ -640,7 +640,7 @@ Scope {
                     property: "animProgress"
                     from: 0
                     to: 1
-                    duration: 520
+                    duration: 380
                     easing.type: Easing.OutCubic
                 }
 
@@ -674,7 +674,7 @@ Scope {
 
                 // Stagger helper
                 function stage(index) {
-                    return Math.max(0, Math.min(1, scene.animProgress * 1.5 - index * 0.25));
+                    return Math.max(0, Math.min(1, scene.animProgress * 1.3 - index * 0.15));
                 }
 
                 Component.onCompleted: forceActiveFocus()
@@ -893,20 +893,21 @@ Scope {
                     Item {
                         id: boxWrap
                         property real shakeOff: 0
-                        width: box.width
-                        height: box.height
+                        readonly property real finalW: 800
+                        readonly property real finalH: col.implicitHeight + 44
+                        width: finalW
+                        height: finalH
 
                         readonly property real targetCenterX: ui.width * (userConfig ? userConfig.islandPositionX : 50) / 100
-                        readonly property real startTopY: root.islandTopMargin
                         readonly property real finalCenterY: (ui.height - height) / 2
 
                         x: targetCenterX - width / 2 + shakeOff
-                        // Fluid morph downwards on open, and gentle upwards float on unlock
-                        y: startTopY + (finalCenterY - startTopY) * scene.animProgress - (scene.exitProgress * 18)
+                        // Pure vertical descent from island on enter, and gentle upwards float on unlock
+                        y: finalCenterY - (1 - scene.animProgress) * 44 - (scene.exitProgress * 18)
 
-                        // Luxurious scale-in on entry, and blooming scale-up on unlock
-                        scale: (0.94 + 0.06 * scene.animProgress) * (1.0 + 0.035 * scene.exitProgress)
-                        opacity: Math.min(1.0, scene.animProgress * 1.5) * (1.0 - scene.exitProgress)
+                        // Luxurious scale-in on entry (0.95 -> 1.0), and blooming scale-up on unlock
+                        scale: (0.95 + 0.05 * scene.animProgress) * (1.0 + 0.035 * scene.exitProgress)
+                        opacity: scene.animProgress * (1.0 - scene.exitProgress)
 
                         Connections {
                             target: root
@@ -946,15 +947,15 @@ Scope {
                         Rectangle {
                             id: box
                             clip: true
-                            readonly property real finalW: 800
-                            readonly property real finalH: col.implicitHeight + 44
+                            readonly property real finalW: boxWrap.finalW
+                            readonly property real finalH: boxWrap.finalH
                             readonly property real finalR: 36
 
-                            width: root.islandW + (finalW - root.islandW) * scene.animProgress
-                            height: root.islandH + (finalH - root.islandH) * scene.animProgress
-                            radius: root.islandR + (finalR - root.islandR) * scene.animProgress
-                            topLeftRadius: root.isNotchMode ? (finalR * scene.animProgress) : radius
-                            topRightRadius: root.isNotchMode ? (finalR * scene.animProgress) : radius
+                            width: finalW
+                            height: finalH
+                            radius: finalR
+                            topLeftRadius: root.isNotchMode ? 0 : radius
+                            topRightRadius: root.isNotchMode ? 0 : radius
 
                             // Premium multi-layered frosted glass body
                             color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.76)
@@ -988,7 +989,7 @@ Scope {
                                 y: 22
                                 width: box.finalW - 44
                                 spacing: 18
-                                opacity: Math.max(0, Math.min(1, (scene.animProgress - 0.20) / 0.50))
+                                opacity: scene.animProgress
 
                                 Row {
                                     id: panels
