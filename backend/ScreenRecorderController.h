@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QProcess>
+#include <QSocketNotifier>
 #include <QString>
 #include <QTimer>
 #include <QtQml/qqml.h>
@@ -50,6 +52,7 @@ public:
     void setReplaysDir(const QString &dir);
     bool isAvailable() const;
     QString lastSavedFile() const;
+    bool isPollTimerActive() const;
 
     Q_INVOKABLE void startRecording(bool withMic = false);
     Q_INVOKABLE void stopRecording();
@@ -84,6 +87,9 @@ private slots:
 
 private:
     void ensureDirectories();
+    void setupStateWatcher();
+    void attachProcessWatcher(qint64 pid, bool isReplay);
+    void detachProcessWatcher(bool isReplay);
     QString stateDir() const;
     QString recordPidFilePath() const;
     QString replayPidFilePath() const;
@@ -116,4 +122,10 @@ private:
 
     QTimer m_tickTimer;
     QTimer m_pollTimer;
+
+    QFileSystemWatcher m_stateWatcher;
+    int m_recordPidFd = -1;
+    QSocketNotifier *m_recordNotifier = nullptr;
+    int m_replayPidFd = -1;
+    QSocketNotifier *m_replayNotifier = nullptr;
 };

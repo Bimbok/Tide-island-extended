@@ -12,6 +12,7 @@ private slots:
     void testInitialState();
     void testTimeFormatting();
     void testPropertySetters();
+    void testIdleZeroPolling();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tempDir;
@@ -62,6 +63,11 @@ void ScreenRecorderTests::testPropertySetters() {
     controller.setScreenName(QStringLiteral("DP-1"));
     QCOMPARE(controller.screenName(), QStringLiteral("DP-1"));
     QCOMPARE(screenSpy.count(), 1);
+}
+
+void ScreenRecorderTests::testIdleZeroPolling() {
+    ScreenRecorderController controller;
+    QCOMPARE(controller.isPollTimerActive(), false);
 }
 
 QTEST_MAIN(ScreenRecorderTests)

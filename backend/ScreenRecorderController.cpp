@@ -13,6 +13,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if defined(Q_OS_LINUX)
+#include <sys/syscall.h>
+#ifndef SYS_pidfd_open
+#define SYS_pidfd_open 434
+#endif
+#endif
+
 ScreenRecorderController *ScreenRecorderController::s_instance = nullptr;
 
 ScreenRecorderController::ScreenRecorderController(QObject *parent)
@@ -29,9 +36,19 @@ ScreenRecorderController::ScreenRecorderController(QObject *parent)
     connect(&m_tickTimer, &QTimer::timeout, this, &ScreenRecorderController::onTick);
     m_tickTimer.setInterval(1000);
 
-    connect(&m_pollTimer, &QTimer::timeout, this, &ScreenRecorderController::pollExternalState);
+    // Fallback timer: only started if pidfd_open is unavailable on the platform
     m_pollTimer.setInterval(1200);
-    m_pollTimer.start();
+    connect(&m_pollTimer, &QTimer::timeout, this, &ScreenRecorderController::pollExternalState);
+
+    connect(&m_stateWatcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        setupStateWatcher();
+        pollExternalState();
+    });
+    connect(&m_stateWatcher, &QFileSystemWatcher::fileChanged, this, [this](const QString &) {
+        setupStateWatcher();
+        pollExternalState();
+    });
+    setupStateWatcher();
 
     // Initial check for already-running instances
     pollExternalState();
@@ -41,6 +58,8 @@ ScreenRecorderController::~ScreenRecorderController() {
     if (s_instance == this) {
         s_instance = nullptr;
     }
+    detachProcessWatcher(false);
+    detachProcessWatcher(true);
 }
 
 ScreenRecorderController *ScreenRecorderController::instance() {
@@ -49,6 +68,10 @@ ScreenRecorderController *ScreenRecorderController::instance() {
 
 bool ScreenRecorderController::isAvailable() const {
     return !QStandardPaths::findExecutable(QStringLiteral("gpu-screen-recorder")).isEmpty();
+}
+
+bool ScreenRecorderController::isPollTimerActive() const {
+    return m_pollTimer.isActive();
 }
 
 bool ScreenRecorderController::isRecording() const {
@@ -164,6 +187,81 @@ void ScreenRecorderController::ensureDirectories() {
     QDir().mkpath(m_recordingsDir);
     QDir().mkpath(m_replaysDir);
     QDir().mkpath(stateDir());
+}
+
+void ScreenRecorderController::setupStateWatcher() {
+    ensureDirectories();
+    const QString sDir = stateDir();
+    if (QDir(sDir).exists() && !m_stateWatcher.directories().contains(sDir)) {
+        m_stateWatcher.addPath(sDir);
+    }
+    const QString recPid = recordPidFilePath();
+    if (QFile::exists(recPid) && !m_stateWatcher.files().contains(recPid)) {
+        m_stateWatcher.addPath(recPid);
+    }
+    const QString repPid = replayPidFilePath();
+    if (QFile::exists(repPid) && !m_stateWatcher.files().contains(repPid)) {
+        m_stateWatcher.addPath(repPid);
+    }
+}
+
+void ScreenRecorderController::attachProcessWatcher(qint64 pid, bool isReplay) {
+    detachProcessWatcher(isReplay);
+
+    if (pid <= 0)
+        return;
+
+#if defined(Q_OS_LINUX)
+    const int fd = static_cast<int>(syscall(SYS_pidfd_open, static_cast<pid_t>(pid), 0));
+    if (fd >= 0) {
+        auto *notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+        connect(notifier, &QSocketNotifier::activated, this, [this, isReplay]() {
+            detachProcessWatcher(isReplay);
+            pollExternalState();
+        });
+
+        if (isReplay) {
+            m_replayPidFd = fd;
+            m_replayNotifier = notifier;
+        } else {
+            m_recordPidFd = fd;
+            m_recordNotifier = notifier;
+        }
+        return;
+    }
+#endif
+
+    // Fallback: only if pidfd_open is unavailable, run poll timer while active
+    if (!m_pollTimer.isActive())
+        m_pollTimer.start();
+}
+
+void ScreenRecorderController::detachProcessWatcher(bool isReplay) {
+    if (isReplay) {
+        if (m_replayNotifier) {
+            m_replayNotifier->setEnabled(false);
+            m_replayNotifier->deleteLater();
+            m_replayNotifier = nullptr;
+        }
+        if (m_replayPidFd >= 0) {
+            close(m_replayPidFd);
+            m_replayPidFd = -1;
+        }
+    } else {
+        if (m_recordNotifier) {
+            m_recordNotifier->setEnabled(false);
+            m_recordNotifier->deleteLater();
+            m_recordNotifier = nullptr;
+        }
+        if (m_recordPidFd >= 0) {
+            close(m_recordPidFd);
+            m_recordPidFd = -1;
+        }
+    }
+
+    if (!m_isRecording && !m_isReplayActive && m_pollTimer.isActive()) {
+        m_pollTimer.stop();
+    }
 }
 
 qint64 ScreenRecorderController::readPidFromFile(const QString &path) const {
@@ -284,6 +382,8 @@ void ScreenRecorderController::startRecording(bool withMic) {
 
     m_recordPid = pid;
     writePidToFile(recordPidFilePath(), pid);
+    setupStateWatcher();
+    attachProcessWatcher(pid, false);
 
     m_isRecording = true;
     m_isPaused = false;
@@ -302,6 +402,8 @@ void ScreenRecorderController::startRecording(bool withMic) {
 }
 
 void ScreenRecorderController::stopRecording() {
+    detachProcessWatcher(false);
+
     qint64 pid = m_recordPid;
     if (pid <= 0)
         pid = readPidFromFile(recordPidFilePath());
@@ -405,6 +507,8 @@ void ScreenRecorderController::startReplay(bool withMic) {
 
     m_replayPid = pid;
     writePidToFile(replayPidFilePath(), pid);
+    setupStateWatcher();
+    attachProcessWatcher(pid, true);
 
     m_isReplayActive = true;
     emit replayStateChanged();
@@ -415,6 +519,8 @@ void ScreenRecorderController::startReplay(bool withMic) {
 }
 
 void ScreenRecorderController::stopReplay() {
+    detachProcessWatcher(true);
+
     qint64 pid = m_replayPid;
     if (pid <= 0)
         pid = readPidFromFile(replayPidFilePath());
@@ -509,14 +615,18 @@ void ScreenRecorderController::pollExternalState() {
         if (m_isRecording) {
             if (!m_tickTimer.isActive())
                 m_tickTimer.start();
+            attachProcessWatcher(m_recordPid, false);
         } else {
             m_tickTimer.stop();
             m_isPaused = false;
             removePidFile(recordPidFilePath());
+            detachProcessWatcher(false);
         }
         emit recordingStateChanged();
         if (SystemServices::instance())
             SystemServices::instance()->updateScreenRecordingActive();
+    } else if (m_isRecording && m_recordPid > 0 && m_recordPidFd < 0) {
+        attachProcessWatcher(m_recordPid, false);
     }
 
     // Check replay PID
@@ -529,9 +639,16 @@ void ScreenRecorderController::pollExternalState() {
     if (repRunning != m_isReplayActive) {
         m_isReplayActive = repRunning;
         m_replayPid = repRunning ? repPid : 0;
-        if (!m_isReplayActive) {
+        if (m_isReplayActive) {
+            attachProcessWatcher(m_replayPid, true);
+        } else {
             removePidFile(replayPidFilePath());
+            detachProcessWatcher(true);
         }
         emit replayStateChanged();
+    } else if (m_isReplayActive && m_replayPid > 0 && m_replayPidFd < 0) {
+        attachProcessWatcher(m_replayPid, true);
     }
+
+    setupStateWatcher();
 }
