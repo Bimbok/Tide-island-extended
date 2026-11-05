@@ -106,7 +106,6 @@ private:
 
     AppOptions m_options;
     QNetworkAccessManager m_network;
-    QTimer m_refreshTimer;
     QTimer m_positionTimer;
     QTimer m_fallbackTimer;
     QTimer m_retryTimer;

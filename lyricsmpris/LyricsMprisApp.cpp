@@ -27,7 +27,6 @@ namespace lyricsmpris {
 namespace {
 
 constexpr int kPrimaryFallbackDelayMs = 1800;
-constexpr int kRefreshIntervalMs = 1500;
 constexpr int kPositionIntervalMs = 350;
 constexpr int kRetryBaseDelayMs = 2500;
 constexpr int kMaxSearchAttempts = 3;
@@ -92,10 +91,6 @@ LyricsMprisApp::LyricsMprisApp(AppOptions options, QObject *parent)
       m_options(std::move(options)) {
     m_options.providers = splitProviderList(m_options.providers);
 
-    m_refreshTimer.setInterval(kRefreshIntervalMs);
-    m_refreshTimer.setSingleShot(false);
-    connect(&m_refreshTimer, &QTimer::timeout, this, &LyricsMprisApp::refreshPlayers);
-
     m_positionTimer.setInterval(kPositionIntervalMs);
     m_positionTimer.setSingleShot(false);
     connect(&m_positionTimer, &QTimer::timeout, this, &LyricsMprisApp::updatePosition);
@@ -142,7 +137,6 @@ void LyricsMprisApp::start() {
         SLOT(handleSeeked(qlonglong)));
 
     refreshPlayers();
-    m_refreshTimer.start();
 }
 
 void LyricsMprisApp::startLookup() {
@@ -186,8 +180,22 @@ void LyricsMprisApp::refreshPlayers() {
     chooseActivePlayer();
 }
 
-void LyricsMprisApp::handleNameOwnerChanged(const QString &name, const QString &, const QString &) {
-    if (isMprisService(name)) QTimer::singleShot(0, this, &LyricsMprisApp::refreshPlayers);
+void LyricsMprisApp::handleNameOwnerChanged(const QString &name, const QString &, const QString &newOwner) {
+    if (!isMprisService(name) || serviceBlocked(name))
+        return;
+
+    if (newOwner.isEmpty()) {
+        m_players.remove(name);
+        m_pendingPlayerUpdates.remove(name);
+        m_queuedPlayerUpdates.remove(name);
+        m_pendingPositionRequests.remove(name);
+        if (m_activeService == name) {
+            clearCurrentTrack();
+            chooseActivePlayer();
+        }
+    } else {
+        updatePlayer(name);
+    }
 }
 
 void LyricsMprisApp::handlePropertiesChanged(const QString &interfaceName, const QVariantMap &, const QStringList &) {
