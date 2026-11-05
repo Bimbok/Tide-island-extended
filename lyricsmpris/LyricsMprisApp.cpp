@@ -195,8 +195,15 @@ void LyricsMprisApp::handlePropertiesChanged(const QString &interfaceName, const
         QTimer::singleShot(0, this, &LyricsMprisApp::refreshPlayers);
 }
 
-void LyricsMprisApp::handleSeeked(qlonglong) {
-    QTimer::singleShot(0, this, &LyricsMprisApp::refreshPlayers);
+void LyricsMprisApp::handleSeeked(qlonglong positionUs) {
+    if (m_activeService.isEmpty()) return;
+    auto it = m_players.find(m_activeService);
+    if (it != m_players.end()) {
+        it->positionMs = positionUs / 1000;
+        it->positionUpdatedAt = QDateTime::currentDateTimeUtc();
+        m_currentPlayer = it.value();
+        updatePosition();
+    }
 }
 
 void LyricsMprisApp::emitStatus(const QString &status) {

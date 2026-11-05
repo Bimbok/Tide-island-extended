@@ -47,7 +47,38 @@ Item {
     property string timePlayed: "0:00"
     property string timeTotal: "0:00"
 
+    property real _basePositionSec: 0
+    property real _baseTimestampMs: 0
+    property real _playbackRate: 1.0
+    readonly property bool _isPlaying: activePlayer ? (activePlayer.playbackState === MprisPlaybackState.Playing) : false
+
+    Connections {
+        target: root.activePlayer
+
+        function onPlaybackStateChanged() {
+            root.captureBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onMetadataChanged() {
+            root.captureBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onPositionChanged() {
+            root.captureBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onRateChanged() {
+            root.captureBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+    }
+
     onActivePlayerChanged: {
+        captureBaseline(activePlayer);
+        syncProgress();
         syncLyricsBackend();
         Qt.callLater(function() {
             const nextDbusName = root.activePlayer && root.activePlayer.dbusName
@@ -131,6 +162,51 @@ Item {
         plainLyric = extractFirstPlainLyric(inlineLyricsRaw);
     }
 
+    function toSeconds(value) {
+        const numberValue = Number(value);
+        if (isNaN(numberValue) || numberValue <= 0) return 0;
+        if (numberValue < 10000) return numberValue;
+        if (numberValue < 100000000) return numberValue / 1000.0;
+        return numberValue / 1000000.0;
+    }
+
+    function getPlayerLengthSeconds(player) {
+        if (!player) return 0;
+        let len = Number(player.length) || 0;
+        if (len <= 0 && player.metadata && player.metadata["mpris:length"])
+            len = Number(player.metadata["mpris:length"]);
+        return toSeconds(len);
+    }
+
+    function captureBaseline(player, overridePosSec) {
+        if (!player) {
+            _basePositionSec = 0;
+            _baseTimestampMs = Date.now();
+            _playbackRate = 1.0;
+            return;
+        }
+        _playbackRate = (player.rate !== undefined && Number(player.rate) > 0) ? Number(player.rate) : 1.0;
+        if (overridePosSec !== undefined) {
+            _basePositionSec = Math.max(0, Number(overridePosSec));
+        } else if (player.position !== undefined) {
+            _basePositionSec = toSeconds(player.position);
+        } else {
+            _basePositionSec = 0;
+        }
+        _baseTimestampMs = Date.now();
+    }
+
+    function currentEstimatedPositionSec() {
+        if (!root.activePlayer) return 0;
+        if (!root._isPlaying) return root._basePositionSec;
+        const elapsedSec = (Date.now() - root._baseTimestampMs) / 1000.0;
+        const estimated = root._basePositionSec + (elapsedSec * root._playbackRate);
+        const totalLen = getPlayerLengthSeconds(root.activePlayer);
+        if (totalLen > 0)
+            return Math.max(0, Math.min(totalLen, estimated));
+        return Math.max(0, estimated);
+    }
+
     function syncProgress(positionOverride) {
         let player = root.activePlayer;
         if (!player) {
@@ -140,20 +216,18 @@ Item {
             return;
         }
 
-        const currentPosition = positionOverride === undefined
-            ? Number(player.position) || 0
-            : Number(positionOverride) || 0;
-        let totalLength = Number(player.length) || 0;
-        if (totalLength <= 0 && player.metadata && player.metadata["mpris:length"])
-            totalLength = Number(player.metadata["mpris:length"]);
+        const currentPosSec = positionOverride !== undefined
+            ? toSeconds(positionOverride)
+            : currentEstimatedPositionSec();
+        const totalLengthSec = getPlayerLengthSeconds(player);
 
-        if (totalLength > 0) {
-            root.trackProgress = Math.max(0, Math.min(1, currentPosition / totalLength));
-            root.timePlayed = root.formatTime(currentPosition);
-            root.timeTotal = root.formatTime(totalLength);
+        if (totalLengthSec > 0) {
+            root.trackProgress = Math.max(0, Math.min(1.0, currentPosSec / totalLengthSec));
+            root.timePlayed = root.formatTime(currentPosSec);
+            root.timeTotal = root.formatTime(totalLengthSec);
         } else {
             root.trackProgress = 0;
-            root.timePlayed = root.formatTime(currentPosition);
+            root.timePlayed = root.formatTime(currentPosSec);
             root.timeTotal = "0:00";
         }
     }
@@ -162,6 +236,7 @@ Item {
         if (player && player.canSeek && player.positionSupported)
             player.position = 0;
 
+        captureBaseline(player, 0);
         syncProgress(0);
     }
 
@@ -244,8 +319,8 @@ Item {
     Timer {
         id: progressPoller
 
-        interval: 500
-        running: root.activePlayer !== null && root.expanded
+        interval: 250
+        running: root.activePlayer !== null && root.expanded && root._isPlaying
         repeat: true
 
         onTriggered: root.syncProgress()

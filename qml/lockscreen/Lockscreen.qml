@@ -241,7 +241,38 @@ Scope {
     property string timeTotal: "0:00"
     property real visualizerPhase: 0
 
-    onActivePlayerChanged: root.syncProgress()
+    property real _lockscreenBasePositionSec: 0
+    property real _lockscreenBaseTimestampMs: 0
+    property real _lockscreenPlaybackRate: 1.0
+
+    Connections {
+        target: root.activePlayer
+
+        function onPlaybackStateChanged() {
+            root.captureLockscreenBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onMetadataChanged() {
+            root.captureLockscreenBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onPositionChanged() {
+            root.captureLockscreenBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+
+        function onRateChanged() {
+            root.captureLockscreenBaseline(root.activePlayer);
+            root.syncProgress();
+        }
+    }
+
+    onActivePlayerChanged: {
+        captureLockscreenBaseline(activePlayer);
+        syncProgress();
+    }
 
     NumberAnimation {
         id: visualizerAnim
@@ -279,6 +310,51 @@ Scope {
         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
     }
 
+    function toLockscreenSeconds(value) {
+        const numberValue = Number(value);
+        if (isNaN(numberValue) || numberValue <= 0) return 0;
+        if (numberValue < 10000) return numberValue;
+        if (numberValue < 100000000) return numberValue / 1000.0;
+        return numberValue / 1000000.0;
+    }
+
+    function getLockscreenPlayerLengthSeconds(player) {
+        if (!player) return 0;
+        let len = (player.length !== undefined ? Number(player.length) || 0 : 0);
+        if (len <= 0 && player.metadata && player.metadata["mpris:length"])
+            len = Number(player.metadata["mpris:length"]);
+        return toLockscreenSeconds(len);
+    }
+
+    function captureLockscreenBaseline(player, overridePosSec) {
+        if (!player) {
+            _lockscreenBasePositionSec = 0;
+            _lockscreenBaseTimestampMs = Date.now();
+            _lockscreenPlaybackRate = 1.0;
+            return;
+        }
+        _lockscreenPlaybackRate = (player.rate !== undefined && Number(player.rate) > 0) ? Number(player.rate) : 1.0;
+        if (overridePosSec !== undefined) {
+            _lockscreenBasePositionSec = Math.max(0, Number(overridePosSec));
+        } else if (player.position !== undefined) {
+            _lockscreenBasePositionSec = toLockscreenSeconds(player.position);
+        } else {
+            _lockscreenBasePositionSec = 0;
+        }
+        _lockscreenBaseTimestampMs = Date.now();
+    }
+
+    function currentLockscreenEstimatedPositionSec() {
+        if (!root.activePlayer) return 0;
+        if (!root.isMediaPlaying) return root._lockscreenBasePositionSec;
+        const elapsedSec = (Date.now() - root._lockscreenBaseTimestampMs) / 1000.0;
+        const estimated = root._lockscreenBasePositionSec + (elapsedSec * root._lockscreenPlaybackRate);
+        const totalLen = getLockscreenPlayerLengthSeconds(root.activePlayer);
+        if (totalLen > 0)
+            return Math.max(0, Math.min(totalLen, estimated));
+        return Math.max(0, estimated);
+    }
+
     function syncProgress(positionOverride) {
         const player = root.activePlayer;
         if (!player) {
@@ -288,20 +364,18 @@ Scope {
             return;
         }
 
-        const currentPosition = positionOverride !== undefined
-            ? Number(positionOverride) || 0
-            : (player.position !== undefined ? Number(player.position) || 0 : 0);
-        let totalLength = (player.length !== undefined ? Number(player.length) || 0 : 0);
-        if (totalLength <= 0 && player.metadata && player.metadata["mpris:length"])
-            totalLength = Number(player.metadata["mpris:length"]);
+        const currentPosSec = positionOverride !== undefined
+            ? toLockscreenSeconds(positionOverride)
+            : currentLockscreenEstimatedPositionSec();
+        const totalLengthSec = getLockscreenPlayerLengthSeconds(player);
 
-        if (totalLength > 0) {
-            root.trackProgress = Math.max(0, Math.min(1.0, currentPosition / totalLength));
-            root.timePlayed = root.formatTime(currentPosition);
-            root.timeTotal = root.formatTime(totalLength);
+        if (totalLengthSec > 0) {
+            root.trackProgress = Math.max(0, Math.min(1.0, currentPosSec / totalLengthSec));
+            root.timePlayed = root.formatTime(currentPosSec);
+            root.timeTotal = root.formatTime(totalLengthSec);
         } else {
             root.trackProgress = 0;
-            root.timePlayed = root.formatTime(currentPosition);
+            root.timePlayed = root.formatTime(currentPosSec);
             root.timeTotal = "--:--";
         }
     }
@@ -323,15 +397,16 @@ Scope {
                 else if (typeof player.seek === "function")
                     player.seek(targetPos - (Number(player.position) || 0));
             }
+            root.captureLockscreenBaseline(player, toLockscreenSeconds(targetPos));
             root.syncProgress(targetPos);
         }
     }
 
     Timer {
         id: progressPoller
-        interval: 500
+        interval: 250
         repeat: true
-        running: root.hasMedia && root.locked
+        running: root.hasMedia && root.locked && root.isMediaPlaying
         onTriggered: root.syncProgress()
     }
 
