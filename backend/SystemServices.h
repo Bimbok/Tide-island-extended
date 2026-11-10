@@ -38,6 +38,8 @@ class SystemServices final : public QObject {
     Q_PROPERTY(int batteryCycleCount READ batteryCycleCount NOTIFY batteryHealthMetricsChanged FINAL)
     Q_PROPERTY(int batteryHealthPercent READ batteryHealthPercent NOTIFY batteryHealthMetricsChanged FINAL)
     Q_PROPERTY(QString batteryChargeState READ batteryChargeState NOTIFY batteryHealthMetricsChanged FINAL)
+    Q_PROPERTY(bool cliphistAvailable READ cliphistAvailable CONSTANT)
+    Q_PROPERTY(bool externalClipboardWatcherRunning READ externalClipboardWatcherRunning CONSTANT)
 
 public:
     explicit SystemServices(QObject *parent = nullptr);
@@ -49,6 +51,8 @@ public:
     bool micActive() const { return m_micActive; }
     bool cameraActive() const { return m_cameraActive; }
     bool privacyActive() const { return m_micActive || m_cameraActive; }
+    bool cliphistAvailable() const { return m_cliphistAvailable; }
+    bool externalClipboardWatcherRunning() const;
     QVariantList activePrivacyApps() const { return m_activePrivacyApps; }
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
@@ -252,6 +256,7 @@ private:
     bool m_portalPipeWireActive = false;
     bool m_micActive = false;
     bool m_cameraActive = false;
+    bool m_cliphistAvailable = false;
     QVariantList m_activePrivacyApps;
     QSet<QString> m_activeScreenCastSessions;
     QString m_pendingScreenCastMember;

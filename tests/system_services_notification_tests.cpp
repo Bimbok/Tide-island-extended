@@ -301,6 +301,18 @@ private slots:
         dummyProcess.waitForFinished(1000);
     }
 
+    void testClipboardServiceAvailability()
+    {
+        SystemServices services;
+        const bool expectedAvailable = !QStandardPaths::findExecutable(QStringLiteral("cliphist")).isEmpty()
+                                    && !QStandardPaths::findExecutable(QStringLiteral("wl-paste")).isEmpty();
+        QCOMPARE(services.cliphistAvailable(), expectedAvailable);
+
+        // Verify external watcher check executes without errors
+        const bool extRunning = services.externalClipboardWatcherRunning();
+        Q_UNUSED(extRunning);
+    }
+
     void testNiriFocusWindowRouting()
     {
         SystemServices services;

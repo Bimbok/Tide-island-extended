@@ -34,11 +34,40 @@ Scope {
             : "/usr/share/tide-island/scripts/cliphist-helper.sh";
     }
 
-    // Keep clipboard history recording for the lifetime of the shell, even
-    // while the clipboard panel is closed.
+    readonly property bool clipboardConfigured: {
+        if (!userConfig) return true;
+        const swipeItems = userConfig.dynamicIslandLeftSwipeItems || [];
+        for (let i = 0; i < swipeItems.length; i++) {
+            if (String(swipeItems[i]).toLowerCase() === "clipboard") return true;
+        }
+        const clickActions = [
+            userConfig.dynamicIslandPrimaryAction,
+            userConfig.dynamicIslandSecondaryAction,
+            userConfig.dynamicIslandMiddleAction
+        ];
+        for (let i = 0; i < clickActions.length; i++) {
+            if (clickActions[i] === "toggleClipboard" || clickActions[i] === "showClipboard" || clickActions[i] === "openClipboard")
+                return true;
+        }
+        return false;
+    }
+
+    readonly property bool clipboardWatchersWanted: SystemServices.cliphistAvailable
+        && !SystemServices.externalClipboardWatcherRunning
+        && clipboardConfigured
+
+    // Keep clipboard history recording directly via wl-paste when enabled,
+    // eliminating the idle bash supervisor wrapper.
     Process {
-        command: ["bash", shellRoot.clipboardHelperScriptPath, "watch"]
-        running: true
+        id: clipboardTextWatcher
+        command: ["wl-paste", "--type", "text", "--watch", "cliphist", "store"]
+        running: shellRoot.clipboardWatchersWanted
+    }
+
+    Process {
+        id: clipboardImageWatcher
+        command: ["wl-paste", "--type", "image", "--watch", "cliphist", "store"]
+        running: shellRoot.clipboardWatchersWanted
     }
 
     WeatherService {

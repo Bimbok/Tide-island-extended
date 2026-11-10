@@ -258,6 +258,8 @@ SystemServices::SystemServices(QObject *parent)
     : QObject(parent) {
     s_systemServicesInstance = this;
     m_cavaLevels = QVariantList{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    m_cliphistAvailable = !findExecutable(QStringLiteral("cliphist")).isEmpty()
+                       && !findExecutable(QStringLiteral("wl-paste")).isEmpty();
 
     m_busMonitorRestartTimer.setSingleShot(true);
     m_busMonitorRestartTimer.setInterval(1200);
@@ -340,6 +342,44 @@ bool SystemServices::screenRecordingActive() const {
 
 QVariantList SystemServices::cavaLevels() const {
     return m_cavaLevels;
+}
+
+bool SystemServices::externalClipboardWatcherRunning() const {
+#ifdef Q_OS_UNIX
+    const pid_t myPid = getpid();
+    QDir procDir(QStringLiteral("/proc"));
+    const QStringList pids = procDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &pidStr : pids) {
+        bool ok = false;
+        const int pid = pidStr.toInt(&ok);
+        if (!ok || pid <= 0 || pid == static_cast<int>(myPid)) continue;
+
+        QFile commFile(QStringLiteral("/proc/%1/comm").arg(pid));
+        if (!commFile.open(QIODevice::ReadOnly)) continue;
+        const QString comm = QString::fromUtf8(commFile.readAll()).trimmed();
+        if (comm != QLatin1String("wl-paste")) continue;
+
+        QFile cmdlineFile(QStringLiteral("/proc/%1/cmdline").arg(pid));
+        if (!cmdlineFile.open(QIODevice::ReadOnly)) continue;
+        const QByteArray cmdline = cmdlineFile.readAll();
+        if (!cmdline.contains("cliphist")) continue;
+
+        QFile statFile(QStringLiteral("/proc/%1/stat").arg(pid));
+        if (!statFile.open(QIODevice::ReadOnly)) continue;
+        const QString stat = QString::fromUtf8(statFile.readAll());
+        const int closeParen = stat.lastIndexOf(QLatin1Char(')'));
+        if (closeParen != -1 && closeParen + 2 < stat.size()) {
+            const QStringList rest = stat.mid(closeParen + 2).split(QLatin1Char(' '));
+            if (rest.size() >= 2) {
+                const int ppid = rest.at(1).toInt();
+                if (ppid != static_cast<int>(myPid)) {
+                    return true;
+                }
+            }
+        }
+    }
+#endif
+    return false;
 }
 
 QString SystemServices::findExecutable(const QString &program) const {
