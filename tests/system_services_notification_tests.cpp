@@ -275,6 +275,32 @@ private slots:
         QCOMPARE(scApp.value(QStringLiteral("pid")).toInt(), 1708);
     }
 
+    void testTransientCameraProbeIgnored()
+    {
+        SystemServices services;
+
+        // Spawn a real child process that does NOT hold /dev/video*
+        QProcess dummyProcess;
+        dummyProcess.start(QStringLiteral("sleep"), {QStringLiteral("10")});
+        QVERIFY(dummyProcess.waitForStarted(2000));
+        const qint64 childPid = dummyProcess.processId();
+        QVERIFY(childPid > 0);
+
+        // Feed this active PID via fuser. Because it exists in /proc but has no open
+        // /dev/video* fd, it represents a momentary device probe that has closed.
+        const QString sampleProbe = QStringLiteral("[]\n---TIDE-PRIVACY-SEP---\n%1\n---TIDE-PRIVACY-SEP---\n").arg(childPid);
+        QMetaObject::invokeMethod(&services, "handlePrivacySnapshotOutput",
+                                  Qt::DirectConnection,
+                                  Q_ARG(QString, sampleProbe));
+
+        // Camera must NOT be activated for closed/transient probes
+        QVERIFY(!services.cameraActive());
+        QCOMPARE(services.activePrivacyApps().size(), 0);
+
+        dummyProcess.kill();
+        dummyProcess.waitForFinished(1000);
+    }
+
     void testNiriFocusWindowRouting()
     {
         SystemServices services;

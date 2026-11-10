@@ -228,6 +228,7 @@ private:
     void stopCava();
     void handleCavaOutput();
     void handleCavaLine(const QString &line);
+    void updatePrivacyPollInterval();
 
     bool m_shuttingDown = false;
 

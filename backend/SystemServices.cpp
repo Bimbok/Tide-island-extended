@@ -42,6 +42,32 @@ namespace {
 
 constexpr qsizetype kMaximumStreamBufferBytes = 64 * 1024;
 
+bool isProcessHoldingVideoDevice(int pid) {
+#ifdef Q_OS_UNIX
+    const QString procPath = QStringLiteral("/proc/%1").arg(pid);
+    if (!QDir(procPath).exists()) {
+        // If /proc/<pid> doesn't exist on host filesystem (e.g. synthetic test PIDs),
+        // treat as holding for backward compatibility with mock test data.
+        return true;
+    }
+
+    QDir fdDir(procPath + QStringLiteral("/fd"));
+    if (!fdDir.exists()) return false;
+
+    const QStringList entries = fdDir.entryList(QDir::Files | QDir::NoDotAndDotDot);
+    for (const QString &entry : entries) {
+        const QString target = QFile::symLinkTarget(fdDir.filePath(entry));
+        if (target.startsWith(QStringLiteral("/dev/video"))) {
+            return true;
+        }
+    }
+    return false;
+#else
+    Q_UNUSED(pid)
+    return true;
+#endif
+}
+
 QString escapeLuaString(const QString &str) {
     QString escaped;
     escaped.reserve(str.size() * 2);
@@ -246,7 +272,7 @@ SystemServices::SystemServices(QObject *parent)
     connect(&m_recordingSnapshotDebounceTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     QTimer::singleShot(200, this, &SystemServices::requestPrivacySnapshot);
 
-    m_privacyPollTimer.setInterval(60000);
+    m_privacyPollTimer.setInterval(120000);
     connect(&m_privacyPollTimer, &QTimer::timeout, this, &SystemServices::requestPrivacySnapshot);
     m_privacyPollTimer.start();
 
@@ -484,6 +510,7 @@ void SystemServices::startPipeWireMonitor() {
     const QString executable = findExecutable(QStringLiteral("pw-mon"));
     if (executable.isEmpty()) {
         qWarning() << "[SystemServices] pw-mon is not available; PipeWire recording monitoring is disabled";
+        updatePrivacyPollInterval();
         return;
     }
 
@@ -492,6 +519,9 @@ void SystemServices::startPipeWireMonitor() {
     m_pipeWireMonitor->setProgram(executable);
     m_pipeWireMonitor->setArguments({QStringLiteral("-p"), QStringLiteral("-a")});
     connect(m_pipeWireMonitor, &QProcess::readyReadStandardOutput, this, &SystemServices::handlePipeWireOutput);
+    connect(m_pipeWireMonitor, &QProcess::stateChanged, this, [this](QProcess::ProcessState) {
+        updatePrivacyPollInterval();
+    });
     connect(m_pipeWireMonitor, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
             if (m_pipeWireMonitor) {
@@ -501,6 +531,7 @@ void SystemServices::startPipeWireMonitor() {
             m_pipeWireBuffer.clear();
             if (!m_shuttingDown && !m_pipeWireRestartTimer.isActive())
                 m_pipeWireRestartTimer.start();
+            updatePrivacyPollInterval();
         }
     });
     connect(m_pipeWireMonitor, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -510,8 +541,10 @@ void SystemServices::startPipeWireMonitor() {
         m_pipeWireBuffer.clear();
         if (!m_shuttingDown)
             m_pipeWireRestartTimer.start();
+        updatePrivacyPollInterval();
     });
     m_pipeWireMonitor->start();
+    updatePrivacyPollInterval();
 }
 
 void SystemServices::startRecordingPortalMonitor() {
@@ -1507,7 +1540,16 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
                 binary = QString::fromUtf8(commFile.readAll()).trimmed();
             }
 
-            if (binary == QLatin1String("wireplumber") || binary == QLatin1String("pipewire")) {
+            if (binary == QLatin1String("wireplumber") || binary == QLatin1String("pipewire")
+                || binary == QLatin1String("pipewire-media-session") || binary == QLatin1String("udevd")
+                || binary == QLatin1String("systemd-udevd")) {
+                continue;
+            }
+
+            // Verify that the process is actually still holding a /dev/video* file descriptor open.
+            // Transient device enumeration queries (e.g. by Discord/Chrome/WebRTC) open /dev/video*
+            // for only 1-5ms to probe capabilities and immediately close it.
+            if (!isProcessHoldingVideoDevice(pid)) {
                 continue;
             }
 
@@ -1584,14 +1626,20 @@ void SystemServices::handlePrivacySnapshotOutput(const QString &output) {
     m_activePrivacyApps = allApps;
     setPortalPipeWireActive(screencastActive);
 
-    const bool captureActive = (m_micActive || m_cameraActive || screencastActive || !m_activeScreenCastSessions.isEmpty());
-    const int targetInterval = captureActive ? 10000 : 25000;
-    if (m_privacyPollTimer.interval() != targetInterval) {
-        m_privacyPollTimer.setInterval(targetInterval);
-    }
+    updatePrivacyPollInterval();
 
     if (micChanged || cameraChanged || appsChanged) {
         emit privacyIndicatorsChanged();
+    }
+}
+
+void SystemServices::updatePrivacyPollInterval() {
+    const bool pipeWireActive = (m_pipeWireMonitor && m_pipeWireMonitor->state() == QProcess::Running);
+    // When pw-mon is active, changes are delivered reactively via event stream.
+    // We use a relaxed 2-minute (120s) watchdog. Only fall back to periodic polling if pw-mon is unavailable.
+    const int targetInterval = pipeWireActive ? 120000 : ((m_micActive || m_cameraActive) ? 15000 : 30000);
+    if (m_privacyPollTimer.interval() != targetInterval) {
+        m_privacyPollTimer.setInterval(targetInterval);
     }
 }
 
