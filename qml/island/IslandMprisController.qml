@@ -10,6 +10,7 @@ Item {
     height: 0
 
     property bool expanded: false
+    property bool lyricsActive: false
     property string clientId: "island-mpris-default"
     property string registeredLyricsClientId: ""
 
@@ -58,6 +59,7 @@ Item {
         function onPlaybackStateChanged() {
             root.captureBaseline(root.activePlayer);
             root.syncProgress();
+            root.syncLyricsBackend();
         }
 
         function onMetadataChanged() {
@@ -91,6 +93,7 @@ Item {
 
     onInlineLyricsRawChanged: updatePlainLyric()
     onClientIdChanged: syncLyricsBackend()
+    onLyricsActiveChanged: syncLyricsBackend()
 
     Component.onCompleted: {
         updatePlainLyric();
@@ -98,16 +101,19 @@ Item {
     }
     Component.onDestruction: {
         if (registeredLyricsClientId !== "")
-            SysBackend.setLyricsClientActive(registeredLyricsClientId, false);
+            SysBackend.setLyricsClientActive(registeredLyricsClientId, false, true);
     }
 
     function syncLyricsBackend() {
         const nextClientId = String(clientId || "island-mpris-default");
         if (registeredLyricsClientId !== "" && registeredLyricsClientId !== nextClientId)
-            SysBackend.setLyricsClientActive(registeredLyricsClientId, false);
+            SysBackend.setLyricsClientActive(registeredLyricsClientId, false, true);
 
         registeredLyricsClientId = nextClientId;
-        SysBackend.setLyricsClientActive(registeredLyricsClientId, activePlayer !== null);
+        const isStopped = !activePlayer || (activePlayer.playbackState === MprisPlaybackState.Stopped);
+        const shouldBeActive = activePlayer !== null && !isStopped && lyricsActive;
+        const immediate = activePlayer === null || isStopped;
+        SysBackend.setLyricsClientActive(registeredLyricsClientId, shouldBeActive, immediate);
     }
 
     function formatTime(value) {

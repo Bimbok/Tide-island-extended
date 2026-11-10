@@ -162,6 +162,22 @@ target_link_libraries(screen_recorder_tests PRIVATE
 
 add_test(NAME screen_recorder COMMAND screen_recorder_tests)
 
+add_executable(sys_backend_lyrics_tests
+    tests/sys_backend_lyrics_tests.cpp
+)
+
+target_include_directories(sys_backend_lyrics_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend
+)
+
+target_link_libraries(sys_backend_lyrics_tests PRIVATE
+    IslandBackend
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME sys_backend_lyrics COMMAND sys_backend_lyrics_tests)
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/lyricsmpris_core_tests.cpp")
     add_executable(lyricsmpris_tests
         tests/lyricsmpris_core_tests.cpp

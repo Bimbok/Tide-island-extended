@@ -1363,6 +1363,15 @@ PanelWindow {
                     && (workspaceOriginSide === "right" || swipeTransitionProgress > 0))
             )
         )
+        readonly property bool lyricsCapsuleActive: !root.overviewVisible
+            && (root.autoHideProgress > 0.001)
+            && (
+                islandState === "lyrics"
+                || (restingState === "lyrics" && (islandState === "normal" || islandState === "lyrics"))
+                || rightSwipeProgress > 0.001
+                || (islandState === "split" && splitOriginSide === "right")
+                || (islandState === "long_capsule" && workspaceOriginSide === "right")
+            )
         readonly property bool expandedLayerVisible: !root.overviewVisible && islandState === "expanded"
         readonly property bool notificationLayerVisible: !root.overviewVisible && islandState === "notification"
         readonly property bool controlCenterLayerVisible: !root.overviewVisible && islandState === "control_center"
@@ -1435,6 +1444,7 @@ PanelWindow {
 
             expanded: islandContainer.islandState === "expanded"
             clientId: "island-mpris-" + root.screenOutputName
+            lyricsActive: islandContainer.lyricsCapsuleActive
         }
 
         BluetoothConnectionTracker {

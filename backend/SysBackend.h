@@ -36,7 +36,9 @@ public:
     QString lyricsCurrentLyric() const;
     bool lyricsIsSynced() const;
     QString lyricsBackendStatus() const;
-    Q_INVOKABLE void setLyricsClientActive(const QString &clientId, bool active);
+    int lyricsClientCount() const { return m_lyricsClients.size(); }
+    bool isLyricsIdleTimerActive() const;
+    Q_INVOKABLE void setLyricsClientActive(const QString &clientId, bool active, bool immediate = false);
 
 signals:
     void brightnessChanged(double val);
@@ -103,6 +105,7 @@ private:
     QTimer *m_defaultSinkQueryTimeoutTimer;
     QProcess *m_lyricsProcess;
     QTimer *m_lyricsRestartTimer;
+    QTimer *m_lyricsIdleTimer = nullptr;
     double m_maxBrightness;
     QByteArray m_lyricsStdoutBuffer;
     QString m_lyricsExecutablePath;
