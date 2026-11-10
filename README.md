@@ -261,7 +261,7 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - System Tray (SNI)
 - Screen Recorder & Instant Replay
 
-Clipboard history requires `cliphist` and `wl-clipboard`. Tide Island starts the clipboard watcher automatically while it is running.
+Clipboard history requires `cliphist` and `wl-clipboard`. Tide Island automatically manages lightweight `wl-paste` watchers directly when clipboard actions are configured, and gracefully skips spawning redundant watchers if an external clipboard manager is already active.
 Click a date in the calendar to write a note. Dates with notes show a small dot; notes are saved automatically.
 Click the × button on a notification card to dismiss it, or use **Clear All** in the Notification Center to dismiss all notifications at once.
 
@@ -307,12 +307,19 @@ Tide Island Extended is engineered to deliver fluid 60fps+ animations while main
 
 | Metric | Measured Value | Details |
 |---|---|---|
-| **Idle CPU Usage** | **~0.4% – 0.5%** | Measured over running daemon; 99.5% of time spent in deep kernel sleep |
-| **Unique Process RAM** | **~90 MB** | Private anonymous heap/object memory unique to Tide Island |
-| **Total RSS Footprint** | **~245 MB** | As reported by `btop` / `top` (includes ~103 MB shared Mesa GPU drivers & Qt6 libraries) |
-| **Active Daemon Processes** | **1 unified monitor** | Single `dbus-monitor` multiplexing all notification & screencast rules |
+| **Idle CPU Usage** | **~0.1% – 0.4%** | Measured over running daemon; 99.7% of time spent in deep kernel sleep with zero timer polling |
+| **Unique Process RAM** | **~75 – 85 MB** | Private anonymous heap/object memory unique to Tide Island |
+| **Total RSS Footprint** | **~195 – 205 MB** | As reported by `btop` / `top` (includes ~103 MB shared Mesa GPU drivers & Qt6 libraries; down from 245 MB+) |
+| **On-Demand Daemons (`lyricsmpris`)** | **0 MB idle** (saves 24 MB) | Only spawned when lyrics capsule is visibly active; terminates cleanly via a 30s idle timer |
+| **Active Subprocesses** | **Direct & Event-Driven** | Idle `bash` wrappers eliminated (saves 3 MB); native `wl-paste` managed directly by Quickshell |
 
 ### Architectural Optimizations
+- **On-Demand Lyrics Daemon Lifecycle**: The `lyricsmpris` C++ backend process is conditionally spawned only when the lyrics capsule is active. An automatic 30-second idle countdown reclaims ~24 MB of RAM as soon as playback stops or the island rests in clock mode.
+- **Local Extrapolation & MPRIS Dead Reckoning**: Replaced high-frequency 350 ms and 500 ms D-Bus polling loops with local timestamp-based dead reckoning (`Position_0 + (Now - t_0) * Rate`). Listens strictly to MPRIS D-Bus state events (`PlaybackStatus`, `Seeked`, `TrackChanged`), dropping active D-Bus query traffic to 0 while maintaining silky 60 FPS slider animations.
+- **Event-Driven Media Discovery**: Replaced 1,500 ms D-Bus `ListNames` polling in the lyrics daemon with reactive `org.freedesktop.DBus.NameOwnerChanged` signal matching for `org.mpris.MediaPlayer2.*`, completely eliminating background discovery polling.
+- **Zero-Polling Screen Recorder (`pidfd_open` + inotify)**: Replaced permanent 1,200 ms background file polling of `/tmp/gsr/record.pid` with kernel-level `inotify` directory monitoring (`QFileSystemWatcher`) and `pidfd_open()` with `QSocketNotifier` for instant, non-blocking epoll process exit notifications. Zero CPU wakeups when idle.
+- **Direct Clipboard Supervision & Redundancy Prevention**: Eliminated intermediate `bash` supervisor wrappers (`cliphist-helper.sh watch`) to directly run `wl-paste` via Quickshell `Process` items (saving ~3 MB). Detects existing external clipboard managers (e.g. `cliphist` in `hyprland.conf`) and configuration settings to avoid spawning duplicate background watchers.
+- **Hardware-Filtered Privacy & Camera Monitoring**: Replaced aggressive 10s/25s privacy polling sweeps with an event-driven PipeWire (`pw-mon`) stream monitor and a low-frequency 120s fallback watchdog. Transient 1–5ms camera enumeration probes (e.g. Discord or browser startup) are filtered via `/proc/<pid>/fd` descriptor verification, preventing UI flickering and cutting subshell forks by >95%.
 - **Zero-Subprocess Telemetry Engine**: System statistics (CPU ticks, RAM, swap, and disk capacity) are read directly from Linux `/proc/stat`, `/proc/meminfo`, and POSIX `statvfs()` system calls via a native C++ singleton without spawning shell commands (`free`, `df`, `top`).
 - **Retina Image Decode Bounding**: All dynamic image elements (lockscreen wallpapers, MPRIS high-res album covers, user avatars, notifications, and clipboard previews) specify explicit `sourceSize` bounds. 4K/8K images are downsampled at decode time, preventing multi-megapixel raw bitmaps from inflating memory.
 - **Multiplexed D-Bus Event Loop**: Notification mirroring and portal screencast monitoring are consolidated into a single `dbus-monitor` process with combined match rules, eliminating process duplication.
