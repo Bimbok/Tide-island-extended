@@ -307,9 +307,9 @@ Tide Island Extended is engineered to deliver fluid 60fps+ animations while main
 
 | Metric | Measured Value | Details |
 |---|---|---|
-| **Idle CPU Usage** | **~0.1% – 0.4%** | Measured over running daemon; 99.7% of time spent in deep kernel sleep with zero timer polling |
-| **Unique Process RAM** | **~75 – 85 MB** | Private anonymous heap/object memory unique to Tide Island |
-| **Total RSS Footprint** | **~195 – 205 MB** | As reported by `btop` / `top` (includes ~103 MB shared Mesa GPU drivers & Qt6 libraries; down from 245 MB+) |
+| **Idle CPU Usage** | **~0.1% – 0.5%** | Measured over 19+ hours daemon uptime; 99.5%+ of time spent in deep kernel sleep with zero timer polling |
+| **Unique Process RAM** | **~50 – 65 MB** | Private anonymous heap/object memory unique to Tide Island |
+| **Total RSS Footprint** | **~135 – 150 MB** | As reported by `btop` / `top` during continuous extended uptime (includes shared Mesa GPU drivers & Qt6 libraries; down from 245 MB+) |
 | **On-Demand Daemons (`lyricsmpris`)** | **0 MB idle** (saves 24 MB) | Only spawned when lyrics capsule is visibly active; terminates cleanly via a 30s idle timer |
 | **Active Subprocesses** | **Direct & Event-Driven** | Idle `bash` wrappers eliminated (saves 3 MB); native `wl-paste` managed directly by Quickshell |
 
