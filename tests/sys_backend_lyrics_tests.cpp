@@ -3,18 +3,40 @@
 #include <QtTest>
 #include <QSignalSpy>
 #include <QProcess>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QTextStream>
+#include <memory>
 
 class SysBackendLyricsTests : public QObject {
     Q_OBJECT
 
+private:
+    std::unique_ptr<QTemporaryDir> m_tempDir;
+
 private slots:
     void initTestCase() {
-        // Use a standard persistent process for testing process lifecycle
-        qputenv("QUICKSHELL_LYRICS_BACKEND", "/bin/cat");
+        m_tempDir = std::make_unique<QTemporaryDir>();
+        QVERIFY(m_tempDir->isValid());
+
+        const QString mockPath = m_tempDir->filePath(QStringLiteral("mock_lyrics_backend"));
+        QFile script(mockPath);
+        QVERIFY(script.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream out(&script);
+        out << "#!/bin/sh\n";
+        out << "exec cat\n";
+        script.close();
+
+        QVERIFY(script.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+                                      QFileDevice::ReadGroup | QFileDevice::ExeGroup |
+                                      QFileDevice::ReadOther | QFileDevice::ExeOther));
+
+        qputenv("QUICKSHELL_LYRICS_BACKEND", mockPath.toUtf8());
     }
 
     void cleanupTestCase() {
         qunsetenv("QUICKSHELL_LYRICS_BACKEND");
+        m_tempDir.reset();
     }
 
     void testInitialState() {

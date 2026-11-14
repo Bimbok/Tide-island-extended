@@ -701,7 +701,11 @@ void SysBackend::startLyricsBackend() {
     setLyricsBackendStatus("starting");
 
     m_lyricsProcess->setProgram(m_lyricsExecutablePath);
-    m_lyricsProcess->setArguments({ "--pipe" });
+    if (m_lyricsExecutablePath.contains(QLatin1String("lyricsmpris"))) {
+        m_lyricsProcess->setArguments({ QStringLiteral("--pipe") });
+    } else {
+        m_lyricsProcess->setArguments({});
+    }
     m_lyricsProcess->start();
 }
 
