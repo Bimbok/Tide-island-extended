@@ -413,7 +413,7 @@ Item {
         batteryModeLastCommandOutput = "";
         const permissionMode = trimString(userConfig.tlpPermissionMode);
         const sudoPassword = permissionMode === "password"
-            ? trimString(userConfig.tlpSudoPassword)
+            ? userConfig.tlpSudoPassword
             : "";
         SystemServices.setPowerProfileMode(controlCenter.powerDriver, batteryModeCommand(nextIndex), sudoPassword, permissionMode === "ask");
     }

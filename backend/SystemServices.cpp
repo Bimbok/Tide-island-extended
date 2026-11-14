@@ -2599,7 +2599,8 @@ void SystemServices::setPowerProfileMode(const QString &driver,
         } else
 #endif
         {
-            const QString password = sudoPassword.trimmed();
+            // Whitespace is part of the credential, including at either end.
+            const QString &password = sudoPassword;
             if (password.isEmpty() && !findExecutable(QStringLiteral("pkexec")).isEmpty()) {
                 program = QStringLiteral("pkexec");
                 arguments = {QStringLiteral("tlp"), normalizedMode};

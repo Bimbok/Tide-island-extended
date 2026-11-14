@@ -423,10 +423,20 @@ Scope {
     property bool confirmArmed: false
     property int failedBulletsCount: 0
     property bool isShakingFailed: false
+    property bool capsLock: false
+    property bool capsProbePending: false
 
     readonly property bool lockedOut: cooldown > 0
     readonly property bool pamRisky: pamRecord || failCount > 0
     readonly property bool pamLocked: failCount >= 3
+
+    function probeCapsLock() {
+        if (capsProbe.running) {
+            capsProbePending = true;
+        } else {
+            capsProbe.running = true;
+        }
+    }
 
     function statusIcon() {
         if (unlocking) return "󰄬";
@@ -434,6 +444,7 @@ Scope {
         if (lockedOut) return "󰒲";
         if (checking) return "󰑮";
         if (failed || isShakingFailed) return "󰀦";
+        if (capsLock) return "󰪛";
         return "󰌾";
     }
 
@@ -449,11 +460,13 @@ Scope {
         if (confirmArmed)
             return "Press Enter again to confirm";
         if (failed || isShakingFailed) {
-            if (failCount === 1) return "Incorrect password · Please try again";
-            return "Incorrect password (" + failCount + " attempts) · Check Caps Lock";
+            if (failCount === 1) return "Incorrect password · Please try again" + (capsLock ? " (Caps Lock is ON)" : "");
+            return "Incorrect password (" + failCount + " attempts) · Caps Lock is " + (capsLock ? "ON" : "OFF");
         }
         if (pamRisky)
             return "Prior authentication failure recorded · Press Enter to confirm";
+        if (capsLock)
+            return "Caps Lock is ON · Esc to clear";
         return "Press Enter to unlock · Esc to clear";
     }
 
@@ -640,6 +653,29 @@ Scope {
     }
 
     Process {
+        id: capsProbe
+        command: ["sh", "-c", "cat /sys/class/leds/*::capslock/brightness 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.capsLock = text.split("\n").some(line => line.trim() !== "" && line.trim() !== "0");
+            }
+        }
+        onRunningChanged: {
+            if (!running && root.capsProbePending) {
+                root.capsProbePending = false;
+                capsDebounce.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: capsDebounce
+        interval: 40
+        repeat: false
+        onTriggered: root.probeCapsLock()
+    }
+
+    Process {
         id: resetProc
     }
 
@@ -670,6 +706,7 @@ Scope {
                 confirmTimer.stop();
                 failReset.stop();
                 refreshFailTally();
+                root.probeCapsLock();
                 wpQueryProc.running = true;
                 wpFile.reload();
             }
@@ -760,6 +797,10 @@ Scope {
                         return;
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                         root.submit();
+                        return;
+                    }
+                    if (event.key === Qt.Key_CapsLock) {
+                        capsDebounce.restart();
                         return;
                     }
                     if (root.lockedOut || root.pamLocked)
@@ -2010,6 +2051,44 @@ Scope {
                                                                         antialiasing: true
                                                                     }
                                                                 }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // Caps Lock Floating Warning Badge
+                                                    Rectangle {
+                                                        id: capsBadge
+                                                        visible: root.capsLock && !root.unlocking
+                                                        anchors.right: goBtn.left
+                                                        anchors.rightMargin: 8
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        height: 22
+                                                        width: capsRow.implicitWidth + 14
+                                                        radius: 11
+                                                        color: "#26ff9800"
+                                                        border.width: 1
+                                                        border.color: "#66ff9800"
+                                                        antialiasing: true
+
+                                                        Row {
+                                                            id: capsRow
+                                                            anchors.centerIn: parent
+                                                            spacing: 4
+                                                            Text {
+                                                                text: "⇪"
+                                                                color: "#ffb74d"
+                                                                font.family: root.nerdFont
+                                                                font.pixelSize: 11
+                                                                font.bold: true
+                                                                anchors.verticalCenter: parent.verticalCenter
+                                                            }
+                                                            Text {
+                                                                text: "CAPS"
+                                                                color: "#ffb74d"
+                                                                font.family: root.textFont
+                                                                font.pixelSize: 10
+                                                                font.bold: true
+                                                                anchors.verticalCenter: parent.verticalCenter
                                                             }
                                                         }
                                                     }
