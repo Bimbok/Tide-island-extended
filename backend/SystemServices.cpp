@@ -382,6 +382,23 @@ bool SystemServices::externalClipboardWatcherRunning() const {
     return false;
 }
 
+bool SystemServices::isCapsLockActive() const {
+#ifdef Q_OS_UNIX
+    const QDir ledsDir(QStringLiteral("/sys/class/leds"));
+    const QStringList entries = ledsDir.entryList({QStringLiteral("*capslock*")}, QDir::Dirs | QDir::Files | QDir::System | QDir::NoDotAndDotDot);
+    for (const QString &entry : entries) {
+        QFile file(QStringLiteral("/sys/class/leds/%1/brightness").arg(entry));
+        if (file.open(QIODevice::ReadOnly)) {
+            const QByteArray val = file.readAll().trimmed();
+            if (!val.isEmpty() && val != "0") {
+                return true;
+            }
+        }
+    }
+#endif
+    return false;
+}
+
 QString SystemServices::findExecutable(const QString &program) const {
     if (program.contains(QLatin1Char('/'))) {
         const QFileInfo fileInfo(program);

@@ -311,6 +311,10 @@ private slots:
         // Verify external watcher check executes without errors
         const bool extRunning = services.externalClipboardWatcherRunning();
         Q_UNUSED(extRunning);
+
+        // Verify Caps Lock query executes safely without errors
+        const bool caps = services.isCapsLockActive();
+        Q_UNUSED(caps);
     }
 
     void testNiriFocusWindowRouting()

@@ -53,6 +53,7 @@ public:
     bool privacyActive() const { return m_micActive || m_cameraActive; }
     bool cliphistAvailable() const { return m_cliphistAvailable; }
     bool externalClipboardWatcherRunning() const;
+    Q_INVOKABLE bool isCapsLockActive() const;
     QVariantList activePrivacyApps() const { return m_activePrivacyApps; }
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }

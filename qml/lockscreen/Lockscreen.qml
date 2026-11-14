@@ -424,18 +424,13 @@ Scope {
     property int failedBulletsCount: 0
     property bool isShakingFailed: false
     property bool capsLock: false
-    property bool capsProbePending: false
 
     readonly property bool lockedOut: cooldown > 0
     readonly property bool pamRisky: pamRecord || failCount > 0
     readonly property bool pamLocked: failCount >= 3
 
     function probeCapsLock() {
-        if (capsProbe.running) {
-            capsProbePending = true;
-        } else {
-            capsProbe.running = true;
-        }
+        capsLock = SystemServices.isCapsLockActive();
     }
 
     function statusIcon() {
@@ -652,25 +647,16 @@ Scope {
         }
     }
 
-    Process {
-        id: capsProbe
-        command: ["sh", "-c", "cat /sys/class/leds/*::capslock/brightness 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.capsLock = text.split("\n").some(line => line.trim() !== "" && line.trim() !== "0");
-            }
-        }
-        onRunningChanged: {
-            if (!running && root.capsProbePending) {
-                root.capsProbePending = false;
-                capsDebounce.restart();
-            }
-        }
+    Timer {
+        id: capsDebounce
+        interval: 35
+        repeat: false
+        onTriggered: root.probeCapsLock()
     }
 
     Timer {
-        id: capsDebounce
-        interval: 40
+        id: capsFollowupDebounce
+        interval: 110
         repeat: false
         onTriggered: root.probeCapsLock()
     }
@@ -800,9 +786,12 @@ Scope {
                         return;
                     }
                     if (event.key === Qt.Key_CapsLock) {
+                        root.capsLock = !root.capsLock;
                         capsDebounce.restart();
+                        capsFollowupDebounce.restart();
                         return;
                     }
+                    root.probeCapsLock();
                     if (root.lockedOut || root.pamLocked)
                         return;
                     root.confirmArmed = false;
@@ -1966,20 +1955,22 @@ Scope {
                                                         }
 
                                                         Text {
-                                                            text: "󰌾"
+                                                            text: root.capsLock ? "󰪛" : "󰌾"
                                                             font.family: root.nerdFont
                                                             font.pixelSize: 13
-                                                            color: StyleTokens.withAlpha(StyleTokens.accent, 0.75)
+                                                            color: root.capsLock ? "#ffb74d" : StyleTokens.withAlpha(StyleTokens.accent, 0.75)
                                                             anchors.verticalCenter: parent.verticalCenter
+                                                            Behavior on color { ColorAnimation { duration: 160 } }
                                                         }
 
                                                         Text {
-                                                            text: "Enter password to unlock"
+                                                            text: root.capsLock ? "Caps Lock is ON" : "Enter password to unlock"
                                                             font.family: root.textFont
                                                             font.pixelSize: 13
                                                             font.weight: Font.Medium
-                                                            color: StyleTokens.textMuted
+                                                            color: root.capsLock ? "#ffb74d" : StyleTokens.textMuted
                                                             anchors.verticalCenter: parent.verticalCenter
+                                                            Behavior on color { ColorAnimation { duration: 160 } }
                                                         }
 
                                                         // Cute blinking pastel pill cursor
@@ -1987,7 +1978,7 @@ Scope {
                                                             width: 2
                                                             height: 14
                                                             radius: 1
-                                                            color: StyleTokens.accent
+                                                            color: root.capsLock ? "#ffb74d" : StyleTokens.accent
                                                             anchors.verticalCenter: parent.verticalCenter
 
                                                             SequentialAnimation on opacity {
@@ -2058,7 +2049,7 @@ Scope {
                                                     // Caps Lock Floating Warning Badge
                                                     Rectangle {
                                                         id: capsBadge
-                                                        visible: root.capsLock && !root.unlocking
+                                                        visible: root.capsLock && !root.unlocking && root.buffer.length > 0
                                                         anchors.right: goBtn.left
                                                         anchors.rightMargin: 8
                                                         anchors.verticalCenter: parent.verticalCenter
