@@ -28,7 +28,7 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "tide-island";
-  version = "1.1.4";
+  version = "1.2.0";
 
   src = lib.cleanSourceWith {
     src = ./.;
