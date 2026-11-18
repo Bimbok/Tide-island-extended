@@ -239,7 +239,6 @@ Scope {
     property real trackProgress: 0
     property string timePlayed: "0:00"
     property string timeTotal: "0:00"
-    property real visualizerPhase: 0
 
     property real _lockscreenBasePositionSec: 0
     property real _lockscreenBaseTimestampMs: 0
@@ -272,28 +271,6 @@ Scope {
     onActivePlayerChanged: {
         captureLockscreenBaseline(activePlayer);
         syncProgress();
-    }
-
-    NumberAnimation {
-        id: visualizerAnim
-        target: root
-        property: "visualizerPhase"
-        from: 0
-        to: Math.PI * 2
-        duration: 1300
-        loops: Animation.Infinite
-        running: root.isMediaPlaying && root.locked
-    }
-
-    function visualizerLevel(index) {
-        if (typeof SystemServices !== "undefined" && SystemServices.cavaLevels && SystemServices.cavaLevels.length > index) {
-            const val = Number(SystemServices.cavaLevels[index]);
-            if (!isNaN(val) && val > 0) return Math.min(1.0, val);
-        }
-        const phase = root.visualizerPhase + index * 0.88;
-        const primary = (Math.sin(phase) + 1) * 0.5;
-        const secondary = (Math.sin(phase * 2 + index * 1.15) + 1) * 0.5;
-        return 0.18 + primary * 0.48 + secondary * 0.26;
     }
 
     function formatTime(value) {
@@ -1321,33 +1298,17 @@ Scope {
                                                         }
 
                                                         // Live Animated Audio Visualizer Bars
-                                                        Row {
-                                                            spacing: 3
+                                                        LiveAudioVisualizer {
                                                             Layout.alignment: Qt.AlignVCenter
-
-                                                            Repeater {
-                                                                model: 5
-
-                                                                Rectangle {
-                                                                    required property int index
-                                                                    width: 3.5
-                                                                    height: root.isMediaPlaying
-                                                                        ? (4 + 18 * root.visualizerLevel(index))
-                                                                        : (4 + 14 * [0.35, 0.65, 0.85, 0.65, 0.35][index])
-                                                                    radius: 1.75
-                                                                    color: root.isMediaPlaying
-                                                                        ? StyleTokens.accent
-                                                                        : StyleTokens.withAlpha(StyleTokens.accent, 0.40)
-                                                                    anchors.verticalCenter: parent.verticalCenter
-
-                                                                    Behavior on height {
-                                                                        NumberAnimation { duration: 75; easing.type: Easing.OutQuad }
-                                                                    }
-                                                                    Behavior on color {
-                                                                        ColorAnimation { duration: 150 }
-                                                                    }
-                                                                }
-                                                            }
+                                                            barWidth: 3.5
+                                                            barSpacing: 3
+                                                            barRadius: 1.75
+                                                            minHeight: 4
+                                                            maxHeight: 22
+                                                            isPlaying: root.isMediaPlaying
+                                                            active: root.locked && root.hasMedia
+                                                            activeColor: StyleTokens.accent
+                                                            pausedColor: StyleTokens.withAlpha(StyleTokens.accent, 0.40)
                                                         }
                                                     }
 

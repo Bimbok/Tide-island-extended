@@ -38,7 +38,6 @@ Item {
     property int timerRemainingSeconds: 0
     property bool timerRunning: false
     property bool timerActive: false
-    property real visualizerPhase: 0
     property int currentPage: 0
     property int pendingPage: -1
     readonly property int pageCount: 2
@@ -47,18 +46,6 @@ Item {
     readonly property real pageSlideDistance: Math.max(1, viewport.width + 24)
 
     readonly property bool isPlaying: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
-
-    function visualizerLevel(index) {
-        const phase = visualizerPhase + index * 0.78;
-        const primary = (Math.sin(phase) + 1) * 0.5;
-        const secondary = (Math.sin(phase * 2 + index * 0.95) + 1) * 0.5;
-        return 0.22 + primary * 0.42 + secondary * 0.24;
-    }
-
-    function pausedVisualizerLevel(index) {
-        const levels = [0.34, 0.58, 0.82, 0.58, 0.34];
-        return levels[index] || 0.4;
-    }
 
     function togglePlayback() {
         if (!activePlayer || !activePlayer.canControl) return;
@@ -170,16 +157,6 @@ Item {
         ScriptAction {
             script: root.finishPageSettle()
         }
-    }
-
-    NumberAnimation {
-        target: root
-        property: "visualizerPhase"
-        from: 0
-        to: Math.PI * 2
-        duration: 2200
-        loops: Animation.Infinite
-        running: root.showCondition && root.isPlaying && root.currentPage === 0
     }
 
     Item {
@@ -337,45 +314,20 @@ Item {
                             }
                         }
 
-                        Item {
+                        LiveAudioVisualizer {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             width: 44
                             height: 22
-
-                            Row {
-                                anchors.centerIn: parent
-                                height: parent.height
-                                spacing: 4
-
-                                Repeater {
-                                    model: 5
-
-                                    delegate: Rectangle {
-                                        width: 4
-                                        height: isPlaying
-                                            ? 6 + (parent.height - 6) * visualizerLevel(index)
-                                            : 6 + (parent.height - 6) * pausedVisualizerLevel(index)
-                                        radius: 2
-                                        color: isPlaying ? StyleTokens.accent : StyleTokens.accentSoft
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Behavior on height {
-                                            NumberAnimation {
-                                                duration: isPlaying ? 120 : 260
-                                                easing.type: Easing.InOutQuad
-                                            }
-                                        }
-
-                                        Behavior on color {
-                                            ColorAnimation {
-                                                duration: isPlaying ? 140 : 280
-                                                easing.type: Easing.InOutQuad
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            barWidth: 4
+                            barSpacing: 4
+                            barRadius: 2
+                            minHeight: 6
+                            maxHeight: 22
+                            isPlaying: root.isPlaying
+                            active: root.showCondition && root.currentPage === 0
+                            activeColor: StyleTokens.accent
+                            pausedColor: StyleTokens.accentSoft
                         }
                     }
 
