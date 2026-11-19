@@ -2205,10 +2205,14 @@ void SystemServices::requestAudioOutputs() {
 
                 QString availableHeadphonePort;
                 QString availableSpeakerPort;
+                QSet<QString> availablePorts;
                 for (const QJsonValue &pVal : ports) {
                     const QJsonObject pObj = pVal.toObject();
                     const QString pName = pObj.value(QStringLiteral("name")).toString();
                     const QString pAvail = pObj.value(QStringLiteral("availability")).toString();
+                    if (pAvail != QLatin1String("not available")) {
+                        availablePorts.insert(pName);
+                    }
                     if (pName.contains(QStringLiteral("headphone"), Qt::CaseInsensitive) && pAvail != QLatin1String("not available")) {
                         availableHeadphonePort = pName;
                     } else if (pName.contains(QStringLiteral("speaker"), Qt::CaseInsensitive)) {
@@ -2216,9 +2220,28 @@ void SystemServices::requestAudioOutputs() {
                     }
                 }
 
-                QString chosenPort = explicitPort;
-                if (chosenPort.isEmpty()) {
-                    if (!availableHeadphonePort.isEmpty()) {
+                const bool headphoneNowAvailable = !availableHeadphonePort.isEmpty();
+                QString chosenPort;
+
+                if (headphoneNowAvailable != m_headphonePortAvailable) {
+                    m_headphonePortAvailable = headphoneNowAvailable;
+                    if (headphoneNowAvailable) {
+                        // Wired headphones were just connected: auto-select headphones strictly
+                        chosenPort = availableHeadphonePort;
+                    } else {
+                        // Headphones unplugged: revert to speakers
+                        chosenPort = availableSpeakerPort;
+                    }
+                    for (int i = 0; i < m_activeOutputDeviceIds.size(); ++i) {
+                        if (extractSinkName(m_activeOutputDeviceIds[i]) == sinkName) {
+                            m_activeOutputDeviceIds[i] = makeAudioDeviceId(sinkName, chosenPort);
+                            break;
+                        }
+                    }
+                } else {
+                    if (!explicitPort.isEmpty() && (availablePorts.contains(explicitPort) || explicitPort.contains(QStringLiteral("speaker"), Qt::CaseInsensitive))) {
+                        chosenPort = explicitPort;
+                    } else if (headphoneNowAvailable) {
                         chosenPort = availableHeadphonePort;
                     } else if (!availableSpeakerPort.isEmpty()) {
                         chosenPort = availableSpeakerPort;
@@ -2227,7 +2250,7 @@ void SystemServices::requestAudioOutputs() {
                     }
                 }
 
-                // If headphones are plugged in or chosen port differs from hardware active_port, update sink port
+                // If chosen port differs from hardware active_port, update sink port
                 if (isSinkActive && !chosenPort.isEmpty() && activePort != chosenPort) {
                     startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, chosenPort}, 1000, nullptr);
                 }
@@ -2302,6 +2325,34 @@ void SystemServices::requestAudioOutputs() {
                 actualActiveIds.append(map.value(QStringLiteral("id")).toString());
             }
         }
+
+        // Automatic cleanup if a slave disconnected while combine-sink was active
+        if (actualActiveIds.size() <= 1 && (multiActive || !m_combinedSinkModuleId.isEmpty())) {
+            QString fallbackSink;
+            QString fallbackPort;
+            if (!actualActiveIds.isEmpty()) {
+                fallbackSink = extractSinkName(actualActiveIds.first());
+                fallbackPort = extractPortName(actualActiveIds.first());
+            } else if (!outputs.isEmpty()) {
+                fallbackSink = outputs.first().toMap().value(QStringLiteral("sinkName")).toString();
+                fallbackPort = outputs.first().toMap().value(QStringLiteral("portName")).toString();
+            }
+            if (!fallbackSink.isEmpty()) {
+                setAudioOutput(fallbackSink, fallbackPort);
+                return;
+            }
+        } else if (multiActive && actualActiveIds.size() > 1) {
+            QSet<QString> activeSinks;
+            for (const QString &id : actualActiveIds) {
+                activeSinks.insert(extractSinkName(id));
+            }
+            QSet<QString> slaveSinks(combinedSlaves.begin(), combinedSlaves.end());
+            if (activeSinks != slaveSinks && !m_combineSinkBusy) {
+                applyCombinedSink(activeSinks.values());
+                return;
+            }
+        }
+
         m_activeOutputDeviceIds = actualActiveIds;
 
         const bool isMulti = (m_activeOutputDeviceIds.size() > 1);
@@ -2485,42 +2536,16 @@ void SystemServices::requestAppStreams() {
 void SystemServices::setAudioOutput(const QString &sinkName, const QString &portName) {
     if (sinkName.isEmpty()) return;
 
-    if (m_isMultiOutputActive || !m_combinedSinkModuleId.isEmpty()) {
-        const QString modId = m_combinedSinkModuleId;
-        m_combinedSinkModuleId.clear();
-        m_isMultiOutputActive = false;
-        emit isMultiOutputActiveChanged();
-
-        QStringList unloadArgs = {QStringLiteral("unload-module")};
-        if (!modId.isEmpty()) unloadArgs << modId;
-        else unloadArgs << QStringLiteral("module-combine-sink");
-        startCommand(QStringLiteral("pactl"), unloadArgs, 1000, nullptr);
-    }
-
     m_activeOutputDeviceIds = { makeAudioDeviceId(sinkName, portName) };
+    m_isMultiOutputActive = false;
+    emit isMultiOutputActiveChanged();
     emit activeOutputCountChanged();
 
-    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000,
-                 [this, sinkName, portName](const CommandResult &) {
-        // Move active application streams to the newly selected sink
-        const QString moveScript = QStringLiteral(
-            "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
-            "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
-            "done; true"
-        ).arg(sinkName);
-        startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+    if (!portName.isEmpty()) {
+        startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000, nullptr);
+    }
 
-        if (!portName.isEmpty()) {
-            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000,
-                         [this](const CommandResult &) {
-                requestAudioOutputs();
-                requestVolume();
-            });
-        } else {
-            requestAudioOutputs();
-            requestVolume();
-        }
-    });
+    applyCombinedSink({sinkName});
 }
 
 void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &portName) {
@@ -2579,7 +2604,8 @@ void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &p
         }
 
         if (m_activeOutputDeviceIds.size() == 1) {
-            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000, nullptr);
+            setAudioOutput(sinkName, portName);
+            return;
         }
 
         m_isMultiOutputActive = (m_activeOutputDeviceIds.size() > 1);
@@ -2606,35 +2632,74 @@ void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &p
         distinctSinks.insert(extractSinkName(id));
     }
 
-    if (distinctSinks.size() > 1) {
-        // Multiple separate physical/virtual sinks -> combine via module-combine-sink
-        const QStringList sinkList = distinctSinks.values();
+    applyCombinedSink(distinctSinks.values());
+}
+
+void SystemServices::applyCombinedSink(const QStringList &sinks) {
+    if (m_shuttingDown) return;
+
+    if (m_combineSinkBusy) {
+        m_pendingCombineSinks = sinks;
+        m_hasPendingCombine = true;
+        return;
+    }
+
+    // Determine target distinct sinks
+    QSet<QString> uniqueSinks;
+    for (const QString &s : sinks) {
+        if (!s.isEmpty()) uniqueSinks.insert(s);
+    }
+
+    QPointer<SystemServices> self(this);
+
+    if (uniqueSinks.size() > 1) {
+        m_combineSinkBusy = true;
+        const QStringList sinkList = uniqueSinks.values();
         const QString slavesArg = QStringLiteral("slaves=") + sinkList.join(QLatin1Char(','));
 
-        auto loadCombinedSink = [this, slavesArg]() {
-            startCommand(QStringLiteral("pactl"),
-                         {QStringLiteral("load-module"),
-                          QStringLiteral("module-combine-sink"),
-                          QStringLiteral("sink_name=tide_combined"),
-                          QStringLiteral("sink_properties=device.description=\"Multi-Device Audio\""),
-                          slavesArg},
-                         2000,
-                         [this](const CommandResult &loadRes) {
+        auto onCombineFinished = [self]() {
+            if (!self || self->m_shuttingDown) return;
+            self->m_combineSinkBusy = false;
+            if (self->m_hasPendingCombine) {
+                self->m_hasPendingCombine = false;
+                const QStringList next = self->m_pendingCombineSinks;
+                self->m_pendingCombineSinks.clear();
+                self->applyCombinedSink(next);
+            }
+        };
+
+        auto loadNewModule = [self, slavesArg, onCombineFinished]() {
+            if (!self || self->m_shuttingDown) return;
+            self->startCommand(QStringLiteral("pactl"),
+                               {QStringLiteral("load-module"),
+                                QStringLiteral("module-combine-sink"),
+                                QStringLiteral("sink_name=tide_combined"),
+                                QStringLiteral("sink_properties=device.description=\"Multi-Device Audio\""),
+                                slavesArg},
+                               2000,
+                               [self, onCombineFinished](const CommandResult &loadRes) {
+                if (!self || self->m_shuttingDown) return;
                 if (loadRes.exitCode == 0) {
-                    m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
-                    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
-                                 [this](const CommandResult &) {
+                    self->m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
+                    self->startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
+                                       [self, onCombineFinished](const CommandResult &) {
+                        if (!self || self->m_shuttingDown) return;
                         const QString moveScript = QStringLiteral(
                             "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
                             "  pactl move-sink-input \"$id\" tide_combined 2>/dev/null; "
                             "done; true"
                         );
-                        startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
-                        requestAudioOutputs();
-                        requestVolume();
+                        self->startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000,
+                                           [self, onCombineFinished](const CommandResult &) {
+                            if (!self || self->m_shuttingDown) return;
+                            self->requestAudioOutputs();
+                            self->requestVolume();
+                            onCombineFinished();
+                        });
                     });
                 } else {
-                    requestAudioOutputs();
+                    self->requestAudioOutputs();
+                    onCombineFinished();
                 }
             });
         };
@@ -2643,33 +2708,84 @@ void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &p
             const QString oldId = m_combinedSinkModuleId;
             m_combinedSinkModuleId.clear();
             startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000,
-                         [loadCombinedSink](const CommandResult &) {
-                loadCombinedSink();
+                         [loadNewModule](const CommandResult &) {
+                loadNewModule();
             });
         } else {
             startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), QStringLiteral("module-combine-sink")}, 800,
-                         [loadCombinedSink](const CommandResult &) {
-                loadCombinedSink();
+                         [loadNewModule](const CommandResult &) {
+                loadNewModule();
             });
         }
     } else {
-        if (!m_combinedSinkModuleId.isEmpty()) {
+        // 1 or 0 sinks -> module-combine-sink not needed
+        const QString targetSink = uniqueSinks.isEmpty() ? QString() : *uniqueSinks.begin();
+
+        if (!m_combinedSinkModuleId.isEmpty() || m_isMultiOutputActive || m_defaultAudioSink == QStringLiteral("tide_combined")) {
+            m_combineSinkBusy = true;
             const QString oldId = m_combinedSinkModuleId;
             m_combinedSinkModuleId.clear();
-            startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000, nullptr);
+            m_isMultiOutputActive = false;
+            emit isMultiOutputActiveChanged();
+
+            auto onSingleFinished = [self]() {
+                if (!self || self->m_shuttingDown) return;
+                self->m_combineSinkBusy = false;
+                if (self->m_hasPendingCombine) {
+                    self->m_hasPendingCombine = false;
+                    const QStringList next = self->m_pendingCombineSinks;
+                    self->m_pendingCombineSinks.clear();
+                    self->applyCombinedSink(next);
+                }
+            };
+
+            auto finalizeSingle = [self, targetSink, onSingleFinished]() {
+                if (!self || self->m_shuttingDown) return;
+                if (!targetSink.isEmpty()) {
+                    self->startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
+                                       [self, targetSink, onSingleFinished](const CommandResult &) {
+                        if (!self || self->m_shuttingDown) return;
+                        const QString moveScript = QStringLiteral(
+                            "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+                            "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                            "done; true"
+                        ).arg(targetSink);
+                        self->startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000,
+                                           [self, onSingleFinished](const CommandResult &) {
+                            if (!self || self->m_shuttingDown) return;
+                            self->requestAudioOutputs();
+                            self->requestVolume();
+                            onSingleFinished();
+                        });
+                    });
+                } else {
+                    self->requestAudioOutputs();
+                    self->requestVolume();
+                    onSingleFinished();
+                }
+            };
+
+            QStringList unloadArgs = {QStringLiteral("unload-module")};
+            if (!oldId.isEmpty()) unloadArgs << oldId;
+            else unloadArgs << QStringLiteral("module-combine-sink");
+
+            startCommand(QStringLiteral("pactl"), unloadArgs, 1000,
+                         [finalizeSingle](const CommandResult &) {
+                finalizeSingle();
+            });
+        } else if (!targetSink.isEmpty()) {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
+                         [this, targetSink](const CommandResult &) {
+                const QString moveScript = QStringLiteral(
+                    "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+                    "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                    "done; true"
+                ).arg(targetSink);
+                startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+                requestAudioOutputs();
+                requestVolume();
+            });
         }
-        const QString singleSink = *distinctSinks.begin();
-        startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), singleSink}, 1000,
-                     [this, singleSink](const CommandResult &) {
-            const QString moveScript = QStringLiteral(
-                "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
-                "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
-                "done; true"
-            ).arg(singleSink);
-            startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
-            requestAudioOutputs();
-            requestVolume();
-        });
     }
 }
 
@@ -2745,21 +2861,22 @@ void SystemServices::toggleDeviceMute(const QString &sinkName, const QString &po
         }
     }
 
+    const QString muteArg = newMuted ? QStringLiteral("1") : QStringLiteral("0");
     if (!portName.isEmpty()) {
-        const QString toggleArg = newMuted ? QStringLiteral("mute") : QStringLiteral("unmute");
+        const QString alsaToggle = newMuted ? QStringLiteral("mute") : QStringLiteral("unmute");
         if (portName.contains(QStringLiteral("headphone"), Qt::CaseInsensitive)) {
-            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Headphone"), toggleArg}, 800, nullptr);
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Headphone"), alsaToggle}, 800, nullptr);
         } else if (portName.contains(QStringLiteral("speaker"), Qt::CaseInsensitive)) {
-            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Speaker"), toggleArg}, 800, nullptr);
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Speaker"), alsaToggle}, 800, nullptr);
         }
-    } else {
-        startCommand(QStringLiteral("pactl"),
-                     {QStringLiteral("set-sink-mute"), sinkName, QStringLiteral("toggle")},
-                     800,
-                     [this](const CommandResult &) {
-            requestAudioOutputs();
-        });
     }
+
+    startCommand(QStringLiteral("pactl"),
+                 {QStringLiteral("set-sink-mute"), sinkName, muteArg},
+                 800,
+                 [this](const CommandResult &) {
+        requestAudioOutputs();
+    });
 }
 
 void SystemServices::setAudioInput(const QString &sourceName, const QString &portName) {

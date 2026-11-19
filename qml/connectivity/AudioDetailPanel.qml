@@ -485,8 +485,9 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 preventStealing: true
 
-                                function updateVolume(mouseX) {
-                                    const ratio = Math.max(0, Math.min(1.0, mouseX / devSliderTrack.width));
+                                function updateVolume(mX) {
+                                    const trackPos = mapToItem(devSliderTrack, mX, 0);
+                                    const ratio = Math.max(0, Math.min(1.0, trackPos.x / devSliderTrack.width));
                                     SystemServices.setDeviceVolume(modelData.sinkName, ratio, modelData.portName);
                                 }
 

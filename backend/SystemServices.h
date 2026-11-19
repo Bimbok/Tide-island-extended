@@ -322,6 +322,11 @@ private:
     bool m_isMultiOutputActive = false;
     QStringList m_activeOutputDeviceIds;
     QString m_combinedSinkModuleId;
+    bool m_combineSinkBusy = false;
+    QStringList m_pendingCombineSinks;
+    bool m_hasPendingCombine = false;
+    bool m_headphonePortAvailable = false;
+    void applyCombinedSink(const QStringList &sinks);
     QHash<QString, int> m_pendingSinkVolumePercents;
     QSet<QString> m_activeSinkVolumeCommands;
     void applyPendingSinkVolume(const QString &sinkName);
