@@ -494,6 +494,22 @@ private slots:
             QCOMPARE(services.equalizerBands().at(i).toDouble(), 0.0);
         }
     }
+
+    void testEqualizerToggleAndFiltering()
+    {
+        SystemServices services;
+        QSignalSpy enabledSpy(&services, &SystemServices::equalizerEnabledChanged);
+
+        QCOMPARE(services.equalizerEnabled(), false);
+
+        services.setEqualizerEnabled(true);
+        QCOMPARE(services.equalizerEnabled(), true);
+        QCOMPARE(enabledSpy.count(), 1);
+
+        services.setEqualizerEnabled(false);
+        QCOMPARE(services.equalizerEnabled(), false);
+        QCOMPARE(enabledSpy.count(), 2);
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

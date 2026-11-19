@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import Quickshell.Bluetooth
 import Quickshell.Io
 import IslandBackend
+import "../common"
 import "../common/BluetoothFormatting.js" as BluetoothFormatting
 import "../island"
 
@@ -2052,45 +2053,15 @@ Item {
                         font.family: iconFontFamily
                     }
 
-                    Rectangle {
+                    SwitchToggle {
                         id: wifiSwitchTrack
                         anchors.right: parent.right
                         anchors.rightMargin: 12
                         anchors.top: parent.top
                         anchors.topMargin: 12
-                        width: 34
-                        height: 20
-                        radius: 10
-                        color: wifiEnabled ? StyleTokens.success : StyleTokens.switchOff
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: StyleTokens.durationFast
-                            }
-                        }
-
-                        Rectangle {
-                            width: 16
-                            height: 16
-                            radius: 8
-                            y: 2
-                            x: wifiEnabled ? 16 : 2
-                            color: StyleTokens.white
-
-                            Behavior on x {
-                                NumberAnimation {
-                                    duration: 140
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: wifiToggleArea
-                            anchors.fill: parent
-                            enabled: wifiSupported && wifiAvailable && !wifiBusy
-                            onClicked: controlCenter.toggleWifiEnabled()
-                        }
+                        checked: wifiEnabled
+                        enabled: wifiSupported && wifiAvailable && !wifiBusy
+                        onToggled: controlCenter.toggleWifiEnabled()
                     }
 
                     Item {
@@ -2183,45 +2154,15 @@ Item {
                         font.family: iconFontFamily
                     }
 
-                    Rectangle {
+                    SwitchToggle {
                         id: bluetoothSwitchTrack
                         anchors.right: parent.right
                         anchors.rightMargin: 12
                         anchors.top: parent.top
                         anchors.topMargin: 12
-                        width: 34
-                        height: 20
-                        radius: 10
-                        color: bluetoothEnabled ? StyleTokens.success : StyleTokens.switchOff
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: StyleTokens.durationFast
-                            }
-                        }
-
-                        Rectangle {
-                            width: 16
-                            height: 16
-                            radius: 8
-                            y: 2
-                            x: bluetoothEnabled ? 16 : 2
-                            color: StyleTokens.white
-
-                            Behavior on x {
-                                NumberAnimation {
-                                    duration: 140
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: bluetoothToggleArea
-                            anchors.fill: parent
-                            enabled: bluetoothAvailable && !bluetoothBusy
-                            onClicked: controlCenter.toggleBluetoothEnabled()
-                        }
+                        checked: bluetoothEnabled
+                        enabled: bluetoothAvailable && !bluetoothBusy
+                        onToggled: controlCenter.toggleBluetoothEnabled()
                     }
 
                     Item {

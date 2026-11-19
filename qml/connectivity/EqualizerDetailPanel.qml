@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import IslandBackend
+import "../common"
 
 Item {
     id: root
@@ -97,57 +98,15 @@ Item {
                 }
             }
 
-            // Master Enable / Bypass Switch
-            Item {
+            // Master Enable / Bypass Switch (Reusable Island Switch)
+            SwitchToggle {
                 id: masterToggle
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                width: 44
-                height: 24
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 12
-                    color: SystemServices.equalizerEnabled
-                        ? StyleTokens.accent
-                        : StyleTokens.cardFill
-                    border.width: 1
-                    border.color: SystemServices.equalizerEnabled
-                        ? StyleTokens.accent
-                        : StyleTokens.inputBorder
-
-                    Behavior on color {
-                        ColorAnimation { duration: 160 }
-                    }
-
-                    Rectangle {
-                        id: switchThumb
-                        width: 18
-                        height: 18
-                        radius: 9
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: SystemServices.equalizerEnabled ? 23 : 3
-                        color: SystemServices.equalizerEnabled ? StyleTokens.black : StyleTokens.textSecondary
-
-                        Behavior on x {
-                            NumberAnimation {
-                                duration: 160
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-
-                        Behavior on color {
-                            ColorAnimation { duration: 160 }
-                        }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        SystemServices.setEqualizerEnabled(!SystemServices.equalizerEnabled);
-                    }
+                checked: SystemServices.equalizerEnabled
+                activeColor: StyleTokens.success
+                onToggled: function(val) {
+                    SystemServices.setEqualizerEnabled(val);
                 }
             }
         }

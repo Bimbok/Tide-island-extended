@@ -2170,6 +2170,9 @@ void SystemServices::requestAudioOutputs() {
             if (sinkName == QStringLiteral("tide_combined") || sinkName.startsWith(QStringLiteral("tide_combined"))) {
                 continue;
             }
+            if (sinkName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) && !m_equalizerEnabled) {
+                continue;
+            }
 
             const QString sinkDesc = sinkObj.value(QStringLiteral("description")).toString();
             const QString activePort = sinkObj.value(QStringLiteral("active_port")).toString();
@@ -2494,10 +2497,15 @@ void SystemServices::requestAppStreams() {
             const QString ownerMod = streamObj.value(QStringLiteral("owner_module")).toString();
             const QString pulseModId = props.value(QStringLiteral("pulse.module.id")).toString();
 
-            // Filter out internal combine-sink routing streams and non-client virtual streams
+            // Filter out internal combine-sink routing streams, equalizer routing streams, and non-client virtual streams
             if (nodeName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                nodeName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
                 mediaName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                mediaName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
+                mediaName.contains(QStringLiteral("Tide Equalizer"), Qt::CaseInsensitive) ||
                 appNameProp.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                appNameProp.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
+                appNameProp.contains(QStringLiteral("Tide Equalizer"), Qt::CaseInsensitive) ||
                 (!m_combinedSinkModuleId.isEmpty() && (ownerMod == m_combinedSinkModuleId || pulseModId == m_combinedSinkModuleId)) ||
                 streamObj.value(QStringLiteral("client")).isNull() ||
                 props.value(QStringLiteral("node.virtual")).toString() == QLatin1String("true")) {
@@ -3750,7 +3758,15 @@ void SystemServices::initEqualizer() {
                 emit equalizerRunningChanged();
             }
             if (running) {
-                requestEqualizerState();
+                if (!m_equalizerEnabled) {
+                    sendEqualizerCommand(QStringLiteral("quit"), [this](bool, const QString &) {
+                        m_equalizerRunning = false;
+                        emit equalizerRunningChanged();
+                        requestAudioOutputs();
+                    });
+                } else {
+                    requestEqualizerState();
+                }
             }
         });
     });
@@ -3962,13 +3978,21 @@ void SystemServices::setEqualizerEnabled(bool enabled) {
                 sendEqualizerCommand(QStringLiteral("bypass 0"), [this](bool ok, const QString &) {
                     if (ok) requestEqualizerState();
                 });
+                setEqualizerBands(m_equalizerBands);
+                requestAudioOutputs();
             }
         });
     } else {
         if (m_equalizerRunning) {
-            sendEqualizerCommand(QStringLiteral("bypass 1"), [this](bool ok, const QString &) {
-                if (ok) requestEqualizerState();
+            sendEqualizerCommand(QStringLiteral("bypass 1"), [this](bool, const QString &) {
+                sendEqualizerCommand(QStringLiteral("quit"), [this](bool, const QString &) {
+                    m_equalizerRunning = false;
+                    emit equalizerRunningChanged();
+                    requestAudioOutputs();
+                });
             });
+        } else {
+            requestAudioOutputs();
         }
     }
 }
