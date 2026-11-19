@@ -284,7 +284,7 @@ Item {
                             anchors.top: parent.top
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: (bandColumn.currentGain > 0 ? "+" : "") + Math.round(bandColumn.currentGain)
-                            font.pixelSize: 8.5
+                            font.pixelSize: 9
                             font.family: root.textFontFamily
                             font.weight: Math.abs(bandColumn.currentGain) > 0.5 ? Font.Bold : Font.Normal
                             color: Math.abs(bandColumn.currentGain) > 0.5
@@ -395,7 +395,7 @@ Item {
                             anchors.bottom: parent.bottom
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: root.bandFrequencies[index]
-                            font.pixelSize: 8.5
+                            font.pixelSize: 9
                             font.family: root.textFontFamily
                             color: StyleTokens.textSecondary
                         }
