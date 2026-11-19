@@ -766,6 +766,13 @@ PanelWindow {
         setConnectivityDetailVisible("equalizer", false);
     }
 
+    function closeConnectivityOverlays() {
+        closeAllConnectivityDetails();
+        if (controlCenterLoader.item) {
+            controlCenterLoader.item.closeConnectivityOverlays();
+        }
+    }
+
     function openOverviewEverywhere() {
         if (shellRootController && shellRootController.openOverviewAll) {
             shellRootController.openOverviewAll();
@@ -1026,30 +1033,6 @@ PanelWindow {
     function closeGlanceWindow() {
         if (islandContainer.islandState === "glance")
             islandContainer.smartRestoreState();
-    }
-
-    function toggleEqualizerWindow() {
-        if (root.equalizerConnectivityDetailOpen) {
-            setConnectivityDetailVisible("equalizer", false);
-        } else {
-            if (islandContainer.islandState !== "control_center") {
-                islandContainer.showControlCenter();
-            }
-            showIslandWindow();
-            setConnectivityDetailVisible("equalizer", true);
-        }
-    }
-
-    function showEqualizerWindow() {
-        if (islandContainer.islandState !== "control_center") {
-            islandContainer.showControlCenter();
-        }
-        showIslandWindow();
-        setConnectivityDetailVisible("equalizer", true);
-    }
-
-    function closeEqualizerWindow() {
-        setConnectivityDetailVisible("equalizer", false);
     }
 
     onOverviewVisibleChanged: {

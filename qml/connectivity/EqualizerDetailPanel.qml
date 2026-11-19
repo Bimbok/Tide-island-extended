@@ -16,6 +16,17 @@ Item {
     readonly property var presetList: ["Flat", "Bass", "Treble", "Vocal", "Pop", "Rock", "Jazz", "Classic"]
     readonly property var bandFrequencies: ["32", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"]
 
+    focus: true
+
+    Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+            if (root.provider && root.provider.setConnectivityPanelOpen) {
+                root.provider.setConnectivityPanelOpen("equalizer", false);
+            }
+            event.accepted = true;
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: 28

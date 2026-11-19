@@ -705,6 +705,7 @@ Item {
         setConnectivityPanelOpen("power", false, emitSignals);
         setConnectivityPanelOpen("audio_output", false, emitSignals);
         setConnectivityPanelOpen("audio_input", false, emitSignals);
+        setConnectivityPanelOpen("equalizer", false, emitSignals);
         clearWifiPrompt();
         clearWifiMessages();
         clearBluetoothMessages();

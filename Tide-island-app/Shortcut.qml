@@ -179,13 +179,6 @@ PagePanel {
                 "key": "L",
                 "target": "lock",
                 "method": "lock"
-            },
-            {
-                "action": "Equalizer",
-                "mods": "SUPER+ALT",
-                "key": "E",
-                "target": "tide",
-                "method": "toggleEqualizer"
             }
         ]
     }

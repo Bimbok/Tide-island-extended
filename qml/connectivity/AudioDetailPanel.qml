@@ -14,6 +14,17 @@ Item {
 
     property string activeTab: panelKind === "audio_input" ? "inputs" : "outputs"
 
+    focus: true
+
+    Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+            if (root.provider && root.provider.setConnectivityPanelOpen) {
+                root.provider.setConnectivityPanelOpen(root.panelKind, false);
+            }
+            event.accepted = true;
+        }
+    }
+
     function getDeviceGlyph(iconType) {
         if (iconType === "headphones") return "\uf025";
         if (iconType === "bluetooth") return "\udb80\udcaf";

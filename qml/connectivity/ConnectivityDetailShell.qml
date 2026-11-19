@@ -55,6 +55,15 @@ Item {
     visible: mounted || opacity > 0.001
     z: 3
 
+    Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+            if (shell.provider && shell.provider.setConnectivityPanelOpen) {
+                shell.provider.setConnectivityPanelOpen(shell.panelKind, false);
+            }
+            event.accepted = true;
+        }
+    }
+
     onOpenChanged: startPanelAnimation(open)
 
     NumberAnimation {
