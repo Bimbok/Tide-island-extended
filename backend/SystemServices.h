@@ -24,6 +24,8 @@ class SystemServices final : public QObject {
     Q_PROPERTY(QVariantList activePrivacyApps READ activePrivacyApps NOTIFY privacyIndicatorsChanged FINAL)
     Q_PROPERTY(QVariantList cavaLevels READ cavaLevels NOTIFY cavaLevelsChanged FINAL)
     Q_PROPERTY(QVariantList audioOutputs READ audioOutputs NOTIFY audioOutputsChanged FINAL)
+    Q_PROPERTY(bool isMultiOutputActive READ isMultiOutputActive NOTIFY isMultiOutputActiveChanged FINAL)
+    Q_PROPERTY(int activeOutputCount READ activeOutputCount NOTIFY activeOutputCountChanged FINAL)
     Q_PROPERTY(QVariantList audioInputs READ audioInputs NOTIFY audioInputsChanged FINAL)
     Q_PROPERTY(QVariantList appStreams READ appStreams NOTIFY appStreamsChanged FINAL)
     Q_PROPERTY(QString defaultAudioSink READ defaultAudioSink NOTIFY defaultAudioSinkChanged FINAL)
@@ -57,6 +59,8 @@ public:
     QVariantList activePrivacyApps() const { return m_activePrivacyApps; }
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
+    bool isMultiOutputActive() const { return m_isMultiOutputActive; }
+    int activeOutputCount() const { return m_activeOutputSinks.size(); }
     QVariantList audioInputs() const { return m_audioInputs; }
     QVariantList appStreams() const { return m_appStreams; }
     QString defaultAudioSink() const { return m_defaultAudioSink; }
@@ -94,6 +98,9 @@ public:
     Q_INVOKABLE void requestAudioInputs();
     Q_INVOKABLE void requestAppStreams();
     Q_INVOKABLE void setAudioOutput(const QString &sinkName, const QString &portName = QString());
+    Q_INVOKABLE void toggleAudioOutput(const QString &sinkName, const QString &portName = QString());
+    Q_INVOKABLE void setDeviceVolume(const QString &sinkName, double volume);
+    Q_INVOKABLE void toggleDeviceMute(const QString &sinkName);
     Q_INVOKABLE void setAudioInput(const QString &sourceName, const QString &portName = QString());
     Q_INVOKABLE void setAppStreamVolume(int streamIndex, double volume);
     Q_INVOKABLE void toggleAppStreamMute(int streamIndex);
@@ -162,6 +169,8 @@ signals:
     void batteryThresholdFinished(bool success, const QString &errorString);
     void cavaLevelsChanged();
     void audioOutputsChanged();
+    void isMultiOutputActiveChanged();
+    void activeOutputCountChanged();
     void audioInputsChanged();
     void appStreamsChanged();
     void defaultAudioSinkChanged();
@@ -310,6 +319,12 @@ private:
     QTimer m_micVolumeThrottleTimer;
 
     QVariantList m_audioOutputs;
+    bool m_isMultiOutputActive = false;
+    QStringList m_activeOutputSinks;
+    QString m_combinedSinkModuleId;
+    QHash<QString, int> m_pendingSinkVolumePercents;
+    QSet<QString> m_activeSinkVolumeCommands;
+    void applyPendingSinkVolume(const QString &sinkName);
     QVariantList m_audioInputs;
     QVariantList m_appStreams;
     QString m_defaultAudioSink;

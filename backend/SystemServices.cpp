@@ -2075,7 +2075,7 @@ void SystemServices::requestAudioOutputs() {
     m_audioOutputsRequestActive = true;
 
     startCommand(QStringLiteral("sh"),
-                 {QStringLiteral("-c"), QStringLiteral("pactl get-default-sink 2>/dev/null; echo '---TIDE-SEP---'; pactl -f json list sinks 2>/dev/null")},
+                 {QStringLiteral("-c"), QStringLiteral("pactl get-default-sink 2>/dev/null; echo '---TIDE-SEP---'; pactl list modules short 2>/dev/null; echo '---TIDE-SEP---'; pactl -f json list sinks 2>/dev/null")},
                  1000,
                  [this](const CommandResult &result) {
         m_audioOutputsRequestActive = false;
@@ -2085,13 +2085,61 @@ void SystemServices::requestAudioOutputs() {
         const QStringList parts = fullText.split(QStringLiteral("---TIDE-SEP---"));
         if (parts.size() < 2) return;
 
-        const QString defaultSink = parts[0].trimmed();
+        QString defaultSink;
+        QString modulesShort;
+        QByteArray jsonBytes;
+
+        if (parts.size() >= 3) {
+            defaultSink = parts[0].trimmed();
+            modulesShort = parts[1].trimmed();
+            jsonBytes = parts[2].trimmed().toUtf8();
+        } else {
+            defaultSink = parts[0].trimmed();
+            jsonBytes = parts[1].trimmed().toUtf8();
+        }
+
         if (m_defaultAudioSink != defaultSink) {
             m_defaultAudioSink = defaultSink;
             emit defaultAudioSinkChanged();
         }
 
-        const QByteArray jsonBytes = parts[1].trimmed().toUtf8();
+        const bool multiActive = (defaultSink == QStringLiteral("tide_combined"));
+        if (multiActive) {
+            if (!modulesShort.isEmpty()) {
+                const QStringList lines = modulesShort.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+                for (const QString &line : lines) {
+                    if (line.contains(QStringLiteral("module-combine-sink"))) {
+                        const QStringList tokens = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                        if (!tokens.isEmpty()) {
+                            m_combinedSinkModuleId = tokens.first();
+                        }
+                        for (const QString &tok : tokens) {
+                            if (tok.startsWith(QStringLiteral("slaves="))) {
+                                const QString slavesStr = tok.mid(7);
+                                const QStringList parsedSlaves = slavesStr.split(QLatin1Char(','), Qt::SkipEmptyParts);
+                                if (!parsedSlaves.isEmpty() && m_activeOutputSinks.isEmpty()) {
+                                    m_activeOutputSinks = parsedSlaves;
+                                }
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        } else {
+            m_combinedSinkModuleId.clear();
+            if (m_activeOutputSinks.isEmpty() || m_activeOutputSinks.size() > 1) {
+                m_activeOutputSinks = { defaultSink };
+            }
+        }
+
+        if (m_isMultiOutputActive != multiActive) {
+            m_isMultiOutputActive = multiActive;
+            emit isMultiOutputActiveChanged();
+            emit activeOutputCountChanged();
+        }
+
         QJsonParseError parseErr;
         const QJsonDocument doc = QJsonDocument::fromJson(jsonBytes, &parseErr);
         if (!doc.isArray()) return;
@@ -2102,11 +2150,33 @@ void SystemServices::requestAudioOutputs() {
             if (!val.isObject()) continue;
             const QJsonObject sinkObj = val.toObject();
             const QString sinkName = sinkObj.value(QStringLiteral("name")).toString();
+            if (sinkName.isEmpty()) continue;
+            if (sinkName == QStringLiteral("tide_combined") || sinkName.startsWith(QStringLiteral("tide_combined"))) {
+                continue;
+            }
+
             const QString sinkDesc = sinkObj.value(QStringLiteral("description")).toString();
             const QString activePort = sinkObj.value(QStringLiteral("active_port")).toString();
             const QJsonObject props = sinkObj.value(QStringLiteral("properties")).toObject();
             const QString formFactor = props.value(QStringLiteral("device.form_factor")).toString();
             const QString iconName = props.value(QStringLiteral("device.icon_name")).toString();
+
+            double sinkVol = 1.0;
+            const QJsonObject volObj = sinkObj.value(QStringLiteral("volume")).toObject();
+            if (!volObj.isEmpty()) {
+                const QJsonObject fl = volObj.value(QStringLiteral("front-left")).toObject();
+                if (!fl.isEmpty()) {
+                    sinkVol = static_cast<double>(fl.value(QStringLiteral("value")).toInt()) / 65536.0;
+                } else {
+                    auto it = volObj.begin();
+                    if (it != volObj.end() && it.value().isObject()) {
+                        sinkVol = static_cast<double>(it.value().toObject().value(QStringLiteral("value")).toInt()) / 65536.0;
+                    }
+                }
+            }
+            const bool sinkMuted = sinkObj.value(QStringLiteral("mute")).toBool();
+            const bool isSinkSelected = m_isMultiOutputActive ? m_activeOutputSinks.contains(sinkName)
+                                                              : (sinkName == defaultSink);
 
             const QJsonArray ports = sinkObj.value(QStringLiteral("ports")).toArray();
             if (ports.size() > 1) {
@@ -2116,7 +2186,8 @@ void SystemServices::requestAudioOutputs() {
                     const QString pName = portObj.value(QStringLiteral("name")).toString();
                     const QString pDesc = portObj.value(QStringLiteral("description")).toString();
                     const QString pType = portObj.value(QStringLiteral("type")).toString();
-                    const bool isActive = (sinkName == defaultSink && activePort == pName);
+                    const bool isActive = m_isMultiOutputActive ? (m_activeOutputSinks.contains(sinkName) && (activePort.isEmpty() || activePort == pName))
+                                                                : (sinkName == defaultSink && activePort == pName);
 
                     QString iconType = QStringLiteral("speaker");
                     if (pType.compare(QStringLiteral("headphones"), Qt::CaseInsensitive) == 0 ||
@@ -2136,10 +2207,11 @@ void SystemServices::requestAudioOutputs() {
                     item.insert(QStringLiteral("description"), sinkDesc);
                     item.insert(QStringLiteral("iconType"), iconType);
                     item.insert(QStringLiteral("active"), isActive);
+                    item.insert(QStringLiteral("volume"), std::clamp(sinkVol, 0.0, 1.5));
+                    item.insert(QStringLiteral("muted"), sinkMuted);
                     outputs.append(item);
                 }
             } else {
-                const bool isActive = (sinkName == defaultSink);
                 QString iconType = QStringLiteral("speaker");
                 if (sinkName.contains(QStringLiteral("bluez"), Qt::CaseInsensitive) ||
                     sinkDesc.contains(QStringLiteral("Bluetooth"), Qt::CaseInsensitive) ||
@@ -2160,7 +2232,9 @@ void SystemServices::requestAudioOutputs() {
                 item.insert(QStringLiteral("name"), sinkDesc.isEmpty() ? sinkName : sinkDesc);
                 item.insert(QStringLiteral("description"), QString());
                 item.insert(QStringLiteral("iconType"), iconType);
-                item.insert(QStringLiteral("active"), isActive);
+                item.insert(QStringLiteral("active"), isSinkSelected);
+                item.insert(QStringLiteral("volume"), std::clamp(sinkVol, 0.0, 1.5));
+                item.insert(QStringLiteral("muted"), sinkMuted);
                 outputs.append(item);
             }
         }
@@ -2339,6 +2413,21 @@ void SystemServices::requestAppStreams() {
 void SystemServices::setAudioOutput(const QString &sinkName, const QString &portName) {
     if (sinkName.isEmpty()) return;
 
+    if (m_isMultiOutputActive || !m_combinedSinkModuleId.isEmpty()) {
+        const QString modId = m_combinedSinkModuleId;
+        m_combinedSinkModuleId.clear();
+        m_isMultiOutputActive = false;
+        emit isMultiOutputActiveChanged();
+
+        QStringList unloadArgs = {QStringLiteral("unload-module")};
+        if (!modId.isEmpty()) unloadArgs << modId;
+        else unloadArgs << QStringLiteral("module-combine-sink");
+        startCommand(QStringLiteral("pactl"), unloadArgs, 1000, nullptr);
+    }
+
+    m_activeOutputSinks = { sinkName };
+    emit activeOutputCountChanged();
+
     startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000,
                  [this, sinkName, portName](const CommandResult &) {
         if (!portName.isEmpty()) {
@@ -2351,6 +2440,143 @@ void SystemServices::setAudioOutput(const QString &sinkName, const QString &port
             requestAudioOutputs();
             requestVolume();
         }
+    });
+}
+
+void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &portName) {
+    if (sinkName.isEmpty()) return;
+
+    QStringList currentSinks = m_activeOutputSinks;
+    if (currentSinks.isEmpty() && !m_defaultAudioSink.isEmpty() && m_defaultAudioSink != QStringLiteral("tide_combined")) {
+        currentSinks.append(m_defaultAudioSink);
+    }
+
+    const bool alreadyActive = currentSinks.contains(sinkName);
+
+    if (alreadyActive) {
+        if (currentSinks.size() <= 1) {
+            return; // Cannot deselect the only active device
+        }
+
+        currentSinks.removeAll(sinkName);
+
+        if (currentSinks.size() == 1) {
+            setAudioOutput(currentSinks.first(), QString());
+            return;
+        }
+    } else {
+        if (!portName.isEmpty()) {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000, nullptr);
+        }
+        currentSinks.append(sinkName);
+    }
+
+    m_activeOutputSinks = currentSinks;
+    m_isMultiOutputActive = true;
+    emit isMultiOutputActiveChanged();
+    emit activeOutputCountChanged();
+
+    auto loadCombinedSink = [this, currentSinks]() {
+        const QString slavesArg = QStringLiteral("slaves=") + currentSinks.join(QLatin1Char(','));
+        startCommand(QStringLiteral("pactl"),
+                     {QStringLiteral("load-module"),
+                      QStringLiteral("module-combine-sink"),
+                      QStringLiteral("sink_name=tide_combined"),
+                      QStringLiteral("sink_properties=device.description=\"Multi-Device Audio\""),
+                      slavesArg},
+                     2000,
+                     [this](const CommandResult &loadRes) {
+            if (loadRes.exitCode == 0) {
+                m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
+                startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
+                             [this](const CommandResult &) {
+                    requestAudioOutputs();
+                    requestVolume();
+                });
+            } else {
+                requestAudioOutputs();
+            }
+        });
+    };
+
+    if (!m_combinedSinkModuleId.isEmpty()) {
+        const QString oldId = m_combinedSinkModuleId;
+        m_combinedSinkModuleId.clear();
+        startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000,
+                     [loadCombinedSink](const CommandResult &) {
+            loadCombinedSink();
+        });
+    } else {
+        startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), QStringLiteral("module-combine-sink")}, 800,
+                     [loadCombinedSink](const CommandResult &) {
+            loadCombinedSink();
+        });
+    }
+}
+
+void SystemServices::setDeviceVolume(const QString &sinkName, double volume) {
+    if (m_shuttingDown || sinkName.isEmpty()) return;
+
+    const int percent = qRound(std::clamp(volume, 0.0, 1.5) * 100.0);
+
+    for (int i = 0; i < m_audioOutputs.size(); ++i) {
+        QVariantMap map = m_audioOutputs[i].toMap();
+        if (map.value(QStringLiteral("sinkName")).toString() == sinkName) {
+            map.insert(QStringLiteral("volume"), volume);
+            m_audioOutputs[i] = map;
+            emit audioOutputsChanged();
+            break;
+        }
+    }
+
+    m_pendingSinkVolumePercents.insert(sinkName, percent);
+    if (m_activeSinkVolumeCommands.contains(sinkName)) {
+        return;
+    }
+
+    applyPendingSinkVolume(sinkName);
+}
+
+void SystemServices::applyPendingSinkVolume(const QString &sinkName) {
+    if (m_shuttingDown || !m_pendingSinkVolumePercents.contains(sinkName)) {
+        return;
+    }
+
+    const int percent = m_pendingSinkVolumePercents.take(sinkName);
+    m_activeSinkVolumeCommands.insert(sinkName);
+
+    QPointer<SystemServices> self(this);
+    startCommand(QStringLiteral("pactl"),
+                 {QStringLiteral("set-sink-volume"), sinkName, QStringLiteral("%1%").arg(percent)},
+                 800,
+                 [self, sinkName](const CommandResult &) {
+        if (!self || self->m_shuttingDown) return;
+        self->m_activeSinkVolumeCommands.remove(sinkName);
+        if (self->m_pendingSinkVolumePercents.contains(sinkName)) {
+            self->applyPendingSinkVolume(sinkName);
+        }
+    });
+}
+
+void SystemServices::toggleDeviceMute(const QString &sinkName) {
+    if (m_shuttingDown || sinkName.isEmpty()) return;
+
+    for (int i = 0; i < m_audioOutputs.size(); ++i) {
+        QVariantMap map = m_audioOutputs[i].toMap();
+        if (map.value(QStringLiteral("sinkName")).toString() == sinkName) {
+            const bool current = map.value(QStringLiteral("muted")).toBool();
+            map.insert(QStringLiteral("muted"), !current);
+            m_audioOutputs[i] = map;
+            emit audioOutputsChanged();
+            break;
+        }
+    }
+
+    startCommand(QStringLiteral("pactl"),
+                 {QStringLiteral("set-sink-mute"), sinkName, QStringLiteral("toggle")},
+                 800,
+                 [this](const CommandResult &) {
+        requestAudioOutputs();
     });
 }
 

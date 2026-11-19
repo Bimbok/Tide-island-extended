@@ -60,14 +60,38 @@ Item {
             anchors.top: parent.top
             height: 24
 
-            Text {
+            Row {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Audio"
-                color: StyleTokens.textPrimary
-                font.pixelSize: 15
-                font.family: root.heroFontFamily
-                font.weight: Font.Bold
+                spacing: 8
+
+                Text {
+                    text: "Audio"
+                    color: StyleTokens.textPrimary
+                    font.pixelSize: 15
+                    font.family: root.heroFontFamily
+                    font.weight: Font.Bold
+                }
+
+                Rectangle {
+                    visible: SystemServices.isMultiOutputActive
+                    height: 20
+                    width: multiBadgeText.implicitWidth + 12
+                    radius: 10
+                    color: StyleTokens.withAlpha(StyleTokens.accent, 0.20)
+                    border.width: 1
+                    border.color: StyleTokens.accent
+
+                    Text {
+                        id: multiBadgeText
+                        anchors.centerIn: parent
+                        text: "Multi-Audio (" + SystemServices.activeOutputCount + ")"
+                        color: StyleTokens.accent
+                        font.pixelSize: 9
+                        font.family: root.heroFontFamily
+                        font.weight: Font.Bold
+                    }
+                }
             }
 
             Rectangle {
@@ -131,7 +155,7 @@ Item {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Output"
+                            text: "Output" + (SystemServices.isMultiOutputActive ? " (" + SystemServices.activeOutputCount + ")" : "")
                             font.pixelSize: 11
                             font.family: root.textFontFamily
                             font.weight: root.activeTab === "outputs" ? Font.DemiBold : Font.Normal
@@ -247,14 +271,16 @@ Item {
                 id: outputDelegate
                 required property var modelData
                 width: outputsList.width
-                height: 56
+                height: modelData.active ? 98 : 56
                 radius: 16
                 color: modelData.active
                     ? StyleTokens.withAlpha(StyleTokens.accent, 0.15)
                     : (outputMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.cardFill)
                 border.width: 1
                 border.color: modelData.active ? StyleTokens.accent : StyleTokens.inputBorder
+                clip: true
 
+                Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 120 } }
                 Behavior on border.color { ColorAnimation { duration: 120 } }
 
@@ -262,84 +288,233 @@ Item {
                     anchors.fill: parent
                     anchors.margins: 10
 
-                    // Icon bubble
-                    Rectangle {
-                        id: outIconBubble
+                    // Top Row: Icon, Device Info, and Multi-select Checkbox
+                    Item {
+                        id: topRow
+                        width: parent.width
+                        height: 36
+                        anchors.top: parent.top
+
+                        // Icon bubble
+                        Rectangle {
+                            id: outIconBubble
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 34
+                            height: 34
+                            radius: 17
+                            color: modelData.active ? StyleTokens.accent : StyleTokens.module
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.getDeviceGlyph(modelData.iconType)
+                                color: modelData.active ? StyleTokens.textOnAccent : StyleTokens.textPrimary
+                                font.pixelSize: 15
+                                font.family: root.iconFontFamily
+                            }
+                        }
+
+                        // Device Name and Subtitle
+                        Column {
+                            anchors.left: outIconBubble.right
+                            anchors.leftMargin: 10
+                            anchors.right: outCheckIcon.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 2
+
+                            Text {
+                                width: parent.width
+                                text: modelData.name || "Output Device"
+                                color: modelData.active ? StyleTokens.textPrimary : StyleTokens.textSecondary
+                                font.pixelSize: 12
+                                font.family: root.textFontFamily
+                                font.weight: modelData.active ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: modelData.description || ""
+                                color: StyleTokens.textMuted
+                                font.pixelSize: 10
+                                font.family: root.textFontFamily
+                                elide: Text.ElideRight
+                                visible: text.length > 0
+                            }
+                        }
+
+                        // Multi-select Checkbox Badge (Clicking toggles device in multi-output)
+                        Rectangle {
+                            id: outCheckIcon
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 24
+                            height: 24
+                            radius: 12
+                            color: modelData.active ? StyleTokens.accent : StyleTokens.transparent
+                            border.width: modelData.active ? 0 : 1
+                            border.color: checkMouse.containsMouse ? StyleTokens.accent : StyleTokens.textSubtle
+                            scale: checkMouse.containsMouse ? 1.08 : 1.0
+
+                            Behavior on scale { NumberAnimation { duration: 120 } }
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\uf00c"
+                                color: StyleTokens.textOnAccent
+                                font.pixelSize: 10
+                                font.family: root.iconFontFamily
+                                visible: modelData.active
+                            }
+
+                            MouseArea {
+                                id: checkMouse
+                                anchors.fill: parent
+                                anchors.margins: -6
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    SystemServices.toggleAudioOutput(modelData.sinkName, modelData.portName);
+                                    mouse.accepted = true;
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom Row: Expandable Individual Volume Slider
+                    Item {
+                        id: volumeControlRow
                         anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 34
-                        height: 34
-                        radius: 17
-                        color: modelData.active ? StyleTokens.accent : StyleTokens.module
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: root.getDeviceGlyph(modelData.iconType)
-                            color: modelData.active ? StyleTokens.textOnAccent : StyleTokens.textPrimary
-                            font.pixelSize: 15
-                            font.family: root.iconFontFamily
-                        }
-                    }
-
-                    // Device Name and Subtitle
-                    Column {
-                        anchors.left: outIconBubble.right
-                        anchors.leftMargin: 10
-                        anchors.right: outCheckIcon.left
-                        anchors.rightMargin: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            text: modelData.name || "Output Device"
-                            color: modelData.active ? StyleTokens.textPrimary : StyleTokens.textSecondary
-                            font.pixelSize: 12
-                            font.family: root.textFontFamily
-                            font.weight: modelData.active ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: modelData.description || ""
-                            color: StyleTokens.textMuted
-                            font.pixelSize: 10
-                            font.family: root.textFontFamily
-                            elide: Text.ElideRight
-                            visible: text.length > 0
-                        }
-                    }
-
-                    // Active checkmark badge
-                    Rectangle {
-                        id: outCheckIcon
                         anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 22
-                        height: 22
-                        radius: 11
-                        color: modelData.active ? StyleTokens.accent : StyleTokens.transparent
-                        border.width: modelData.active ? 0 : 1
-                        border.color: StyleTokens.textSubtle
+                        anchors.bottom: parent.bottom
+                        height: 32
+                        visible: opacity > 0.01
+                        opacity: modelData.active ? 1.0 : 0.0
 
+                        Behavior on opacity {
+                            NumberAnimation { duration: 150 }
+                        }
+
+                        // Mute / Speaker toggle button
+                        Rectangle {
+                            id: devMuteBtn
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 24
+                            height: 24
+                            radius: 12
+                            color: devMuteMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.transparent
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.muted ? "\uf6a9" : ((modelData.volume || 1.0) > 0.6 ? "\uf028" : ((modelData.volume || 1.0) > 0.2 ? "\uf027" : "\uf026"))
+                                font.pixelSize: 11
+                                font.family: root.iconFontFamily
+                                color: modelData.muted ? StyleTokens.danger : StyleTokens.accent
+                            }
+
+                            MouseArea {
+                                id: devMuteMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
+                                onClicked: (mouse) => {
+                                    SystemServices.toggleDeviceMute(modelData.sinkName);
+                                    mouse.accepted = true;
+                                }
+                            }
+                        }
+
+                        // Interactive Slider Capsule
+                        Rectangle {
+                            id: devSliderTrack
+                            anchors.left: devMuteBtn.right
+                            anchors.leftMargin: 8
+                            anchors.right: devVolLabel.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            height: devSliderMouse.containsMouse || devSliderMouse.pressed ? 8 : 6
+                            radius: height / 2
+                            color: StyleTokens.track
+                            clip: true
+
+                            Behavior on height { NumberAnimation { duration: 120 } }
+
+                            Rectangle {
+                                id: devSliderFill
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                radius: parent.radius
+                                color: modelData.muted ? StyleTokens.textMuted : StyleTokens.accent
+                                width: {
+                                    const vol = modelData.volume !== undefined ? modelData.volume : 1.0;
+                                    return modelData.muted ? 0 : Math.max(0, Math.min(parent.width, parent.width * vol));
+                                }
+                            }
+
+                            MouseArea {
+                                id: devSliderMouse
+                                anchors.fill: parent
+                                anchors.margins: -8
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
+
+                                function updateVolume(mouseX) {
+                                    const ratio = Math.max(0, Math.min(1.0, mouseX / devSliderTrack.width));
+                                    SystemServices.setDeviceVolume(modelData.sinkName, ratio);
+                                }
+
+                                onPressed: (mouse) => {
+                                    updateVolume(mouse.x);
+                                    mouse.accepted = true;
+                                }
+                                onPositionChanged: (mouse) => {
+                                    if (pressed) {
+                                        updateVolume(mouse.x);
+                                        mouse.accepted = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Percentage Label
                         Text {
-                            anchors.centerIn: parent
-                            text: "\uf00c"
-                            color: StyleTokens.textOnAccent
+                            id: devVolLabel
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.muted ? "Muted" : Math.round((modelData.volume !== undefined ? modelData.volume : 1.0) * 100) + "%"
+                            color: modelData.muted ? StyleTokens.danger : StyleTokens.textSecondary
                             font.pixelSize: 10
-                            font.family: root.iconFontFamily
-                            visible: modelData.active
+                            font.family: root.textFontFamily
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignRight
+                            width: 38
                         }
                     }
                 }
 
+                // Card body click: single select if in standard mode, toggle if in multi-output mode
                 MouseArea {
                     id: outputMouse
-                    anchors.fill: parent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 56
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: SystemServices.setAudioOutput(modelData.sinkName, modelData.portName)
+                    onClicked: {
+                        if (SystemServices.isMultiOutputActive) {
+                            SystemServices.toggleAudioOutput(modelData.sinkName, modelData.portName);
+                        } else {
+                            SystemServices.setAudioOutput(modelData.sinkName, modelData.portName);
+                        }
+                    }
                 }
             }
         }

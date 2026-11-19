@@ -366,6 +366,33 @@ private slots:
         services.setAudioInput(QStringLiteral("alsa_input.pci.Alice's_Mic"), QStringLiteral("analog-input'mic"));
         QTest::qWait(100);
     }
+
+    void testMultiAudioOutputSelection()
+    {
+        SystemServices services;
+        QCOMPARE(services.isMultiOutputActive(), false);
+        QCOMPARE(services.activeOutputCount(), 0);
+
+        // Toggle first device
+        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.Speakers"), QStringLiteral("speaker-port"));
+        QCOMPARE(services.activeOutputCount(), 1);
+
+        // Toggle second device -> activates multi-output mode
+        services.toggleAudioOutput(QStringLiteral("bluez_output.Headphones"), QStringLiteral("a2dp-sink"));
+        QCOMPARE(services.isMultiOutputActive(), true);
+        QCOMPARE(services.activeOutputCount(), 2);
+
+        // Individual device volume adjustment
+        services.setDeviceVolume(QStringLiteral("bluez_output.Headphones"), 0.75);
+        services.toggleDeviceMute(QStringLiteral("bluez_output.Headphones"));
+
+        // Toggle second device off -> drops back to single mode
+        services.toggleAudioOutput(QStringLiteral("bluez_output.Headphones"));
+        QCOMPARE(services.isMultiOutputActive(), false);
+        QCOMPARE(services.activeOutputCount(), 1);
+
+        QTest::qWait(100);
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)
