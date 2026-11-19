@@ -2484,6 +2484,24 @@ void SystemServices::requestAppStreams() {
         for (const QJsonValue &val : arr) {
             if (!val.isObject()) continue;
             const QJsonObject streamObj = val.toObject();
+
+            const QJsonObject props = streamObj.value(QStringLiteral("properties")).toObject();
+            const QString nodeName = props.value(QStringLiteral("node.name")).toString();
+            const QString mediaName = props.value(QStringLiteral("media.name")).toString();
+            const QString appNameProp = props.value(QStringLiteral("application.name")).toString();
+            const QString ownerMod = streamObj.value(QStringLiteral("owner_module")).toString();
+            const QString pulseModId = props.value(QStringLiteral("pulse.module.id")).toString();
+
+            // Filter out internal combine-sink routing streams and non-client virtual streams
+            if (nodeName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                mediaName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                appNameProp.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                (!m_combinedSinkModuleId.isEmpty() && (ownerMod == m_combinedSinkModuleId || pulseModId == m_combinedSinkModuleId)) ||
+                streamObj.value(QStringLiteral("client")).isNull() ||
+                props.value(QStringLiteral("node.virtual")).toString() == QLatin1String("true")) {
+                continue;
+            }
+
             const int index = streamObj.value(QStringLiteral("index")).toInt();
             const bool muted = streamObj.value(QStringLiteral("mute")).toBool();
             const bool corked = streamObj.value(QStringLiteral("corked")).toBool();
@@ -2502,10 +2520,9 @@ void SystemServices::requestAppStreams() {
                 }
             }
 
-            const QJsonObject props = streamObj.value(QStringLiteral("properties")).toObject();
-            QString appName = props.value(QStringLiteral("application.name")).toString();
-            if (appName.isEmpty()) appName = props.value(QStringLiteral("media.name")).toString();
-            if (appName.isEmpty()) appName = props.value(QStringLiteral("node.name")).toString();
+            QString appName = appNameProp;
+            if (appName.isEmpty()) appName = mediaName;
+            if (appName.isEmpty()) appName = nodeName;
             if (appName.isEmpty()) appName = props.value(QStringLiteral("application.process.binary")).toString();
             if (appName.isEmpty()) appName = QStringLiteral("Application");
 
