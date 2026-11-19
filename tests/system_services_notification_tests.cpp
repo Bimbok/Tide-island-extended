@@ -373,11 +373,17 @@ private slots:
         QCOMPARE(services.isMultiOutputActive(), false);
         QCOMPARE(services.activeOutputCount(), 0);
 
-        // Toggle first device
-        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.Speakers"), QStringLiteral("speaker-port"));
+        // Select speaker port on sound card
+        services.setAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-speaker"));
+        QCOMPARE(services.isMultiOutputActive(), false);
         QCOMPARE(services.activeOutputCount(), 1);
 
-        // Toggle second device -> activates multi-output mode
+        // Switching to headphone port on the SAME sound card switches port (mutually exclusive, not multi-output)
+        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+        QCOMPARE(services.isMultiOutputActive(), false);
+        QCOMPARE(services.activeOutputCount(), 1);
+
+        // Toggle Bluetooth headphones (distinct sink) -> activates multi-output (Built-in Headphones + Bluetooth)!
         services.toggleAudioOutput(QStringLiteral("bluez_output.Headphones"), QStringLiteral("a2dp-sink"));
         QCOMPARE(services.isMultiOutputActive(), true);
         QCOMPARE(services.activeOutputCount(), 2);
@@ -386,27 +392,13 @@ private slots:
         services.setDeviceVolume(QStringLiteral("bluez_output.Headphones"), 0.75);
         services.toggleDeviceMute(QStringLiteral("bluez_output.Headphones"));
 
-        // Toggle second device off -> drops back to single mode
-        services.toggleAudioOutput(QStringLiteral("bluez_output.Headphones"));
-        QCOMPARE(services.isMultiOutputActive(), false);
-        QCOMPARE(services.activeOutputCount(), 1);
-
-        // Test same-sink multi-port selection (e.g. Built-in Speakers + Headphones)
-        services.setAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-speaker"));
-        QCOMPARE(services.isMultiOutputActive(), false);
-        QCOMPARE(services.activeOutputCount(), 1);
-
-        // Toggle headphones port on the same sound card -> activates multi-output!
-        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+        // Switching sound card from Headphones back to Speakers while Bluetooth is active
+        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-speaker"));
         QCOMPARE(services.isMultiOutputActive(), true);
         QCOMPARE(services.activeOutputCount(), 2);
 
-        // Adjust volume for the headphone port specifically
-        services.setDeviceVolume(QStringLiteral("alsa_output.pci.soundcard"), 0.65, QStringLiteral("analog-output-headphones"));
-        services.toggleDeviceMute(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
-
-        // Toggle headphones port off -> drops back to single output mode
-        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+        // Toggle Bluetooth device off -> drops back to single mode (only Speakers active)
+        services.toggleAudioOutput(QStringLiteral("bluez_output.Headphones"));
         QCOMPARE(services.isMultiOutputActive(), false);
         QCOMPARE(services.activeOutputCount(), 1);
 

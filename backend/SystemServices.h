@@ -60,7 +60,7 @@ public:
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
     bool isMultiOutputActive() const { return m_isMultiOutputActive; }
-    int activeOutputCount() const { return m_activeOutputDeviceIds.size(); }
+    int activeOutputCount() const;
     QVariantList audioInputs() const { return m_audioInputs; }
     QVariantList appStreams() const { return m_appStreams; }
     QString defaultAudioSink() const { return m_defaultAudioSink; }
