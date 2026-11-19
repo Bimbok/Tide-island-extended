@@ -1,0 +1,1085 @@
+#include <fcntl.h>
+#include <pipewire/extensions/metadata.h>
+#include <pipewire/pipewire.h>
+#include <poll.h>
+#include <spa/param/audio/format-utils.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+#include <atomic>
+#include <cerrno>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "control.h"
+#include "dsp/chain.h"
+#include "exclude.h"
+#include "ring.h"
+#include "visualizer_cli.h"
+
+#ifndef TE_VERSION
+#define TE_VERSION "1.2.0"
+#endif
+
+namespace {
+
+constexpr const char* kSinkName = "tide_equalizer_sink";
+constexpr const char* kOutputName = "tide_equalizer_output";
+constexpr const char* kConfiguredKey = "default.configured.audio.sink";
+constexpr const char* kResolvedKey = "default.audio.sink";
+constexpr const char* kTargetObjectKey = "target.object";
+constexpr const char* kTargetNodeKey = "target.node";
+constexpr uint32_t kRate = 48000;
+constexpr uint32_t kChannels = 2;
+constexpr uint32_t kStride = sizeof(float) * kChannels;
+
+std::string envOr(const char* name, const std::string& fallback) {
+    const char* v = std::getenv(name);
+    return v && *v ? v : fallback;
+}
+
+std::string home() { return envOr("HOME", "/tmp"); }
+
+std::string socketPath() {
+    const std::string runtime = envOr("XDG_RUNTIME_DIR", "");
+    if (!runtime.empty()) return runtime + "/tide-equalizer.sock";
+    return "/tmp/tide-equalizer-" + std::to_string(getuid()) + ".sock";
+}
+
+std::string runtimeDir() { return envOr("XDG_RUNTIME_DIR", "/tmp") + "/tide-island"; }
+
+std::string stateDir() { return envOr("XDG_STATE_HOME", home() + "/.local/state") + "/tide-island"; }
+
+void makeDirs(const std::string& path) {
+    for (size_t i = 1; i <= path.size(); ++i) {
+        if (i == path.size() || path[i] == '/') mkdir(path.substr(0, i).c_str(), 0755);
+    }
+}
+
+std::string jsonName(const char* value) {
+    if (!value) return {};
+    const char* key = std::strstr(value, "\"name\"");
+    if (!key) return {};
+    const char* open = std::strchr(key + 6, '"');
+    if (!open) return {};
+    const char* close = std::strchr(open + 1, '"');
+    if (!close) return {};
+    return std::string(open + 1, close);
+}
+
+int connectSocket(const std::string& path) {
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) return -1;
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::snprintf(addr.sun_path, sizeof addr.sun_path, "%s", path.c_str());
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0) {
+        close(fd);
+        return -1;
+    }
+    timeval tv{1, 0};
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+    return fd;
+}
+
+bool request(const std::string& line, std::string& reply) {
+    const int fd = connectSocket(socketPath());
+    if (fd < 0) return false;
+    const std::string out = line + "\n";
+    if (write(fd, out.data(), out.size()) != static_cast<ssize_t>(out.size())) {
+        close(fd);
+        return false;
+    }
+    reply.clear();
+    char buf[512];
+    ssize_t n;
+    while ((n = read(fd, buf, sizeof buf)) > 0) {
+        reply.append(buf, n);
+        if (reply.find('\n') != std::string::npos) break;
+    }
+    close(fd);
+    while (!reply.empty() && (reply.back() == '\n' || reply.back() == '\r')) reply.pop_back();
+    return true;
+}
+
+class Daemon {
+public:
+    Daemon() : ring_(1 << 15) {}
+
+    int run() {
+        std::string reply;
+        if (request("ping", reply)) {
+            std::fprintf(stderr, "tide-equalizer: already running\n");
+            return 1;
+        }
+
+        pw_init(nullptr, nullptr);
+        loop_ = pw_main_loop_new(nullptr);
+        if (!loop_) return 1;
+        pw_loop* loop = pw_main_loop_get_loop(loop_);
+        pw_loop_add_signal(loop, SIGINT, onSignal, this);
+        pw_loop_add_signal(loop, SIGTERM, onSignal, this);
+        pw_loop_add_signal(loop, SIGHUP, onSignal, this);
+        signal(SIGPIPE, SIG_IGN);
+
+        context_ = pw_context_new(loop, nullptr, 0);
+        core_ = context_ ? pw_context_connect(context_, nullptr, 0) : nullptr;
+        if (!core_) {
+            std::fprintf(stderr, "tide-equalizer: cannot connect to PipeWire\n");
+            return 1;
+        }
+        pw_core_add_listener(core_, &coreListener_, &coreEventsTable(), this);
+
+        chain_.setSampleRate(kRate);
+        loadState();
+        pushParams();
+
+        if (!openSocket(loop)) return 1;
+
+        registry_ = pw_core_get_registry(core_, PW_VERSION_REGISTRY, 0);
+        pw_registry_add_listener(registry_, &registryListener_, &registryEventsTable(), this);
+        syncSeq_ = pw_core_sync(core_, PW_ID_CORE, 0);
+
+        createSink();
+
+        pw_main_loop_run(loop_);
+
+        shutdown();
+        return 0;
+    }
+
+private:
+    static void onSignal(void* data, int) { pw_main_loop_quit(static_cast<Daemon*>(data)->loop_); }
+
+    static void onCoreDone(void* data, uint32_t id, int seq) {
+        Daemon* self = static_cast<Daemon*>(data);
+        if (id != PW_ID_CORE) return;
+        if (seq == self->shutdownSeq_) self->shutdownDone_ = true;
+        if (self->synced_ || seq != self->syncSeq_) return;
+        if (++self->syncRounds_ < 2) {
+            self->syncSeq_ = pw_core_sync(self->core_, PW_ID_CORE, 0);
+            return;
+        }
+        self->synced_ = true;
+        self->onSynced();
+    }
+
+    void onSynced() {
+        if (metadata_ && configuredName_ == kSinkName)
+            pw_metadata_set_property(metadata_, PW_ID_CORE, kConfiguredKey, nullptr, nullptr);
+        refreshTarget();
+        for (auto& entry : streams_) route(entry.first);
+    }
+
+    static void onCoreError(void* data, uint32_t id, int, int res, const char* message) {
+        if (id == PW_ID_CORE && res == -EPIPE) {
+            std::fprintf(stderr, "tide-equalizer: PipeWire connection lost: %s\n", message);
+            pw_main_loop_quit(static_cast<Daemon*>(data)->loop_);
+        }
+    }
+
+    void loadState() {
+        std::ifstream f(stateDir() + "/equalizer.state");
+        std::string line;
+        if (f && std::getline(f, line)) sa::applyCommand(params_, line);
+    }
+
+    void saveState() {
+        const std::string dir = stateDir();
+        makeDirs(dir);
+        const std::string tmp = dir + "/equalizer.state.tmp";
+        {
+            std::ofstream f(tmp, std::ios::trunc);
+            f << sa::serialize(params_) << '\n';
+        }
+        rename(tmp.c_str(), (dir + "/equalizer.state").c_str());
+    }
+
+    void pushParams() {
+        std::lock_guard<std::mutex> lock(paramLock_);
+        pending_ = params_;
+        hasPending_.store(true, std::memory_order_release);
+    }
+
+    bool openSocket(pw_loop* loop) {
+        const std::string path = socketPath();
+        unlink(path.c_str());
+        listenFd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+        sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        std::snprintf(addr.sun_path, sizeof addr.sun_path, "%s", path.c_str());
+        if (listenFd_ < 0 || bind(listenFd_, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 ||
+            listen(listenFd_, 8) != 0) {
+            std::fprintf(stderr, "tide-equalizer: cannot bind %s\n", path.c_str());
+            return false;
+        }
+        chmod(path.c_str(), 0600);
+        socketSource_ = pw_loop_add_io(loop, listenFd_, SPA_IO_IN, false, onSocket, this);
+        return true;
+    }
+
+    static void onSocket(void* data, int fd, uint32_t) { static_cast<Daemon*>(data)->serve(fd); }
+
+    void serve(int listenFd) {
+        const int fd = accept4(listenFd, nullptr, nullptr, SOCK_CLOEXEC);
+        if (fd < 0) return;
+        pollfd pfd{fd, POLLIN, 0};
+        std::string line;
+        if (poll(&pfd, 1, 200) > 0) {
+            char buf[512];
+            const ssize_t n = read(fd, buf, sizeof buf - 1);
+            if (n > 0) line.assign(buf, n);
+        }
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' ')) line.pop_back();
+        const std::string reply = handle(line) + "\n";
+        if (write(fd, reply.data(), reply.size()) < 0) {}
+        close(fd);
+    }
+
+    std::string handle(const std::string& line) {
+        if (line == "ping") return "ok";
+        if (line == "quit") {
+            pw_main_loop_quit(loop_);
+            return "ok";
+        }
+        if (line == "status") {
+            unsigned routed = 0;
+            for (const auto& entry : streams_)
+                if (entry.second.routed) ++routed;
+            return "ok sink=" + std::string(kSinkName) + " target=" + (target_.empty() ? "-" : target_) +
+                   " streams=" + std::to_string(routed) + " underruns=" + std::to_string(underruns_.load()) + " " +
+                   sa::serialize(params_);
+        }
+        if (line == "get") return sa::serialize(params_);
+        if (!sa::applyCommand(params_, line)) return "error";
+        pushParams();
+        saveState();
+        return "ok";
+    }
+
+    static void onSinkProcess(void* data) { static_cast<Daemon*>(data)->captureCycle(); }
+    static void onOutProcess(void* data) { static_cast<Daemon*>(data)->playbackCycle(); }
+
+    static void onStreamState(void* data, pw_stream_state, pw_stream_state state, const char* error) {
+        (void)data;
+        if (state == PW_STREAM_STATE_ERROR) std::fprintf(stderr, "tide-equalizer: stream error: %s\n", error);
+    }
+
+    void captureCycle() {
+        pw_buffer* b = pw_stream_dequeue_buffer(sink_);
+        if (!b) return;
+        spa_data& d = b->buffer->datas[0];
+        if (d.data && d.chunk) {
+            const uint32_t frames = d.chunk->size / kStride;
+            const bool empty = d.chunk->flags & SPA_CHUNK_FLAG_EMPTY;
+            const float* src = reinterpret_cast<const float*>(static_cast<const uint8_t*>(d.data) + d.chunk->offset);
+            if (ring_.push(empty ? nullptr : src, frames) < frames) overruns_.fetch_add(1, std::memory_order_relaxed);
+        }
+        pw_stream_queue_buffer(sink_, b);
+    }
+
+    void playbackCycle() {
+        pw_buffer* b = pw_stream_dequeue_buffer(out_);
+        if (!b) return;
+        spa_data& d = b->buffer->datas[0];
+        if (!d.data) {
+            pw_stream_queue_buffer(out_, b);
+            return;
+        }
+        uint32_t frames = d.maxsize / kStride;
+        if (b->requested && b->requested < frames) frames = static_cast<uint32_t>(b->requested);
+        float* dst = static_cast<float*>(d.data);
+
+        if (!primed_ && ring_.available() >= frames) primed_ = true;
+        if (primed_) ring_.trim(frames * 4);
+        size_t got = primed_ ? ring_.pop(dst, frames) : 0;
+        if (primed_ && got < frames) underruns_.fetch_add(1, std::memory_order_relaxed);
+        if (got < frames) std::memset(dst + got * 2, 0, (frames - got) * kStride);
+
+        if (hasPending_.load(std::memory_order_acquire) && paramLock_.try_lock()) {
+            chain_.setParams(pending_);
+            hasPending_.store(false, std::memory_order_release);
+            paramLock_.unlock();
+        }
+        chain_.process(dst, frames);
+
+        d.chunk->offset = 0;
+        d.chunk->stride = kStride;
+        d.chunk->size = frames * kStride;
+        pw_stream_queue_buffer(out_, b);
+    }
+
+    pw_properties* streamProps(const char* name, const char* description) {
+        pw_properties* p = pw_properties_new(PW_KEY_NODE_NAME, name, PW_KEY_NODE_DESCRIPTION, description,
+                                             PW_KEY_NODE_GROUP, "tide-equalizer", PW_KEY_NODE_LINK_GROUP,
+                                             "tide-equalizer", PW_KEY_AUDIO_CHANNELS, "2", PW_KEY_AUDIO_RATE, "48000",
+                                             "audio.position", "[ FL FR ]", PW_KEY_APP_NAME, "Tide Equalizer",
+                                             nullptr);
+        return p;
+    }
+
+    bool connectStream(pw_stream* stream, pw_direction dir) {
+        uint8_t buffer[1024];
+        spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof buffer);
+        spa_audio_info_raw info{};
+        info.format = SPA_AUDIO_FORMAT_F32;
+        info.rate = kRate;
+        info.channels = kChannels;
+        info.position[0] = SPA_AUDIO_CHANNEL_FL;
+        info.position[1] = SPA_AUDIO_CHANNEL_FR;
+        const spa_pod* params[1] = {spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info)};
+        return pw_stream_connect(stream, dir, PW_ID_ANY,
+                                 static_cast<pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS |
+                                                              PW_STREAM_FLAG_RT_PROCESS),
+                                 params, 1) == 0;
+    }
+
+    void createSink() {
+        pw_properties* props = streamProps(kSinkName, "Tide Equalizer");
+        pw_properties_set(props, PW_KEY_MEDIA_CLASS, "Audio/Sink");
+        pw_properties_set(props, PW_KEY_NODE_VIRTUAL, "true");
+        pw_properties_set(props, PW_KEY_PRIORITY_SESSION, "0");
+        pw_properties_set(props, PW_KEY_MEDIA_NAME, "Tide Equalizer sink");
+        sinkEvents_ = {};
+        sinkEvents_.version = PW_VERSION_STREAM_EVENTS;
+        sinkEvents_.process = onSinkProcess;
+        sinkEvents_.state_changed = onStreamState;
+        sink_ = pw_stream_new(core_, kSinkName, props);
+        pw_stream_add_listener(sink_, &sinkListener_, &sinkEvents_, this);
+        if (!connectStream(sink_, PW_DIRECTION_INPUT)) std::fprintf(stderr, "tide-equalizer: sink connect failed\n");
+    }
+
+    void createOutput(const std::string& target) {
+        destroyOutput();
+        ring_.clear();
+        primed_ = false;
+        pw_properties* props = streamProps(kOutputName, "Tide Equalizer output");
+        pw_properties_set(props, PW_KEY_MEDIA_CLASS, "Stream/Output/Audio");
+        pw_properties_set(props, PW_KEY_MEDIA_TYPE, "Audio");
+        pw_properties_set(props, PW_KEY_MEDIA_CATEGORY, "Playback");
+        pw_properties_set(props, PW_KEY_MEDIA_ROLE, "Music");
+        pw_properties_set(props, PW_KEY_MEDIA_NAME, "Tide Equalizer output");
+        pw_properties_set(props, "target.object", target.c_str());
+        pw_properties_set(props, "node.dont-reconnect", "true");
+        pw_properties_set(props, "stream.dont-remix", "true");
+        outEvents_ = {};
+        outEvents_.version = PW_VERSION_STREAM_EVENTS;
+        outEvents_.process = onOutProcess;
+        outEvents_.state_changed = onStreamState;
+        out_ = pw_stream_new(core_, kOutputName, props);
+        pw_stream_add_listener(out_, &outListener_, &outEvents_, this);
+        if (!connectStream(out_, PW_DIRECTION_OUTPUT)) std::fprintf(stderr, "tide-equalizer: output connect failed\n");
+        target_ = target;
+        publishTarget();
+    }
+
+    void destroyOutput() {
+        if (!out_) return;
+        spa_hook_remove(&outListener_);
+        pw_stream_destroy(out_);
+        out_ = nullptr;
+        target_.clear();
+        publishTarget();
+    }
+
+    void publishTarget() {
+        const std::string dir = runtimeDir();
+        makeDirs(dir);
+        const std::string tmp = dir + "/audio-target.tmp";
+        uint32_t id = 0;
+        for (const auto& entry : sinks_)
+            if (entry.second.name == target_) id = entry.first;
+        {
+            std::ofstream f(tmp, std::ios::trunc);
+            f << target_ << '\n';
+            if (id) f << id << '\n';
+        }
+        rename(tmp.c_str(), (dir + "/audio-target").c_str());
+    }
+
+    static void onGlobal(void* data, uint32_t id, uint32_t, const char* type, uint32_t, const spa_dict* props) {
+        Daemon* self = static_cast<Daemon*>(data);
+        if (!props) return;
+        if (std::strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0) {
+            const char* name = spa_dict_lookup(props, PW_KEY_METADATA_NAME);
+            if (name && std::strcmp(name, "default") == 0 && !self->metadata_) {
+                self->metadata_ = static_cast<pw_metadata*>(
+                    pw_registry_bind(self->registry_, id, type, PW_VERSION_METADATA, 0));
+                pw_metadata_add_listener(self->metadata_, &self->metadataListener_, &metadataEventsTable(), self);
+                if (self->synced_) {
+                    self->synced_ = false;
+                    self->syncRounds_ = 1;
+                    self->syncSeq_ = pw_core_sync(self->core_, PW_ID_CORE, 0);
+                }
+            }
+        } else if (std::strcmp(type, PW_TYPE_INTERFACE_Node) == 0) {
+            const char* cls = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
+            const char* name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+            const char* serial = spa_dict_lookup(props, PW_KEY_OBJECT_SERIAL);
+            if (!cls || !name) return;
+            if (std::strcmp(cls, "Audio/Sink") == 0) {
+                if (std::strcmp(name, kSinkName) == 0) {
+                    self->ownId_ = id;
+                    self->ownSerial_ = serial ? serial : "";
+                    return;
+                }
+                const char* priority = spa_dict_lookup(props, PW_KEY_PRIORITY_SESSION);
+                SinkInfo& sink = self->sinks_[id];
+                sink.name = name;
+                sink.serial = serial ? serial : "";
+                sink.priority = priority ? std::atoi(priority) : 0;
+                if (self->synced_) self->refreshTarget();
+            } else if (std::strcmp(cls, "Stream/Output/Audio") == 0 && std::strcmp(name, kOutputName) != 0) {
+                self->probe(id, type);
+            }
+        }
+    }
+
+    struct Probe {
+        Daemon* self = nullptr;
+        uint32_t id = 0;
+        pw_proxy* proxy = nullptr;
+        spa_hook listener{};
+        bool decided = false;
+    };
+
+    void probe(uint32_t id, const char* type) {
+        auto p = std::make_unique<Probe>();
+        p->self = this;
+        p->id = id;
+        p->proxy = static_cast<pw_proxy*>(pw_registry_bind(registry_, id, type, PW_VERSION_NODE, 0));
+        if (!p->proxy) return;
+        pw_node_add_listener(reinterpret_cast<pw_node*>(p->proxy), &p->listener, &nodeEventsTable(), p.get());
+        probes_[id] = std::move(p);
+    }
+
+    void dropProbe(uint32_t id) {
+        auto it = probes_.find(id);
+        if (it == probes_.end()) return;
+        spa_hook_remove(&it->second->listener);
+        pw_proxy_destroy(it->second->proxy);
+        probes_.erase(it);
+    }
+
+    static void onNodeInfo(void* data, const pw_node_info* info) {
+        Probe* p = static_cast<Probe*>(data);
+        if (p->decided || !info || !info->props) return;
+        p->decided = true;
+        Daemon* self = p->self;
+        if (!self->routable(info->props)) return;
+        self->streams_[p->id] = {};
+        if (self->synced_) self->route(p->id);
+    }
+
+    static bool isTrue(const char* value) { return value && (std::strcmp(value, "true") == 0 || std::strcmp(value, "1") == 0); }
+
+    bool routable(const spa_dict* props) const {
+        const char* name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
+        if (name && (std::strcmp(name, kOutputName) == 0 || std::strstr(name, "tide_combined"))) return false;
+        const char* mediaName = spa_dict_lookup(props, PW_KEY_MEDIA_NAME);
+        if (mediaName && std::strstr(mediaName, "tide_combined")) return false;
+        if (spa_dict_lookup(props, PW_KEY_NODE_LINK_GROUP)) return false;
+        if (sa::isExcludedStream(spa_dict_lookup(props, PW_KEY_APP_NAME), spa_dict_lookup(props, PW_KEY_APP_PROCESS_BINARY),
+                                 spa_dict_lookup(props, PW_KEY_MEDIA_ROLE)))
+            return false;
+        for (const char* key : {kTargetObjectKey, kTargetNodeKey, "node.target"}) {
+            const char* target = spa_dict_lookup(props, key);
+            if (target && !isOwnTarget(target) && !isCurrentOutput(target)) return false;
+        }
+        const char* autoconnect = spa_dict_lookup(props, PW_KEY_NODE_AUTOCONNECT);
+        if (autoconnect && !isTrue(autoconnect)) return false;
+        return !isTrue(spa_dict_lookup(props, "node.dont-move"));
+    }
+
+    bool isOwnTarget(const std::string& value) const {
+        if (value.empty()) return false;
+        return value == kSinkName || (!ownSerial_.empty() && value == ownSerial_) ||
+               (ownId_ != SPA_ID_INVALID && value == std::to_string(ownId_));
+    }
+
+    static bool matchesSink(const std::string& value, uint32_t id, const std::string& name, const std::string& serial) {
+        return !value.empty() && (value == name || value == std::to_string(id) || (!serial.empty() && value == serial));
+    }
+
+    bool isOtherSink(const std::string& value) const {
+        for (const auto& entry : sinks_)
+            if (matchesSink(value, entry.first, entry.second.name, entry.second.serial)) return true;
+        return false;
+    }
+
+    bool isCurrentOutput(const std::string& value) const {
+        if (target_.empty()) return false;
+        for (const auto& entry : sinks_)
+            if (entry.second.name == target_ && matchesSink(value, entry.first, entry.second.name, entry.second.serial))
+                return true;
+        return false;
+    }
+
+    void route(uint32_t id) {
+        auto it = streams_.find(id);
+        if (it == streams_.end() || !metadata_) return;
+        StreamState& s = it->second;
+        if (s.routed || s.pinned) return;
+        const auto pinned = streamTargets_.find(id);
+        if (pinned != streamTargets_.end() && isOtherSink(pinned->second)) {
+            s.pinned = true;
+            return;
+        }
+        s.routed = true;
+        pw_metadata_set_property(metadata_, id, kTargetObjectKey, "Spa:String", kSinkName);
+    }
+
+    void unrouteAll() {
+        if (!metadata_) return;
+        for (auto& entry : streams_) {
+            if (!entry.second.routed) continue;
+            pw_metadata_set_property(metadata_, entry.first, kTargetObjectKey, nullptr, nullptr);
+            entry.second.routed = false;
+        }
+    }
+
+    void onStreamTarget(uint32_t subject, const char* value) {
+        const std::string v = value ? value : "";
+        if (v.empty()) {
+            streamTargets_.erase(subject);
+        } else {
+            streamTargets_[subject] = v;
+        }
+        auto it = streams_.find(subject);
+        if (it == streams_.end()) return;
+        StreamState& s = it->second;
+        if (isOwnTarget(v)) {
+            s.routed = true;
+            s.pinned = false;
+        } else if (isOtherSink(v)) {
+            s.routed = false;
+            s.pinned = true;
+        } else if (v.empty() && (s.routed || s.pinned)) {
+            s.routed = false;
+            s.pinned = false;
+            if (synced_) route(subject);
+        }
+    }
+
+    static void onGlobalRemove(void* data, uint32_t id) {
+        Daemon* self = static_cast<Daemon*>(data);
+        self->dropProbe(id);
+        self->streams_.erase(id);
+        self->streamTargets_.erase(id);
+        if (id == self->ownId_) {
+            self->ownId_ = SPA_ID_INVALID;
+            self->ownSerial_.clear();
+        }
+        auto it = self->sinks_.find(id);
+        if (it == self->sinks_.end()) return;
+        const std::string gone = it->second.name;
+        self->sinks_.erase(it);
+        if (gone == self->target_ && self->synced_) self->refreshTarget();
+    }
+
+    static int onMetadataProperty(void* data, uint32_t subject, const char* key, const char*, const char* value) {
+        Daemon* self = static_cast<Daemon*>(data);
+        if (!key) {
+            if (subject != PW_ID_CORE) self->onStreamTarget(subject, nullptr);
+            return 0;
+        }
+        if (subject != PW_ID_CORE) {
+            if (std::strcmp(key, kTargetObjectKey) == 0 || std::strcmp(key, kTargetNodeKey) == 0)
+                self->onStreamTarget(subject, value);
+            return 0;
+        }
+        if (std::strcmp(key, kConfiguredKey) == 0) {
+            self->configuredName_ = jsonName(value);
+        } else if (std::strcmp(key, kResolvedKey) == 0) {
+            self->defaultName_ = jsonName(value);
+            if (self->synced_) self->refreshTarget();
+        }
+        return 0;
+    }
+
+    bool hasSink(const std::string& name) const {
+        for (const auto& entry : sinks_)
+            if (entry.second.name == name) return true;
+        return false;
+    }
+
+    std::string bestSink() const {
+        const SinkInfo* best = nullptr;
+        for (const auto& entry : sinks_) {
+            const SinkInfo& s = entry.second;
+            if (!best || s.priority > best->priority ||
+                (s.priority == best->priority && std::strtoull(s.serial.c_str(), nullptr, 10) >
+                                                     std::strtoull(best->serial.c_str(), nullptr, 10)))
+                best = &s;
+        }
+        return best ? best->name : std::string();
+    }
+
+    // Plays on the default output. When the default is this daemon's own sink, or there is no default at all,
+    // the highest-priority real output is used instead. When the default output has just disappeared, the
+    // output stays closed until WirePlumber announces the next default, so audio never lands on a device
+    // the session manager would not have chosen.
+    void refreshTarget() {
+        std::string want;
+        if (defaultName_.empty() || defaultName_ == kSinkName) {
+            want = bestSink();
+        } else if (hasSink(defaultName_)) {
+            want = defaultName_;
+        }
+        if (want.empty()) {
+            destroyOutput();
+            return;
+        }
+        adoptTarget(want);
+    }
+
+    void adoptTarget(const std::string& name) {
+        if (name != target_ || !out_) createOutput(name);
+    }
+
+    void shutdown() {
+        if (metadata_) {
+            unrouteAll();
+            shutdownDone_ = false;
+            shutdownSeq_ = pw_core_sync(core_, PW_ID_CORE, 0);
+            for (int i = 0; i < 20 && !shutdownDone_; ++i) pw_loop_iterate(pw_main_loop_get_loop(loop_), 50);
+        }
+        while (!probes_.empty()) dropProbe(probes_.begin()->first);
+        destroyOutput();
+        if (sink_) {
+            spa_hook_remove(&sinkListener_);
+            pw_stream_destroy(sink_);
+        }
+        if (metadata_) pw_proxy_destroy(reinterpret_cast<pw_proxy*>(metadata_));
+        if (registry_) pw_proxy_destroy(reinterpret_cast<pw_proxy*>(registry_));
+        if (socketSource_) pw_loop_destroy_source(pw_main_loop_get_loop(loop_), socketSource_);
+        if (listenFd_ >= 0) close(listenFd_);
+        unlink(socketPath().c_str());
+        unlink((runtimeDir() + "/audio-target").c_str());
+        if (core_) pw_core_disconnect(core_);
+        if (context_) pw_context_destroy(context_);
+        pw_main_loop_destroy(loop_);
+        pw_deinit();
+    }
+
+    static const pw_core_events& coreEventsTable() {
+        static const pw_core_events t = [] {
+            pw_core_events e{};
+            e.version = PW_VERSION_CORE_EVENTS;
+            e.done = onCoreDone;
+            e.error = onCoreError;
+            return e;
+        }();
+        return t;
+    }
+
+    static const pw_registry_events& registryEventsTable() {
+        static const pw_registry_events t = [] {
+            pw_registry_events e{};
+            e.version = PW_VERSION_REGISTRY_EVENTS;
+            e.global = onGlobal;
+            e.global_remove = onGlobalRemove;
+            return e;
+        }();
+        return t;
+    }
+
+    static const pw_node_events& nodeEventsTable() {
+        static const pw_node_events t = [] {
+            pw_node_events e{};
+            e.version = PW_VERSION_NODE_EVENTS;
+            e.info = onNodeInfo;
+            return e;
+        }();
+        return t;
+    }
+
+    static const pw_metadata_events& metadataEventsTable() {
+        static const pw_metadata_events t = [] {
+            pw_metadata_events e{};
+            e.version = PW_VERSION_METADATA_EVENTS;
+            e.property = onMetadataProperty;
+            return e;
+        }();
+        return t;
+    }
+
+    pw_main_loop* loop_ = nullptr;
+    pw_context* context_ = nullptr;
+    pw_core* core_ = nullptr;
+    pw_registry* registry_ = nullptr;
+    pw_metadata* metadata_ = nullptr;
+    pw_stream* sink_ = nullptr;
+    pw_stream* out_ = nullptr;
+    spa_hook coreListener_{}, registryListener_{}, metadataListener_{}, sinkListener_{}, outListener_{};
+    pw_stream_events sinkEvents_{}, outEvents_{};
+    spa_source* socketSource_ = nullptr;
+    int listenFd_ = -1;
+
+    struct StreamState {
+        bool routed = false;
+        bool pinned = false;
+    };
+
+    struct SinkInfo {
+        std::string name;
+        std::string serial;
+        int priority = 0;
+    };
+
+    std::map<uint32_t, SinkInfo> sinks_;
+    std::map<uint32_t, StreamState> streams_;
+    std::map<uint32_t, std::unique_ptr<Probe>> probes_;
+    std::map<uint32_t, std::string> streamTargets_;
+    std::string target_;
+    std::string defaultName_;
+    std::string configuredName_;
+    uint32_t ownId_ = SPA_ID_INVALID;
+    std::string ownSerial_;
+    int syncSeq_ = -1;
+    int syncRounds_ = 0;
+    int shutdownSeq_ = -1;
+    bool synced_ = false;
+    bool shutdownDone_ = false;
+
+    sa::FrameRing ring_;
+    sa::Chain chain_;
+    sa::Params params_;
+    sa::Params pending_;
+    std::mutex paramLock_;
+    std::atomic<bool> hasPending_{false};
+    std::atomic<unsigned> underruns_{0}, overruns_{0};
+    bool primed_ = false;
+};
+
+class VisualizerStream {
+public:
+    explicit VisualizerStream(const sa::VisualizerConfig& cfg) : cfg_(cfg) {}
+
+    int run() {
+        std::string error;
+        if (!vis_.init(cfg_.options, error)) {
+            std::fprintf(stderr, "tide-equalizer: %s\n", error.c_str());
+            return 64;
+        }
+        const sa::VisualizerOptions& o = vis_.options();
+        in_.assign(vis_.inputSize(), 0.0);
+        samplesPerFrame_ = o.sampleRate / o.framerate;
+        highFramerate_ = samplesPerFrame_ < kBufferFrames;
+
+        pw_init(nullptr, nullptr);
+        loop_ = pw_main_loop_new(nullptr);
+        if (!loop_) return 1;
+        pw_loop* loop = pw_main_loop_get_loop(loop_);
+        pw_loop_add_signal(loop, SIGINT, onSignal, this);
+        pw_loop_add_signal(loop, SIGTERM, onSignal, this);
+        signal(SIGPIPE, SIG_IGN);
+
+        context_ = pw_context_new(loop, nullptr, 0);
+        core_ = context_ ? pw_context_connect(context_, nullptr, 0) : nullptr;
+        if (!core_) {
+            std::fprintf(stderr, "tide-equalizer: cannot connect to PipeWire\n");
+            return 1;
+        }
+        coreEvents_.version = PW_VERSION_CORE_EVENTS;
+        coreEvents_.error = onCoreError;
+        pw_core_add_listener(core_, &coreListener_, &coreEvents_, this);
+
+        timer_ = pw_loop_add_timer(loop, onTimer, this);
+        if (!connect()) {
+            std::fprintf(stderr, "tide-equalizer: cannot connect the capture stream\n");
+            status_ = 1;
+        } else {
+            wake();
+            pw_main_loop_run(loop_);
+        }
+
+        if (stream_) {
+            spa_hook_remove(&streamListener_);
+            pw_stream_destroy(stream_);
+        }
+        if (timer_) pw_loop_destroy_source(loop, timer_);
+        pw_core_disconnect(core_);
+        pw_context_destroy(context_);
+        pw_main_loop_destroy(loop_);
+        pw_deinit();
+        return status_;
+    }
+
+private:
+    static constexpr int kBufferFrames = 512;
+
+    bool connect() {
+        const sa::VisualizerOptions& o = vis_.options();
+        pw_properties* props = pw_properties_new(
+            PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Music", PW_KEY_NODE_NAME,
+            "tide_visualizer", PW_KEY_NODE_DESCRIPTION, "Tide visualizer", PW_KEY_APP_NAME,
+            "Tide visualizer", PW_KEY_APP_ID, "tide-island", PW_KEY_NODE_PASSIVE, "true", PW_KEY_NODE_VIRTUAL,
+            "true", PW_KEY_STREAM_DONT_REMIX, "false", "channelmix.upmix", "true", nullptr);
+        std::string source = cfg_.source;
+        const std::string monitor = ".monitor";
+        if (source.size() >= monitor.size() && source.compare(source.size() - monitor.size(), monitor.size(), monitor) == 0) {
+            source.resize(source.size() - monitor.size());
+            pw_properties_set(props, PW_KEY_STREAM_CAPTURE_SINK, "true");
+        }
+        if (source == "auto") pw_properties_set(props, PW_KEY_STREAM_CAPTURE_SINK, "true");
+        else if (source != "auto_input") pw_properties_set(props, PW_KEY_TARGET_OBJECT, source.c_str());
+        uint32_t quantum = 1;
+        while (quantum < static_cast<uint32_t>(kBufferFrames * static_cast<long>(o.sampleRate) / 48000)) quantum <<= 1;
+        pw_properties_setf(props, PW_KEY_NODE_LATENCY, "%u/%d", quantum, o.sampleRate);
+
+        streamEvents_.version = PW_VERSION_STREAM_EVENTS;
+        streamEvents_.process = onProcess;
+        streamEvents_.state_changed = onState;
+        stream_ = pw_stream_new(core_, "tide-visualizer", props);
+        if (!stream_) return false;
+        pw_stream_add_listener(stream_, &streamListener_, &streamEvents_, this);
+
+        uint8_t buffer[1024];
+        spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof buffer);
+        spa_audio_info_raw info{};
+        info.format = SPA_AUDIO_FORMAT_S16;
+        info.rate = static_cast<uint32_t>(o.sampleRate);
+        info.channels = sa::CavaCore::kChannels;
+        info.position[0] = SPA_AUDIO_CHANNEL_FL;
+        info.position[1] = SPA_AUDIO_CHANNEL_FR;
+        const spa_pod* params[1] = {spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info)};
+        return pw_stream_connect(stream_, PW_DIRECTION_INPUT, PW_ID_ANY,
+                                 static_cast<pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS),
+                                 params, 1) == 0;
+    }
+
+    void quit(int status) {
+        status_ = status;
+        pw_main_loop_quit(loop_);
+    }
+
+    static void onSignal(void* data, int) { static_cast<VisualizerStream*>(data)->quit(0); }
+
+    static void onCoreError(void* data, uint32_t id, int, int res, const char* message) {
+        if (id != PW_ID_CORE || res != -EPIPE) return;
+        std::fprintf(stderr, "tide-equalizer: PipeWire connection lost: %s\n", message);
+        static_cast<VisualizerStream*>(data)->quit(1);
+    }
+
+    static void onState(void* data, pw_stream_state, pw_stream_state state, const char* error) {
+        VisualizerStream* self = static_cast<VisualizerStream*>(data);
+        if (state == PW_STREAM_STATE_PAUSED) {
+            self->resetInput();
+        } else if (state == PW_STREAM_STATE_ERROR || state == PW_STREAM_STATE_UNCONNECTED) {
+            std::fprintf(stderr, "tide-equalizer: capture stream %s%s%s\n",
+                         state == PW_STREAM_STATE_ERROR ? "error" : "disconnected", error ? ": " : "", error ? error : "");
+            self->quit(1);
+        }
+    }
+
+    // Like cava when its stream pauses: fill the input with silence so the bars fall instead of freezing.
+    void resetInput() {
+        std::fill(in_.begin(), in_.end(), 0.0);
+        count_ = static_cast<int>(in_.size());
+        wake();
+    }
+
+    static void onProcess(void* data) { static_cast<VisualizerStream*>(data)->capture(); }
+
+    void capture() {
+        pw_buffer* b = pw_stream_dequeue_buffer(stream_);
+        if (!b) return;
+        const spa_data& d = b->buffer->datas[0];
+        if (d.data && d.chunk) {
+            const int samples = static_cast<int>(d.chunk->size / sizeof(int16_t));
+            const int16_t* src = reinterpret_cast<const int16_t*>(static_cast<const uint8_t*>(d.data) + d.chunk->offset);
+            bool audible = false;
+            for (int i = 0; i < samples && !audible; ++i) audible = src[i] != 0;
+            if (audible) wake();
+            if (!sleeping_) push(src, samples);
+            lastInput_ = now();
+            stalled_ = false;
+        }
+        pw_stream_queue_buffer(stream_, b);
+    }
+
+    void push(const int16_t* src, int samples) {
+        if (samples <= 0) return;
+        const int size = static_cast<int>(in_.size());
+        if (count_ + samples > size) {
+            std::fill(in_.begin(), in_.end(), 0.0);
+            count_ = 0;
+        }
+        const int n = std::min(samples, size);
+        for (int i = 0; i < n; ++i) in_[count_ + i] = src[i];
+        count_ += n;
+    }
+
+    static uint64_t now() {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<uint64_t>(ts.tv_sec) * 1000000000ull + static_cast<uint64_t>(ts.tv_nsec);
+    }
+
+    void wake() {
+        if (!sleeping_) return;
+        sleeping_ = false;
+        const long period = 1000000000L / vis_.options().framerate;
+        timespec value{0, 1}, interval{period / 1000000000L, period % 1000000000L};
+        pw_loop_update_timer(pw_main_loop_get_loop(loop_), timer_, &value, &interval, false);
+    }
+
+    void sleep() {
+        sleeping_ = true;
+        count_ = 0;
+        pw_loop_update_timer(pw_main_loop_get_loop(loop_), timer_, nullptr, nullptr, false);
+    }
+
+    static void onTimer(void* data, uint64_t) { static_cast<VisualizerStream*>(data)->frame(); }
+
+    void frame() {
+        if (count_ == 0 && lastInput_ && now() - lastInput_ > kStallNs && !stalled_) {
+            stalled_ = true;
+            resetInput();
+        }
+
+        bool silence = true;
+        for (int n = 0; n < count_ && silence; ++n) silence = in_[n] == 0.0;
+
+        int use = count_;
+        if (highFramerate_) {
+            use = samplesPerFrame_ * sa::CavaCore::kChannels;
+            if (count_ < use) use = count_;
+            if (count_ > kBufferFrames * sa::CavaCore::kChannels + use) use = count_ - kBufferFrames * sa::CavaCore::kChannels;
+        }
+        const std::vector<int>& bars = vis_.execute(in_.data(), use);
+        count_ -= use;
+        if (count_ > 0) std::memmove(in_.data(), in_.data() + use, sizeof(double) * count_);
+
+        if (bars != last_) {
+            last_ = bars;
+            sa::formatFrame(bars, vis_.options().range, line_);
+            if (write(STDOUT_FILENO, line_.data(), line_.size()) != static_cast<ssize_t>(line_.size())) {
+                quit(0);
+                return;
+            }
+        }
+
+        bool idle = silence;
+        for (int v : bars) idle = idle && v == 0;
+        if (idle) sleep();
+    }
+
+    static constexpr uint64_t kStallNs = 250000000ull;
+
+    sa::VisualizerConfig cfg_;
+    sa::Visualizer vis_;
+    std::vector<double> in_;
+    std::vector<int> last_;
+    std::string line_;
+    int count_ = 0;
+    int samplesPerFrame_ = 0;
+    bool highFramerate_ = false;
+    bool sleeping_ = true;
+    bool stalled_ = false;
+    uint64_t lastInput_ = 0;
+    int status_ = 0;
+
+    pw_main_loop* loop_ = nullptr;
+    pw_context* context_ = nullptr;
+    pw_core* core_ = nullptr;
+    pw_stream* stream_ = nullptr;
+    spa_source* timer_ = nullptr;
+    spa_hook coreListener_{}, streamListener_{};
+    pw_core_events coreEvents_{};
+    pw_stream_events streamEvents_{};
+};
+
+int startDetached(const char* self) {
+    std::string reply;
+    if (request("ping", reply)) return 0;
+
+    const pid_t pid = fork();
+    if (pid < 0) return 1;
+    if (pid == 0) {
+        setsid();
+        const std::string dir = stateDir();
+        makeDirs(dir);
+        const int log = open((dir + "/audio.log").c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+        const int null = open("/dev/null", O_RDONLY | O_CLOEXEC);
+        if (null >= 0) dup2(null, STDIN_FILENO);
+        if (log >= 0) {
+            dup2(log, STDOUT_FILENO);
+            dup2(log, STDERR_FILENO);
+        }
+        execl(self, self, "daemon", static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    for (int i = 0; i < 60; ++i) {
+        usleep(50000);
+        if (request("ping", reply)) return 0;
+    }
+    return 1;
+}
+
+}
+
+int main(int argc, char** argv) {
+    const std::string cmd = argc > 1 ? argv[1] : "";
+
+    if (cmd == "version" || cmd == "--version") {
+        std::printf("tide-equalizer %s\n", TE_VERSION);
+        return 0;
+    }
+
+    if (cmd == "daemon") return Daemon().run();
+
+    if (cmd == "start") {
+        char self[4096];
+        const ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+        if (n <= 0) return 1;
+        self[n] = '\0';
+        return startDetached(self);
+    }
+
+    if (cmd == "visualizer") {
+        std::vector<std::string> args(argv + 2, argv + argc);
+        for (const std::string& a : args) {
+            if (a == "--help" || a == "-h") {
+                std::printf("%s", sa::kVisualizerUsage);
+                return 0;
+            }
+        }
+        sa::VisualizerConfig cfg;
+        std::string error;
+        if (!sa::parseVisualizerArgs(args, cfg, error)) {
+            std::fprintf(stderr, "tide-equalizer: %s\n%s", error.c_str(), sa::kVisualizerUsage);
+            return 64;
+        }
+        return VisualizerStream(cfg).run();
+    }
+
+    if (cmd == "ctl" && argc > 2) {
+        std::string line;
+        for (int i = 2; i < argc; ++i) line += (i > 2 ? " " : "") + std::string(argv[i]);
+        std::string reply;
+        if (!request(line, reply)) {
+            std::fprintf(stderr, "tide-equalizer: daemon is not running\n");
+            return 2;
+        }
+        std::printf("%s\n", reply.c_str());
+        return reply.rfind("ok", 0) == 0 || reply.rfind("set", 0) == 0 ? 0 : 1;
+    }
+
+    std::fprintf(stderr, "usage: tide-equalizer daemon | start | ctl <command...> | visualizer [options] | version\n");
+    return 64;
+}

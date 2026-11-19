@@ -94,23 +94,76 @@ Item {
                 }
             }
 
-            Rectangle {
+            Row {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                height: 22
-                radius: 11
-                color: StyleTokens.cardFill
-                visible: SystemServices.appStreams.length > 0
-                width: appCountText.implicitWidth + 14
+                spacing: 6
 
-                Text {
-                    id: appCountText
-                    anchors.centerIn: parent
-                    text: SystemServices.appStreams.length + (SystemServices.appStreams.length === 1 ? " app" : " apps")
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: 10
-                    font.family: root.textFontFamily
-                    font.weight: Font.Medium
+                // Equalizer Module Quick Jump Button
+                Rectangle {
+                    id: eqJumpButton
+                    height: 22
+                    radius: 11
+                    color: eqJumpMouse.containsMouse
+                        ? (SystemServices.equalizerEnabled ? StyleTokens.withAlpha(StyleTokens.accent, 0.30) : StyleTokens.cardFillHover)
+                        : (SystemServices.equalizerEnabled ? StyleTokens.withAlpha(StyleTokens.accent, 0.18) : StyleTokens.cardFill)
+                    border.width: 1
+                    border.color: SystemServices.equalizerEnabled ? StyleTokens.accent : StyleTokens.inputBorder
+                    width: eqJumpRow.implicitWidth + 14
+
+                    Row {
+                        id: eqJumpRow
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        Text {
+                            text: "\udb80\udf79"
+                            color: SystemServices.equalizerEnabled ? StyleTokens.accent : StyleTokens.textSecondary
+                            font.pixelSize: 10
+                            font.family: root.iconFontFamily
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            text: "EQ"
+                            color: SystemServices.equalizerEnabled ? StyleTokens.accent : StyleTokens.textSecondary
+                            font.pixelSize: 10
+                            font.family: root.heroFontFamily
+                            font.weight: Font.Bold
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: eqJumpMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (root.provider && root.provider.setConnectivityPanelOpen) {
+                                root.provider.setConnectivityPanelOpen("equalizer", true);
+                            }
+                        }
+                    }
+                }
+
+                // Apps Counter Badge
+                Rectangle {
+                    height: 22
+                    radius: 11
+                    color: StyleTokens.cardFill
+                    visible: SystemServices.appStreams.length > 0
+                    width: appCountText.implicitWidth + 14
+
+                    Text {
+                        id: appCountText
+                        anchors.centerIn: parent
+                        text: SystemServices.appStreams.length + (SystemServices.appStreams.length === 1 ? " app" : " apps")
+                        color: StyleTokens.textSecondary
+                        font.pixelSize: 10
+                        font.family: root.textFontFamily
+                        font.weight: Font.Medium
+                    }
                 }
             }
         }

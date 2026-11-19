@@ -179,6 +179,13 @@ PanelWindow {
                 audioConnectivityDetailShell.panelScale, mainCapsule.height]
         }
         InsetBlurRegion {
+            surface: equalizerConnectivityDetailShell.surfaceItem
+            active: equalizerConnectivityDetailShell.visible && equalizerConnectivityDetailShell.opacity > 0.01
+            surfaceRadius: 28
+            transformDependencies: [equalizerConnectivityDetailShell.x, equalizerConnectivityDetailShell.y,
+                equalizerConnectivityDetailShell.panelScale, mainCapsule.height]
+        }
+        InsetBlurRegion {
             surface: calendarNoteShell.surfaceItem
             active: calendarNoteShell.visible && calendarNoteShell.opacity > 0.01
             surfaceRadius: 28
@@ -283,6 +290,14 @@ PanelWindow {
             y: Math.floor(audioConnectivityDetailShell.y)
             width: audioConnectivityDetailShell.visible ? Math.ceil(audioConnectivityDetailShell.width) : 0
             height: audioConnectivityDetailShell.visible ? Math.ceil(audioConnectivityDetailShell.height) : 0
+        }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(equalizerConnectivityDetailShell.x)
+            y: Math.floor(equalizerConnectivityDetailShell.y)
+            width: equalizerConnectivityDetailShell.visible ? Math.ceil(equalizerConnectivityDetailShell.width) : 0
+            height: equalizerConnectivityDetailShell.visible ? Math.ceil(equalizerConnectivityDetailShell.height) : 0
         }
 
         Region {
@@ -447,7 +462,9 @@ PanelWindow {
     property bool audioConnectivityDetailOpen: false
     property bool audioConnectivityDetailMounted: false
     property string audioConnectivityDetailKind: "audio_output"
-    readonly property bool anyConnectivityDetailMounted: wifiConnectivityDetailMounted || bluetoothConnectivityDetailMounted || powerConnectivityDetailMounted || audioConnectivityDetailMounted
+    property bool equalizerConnectivityDetailOpen: false
+    property bool equalizerConnectivityDetailMounted: false
+    readonly property bool anyConnectivityDetailMounted: wifiConnectivityDetailMounted || bluetoothConnectivityDetailMounted || powerConnectivityDetailMounted || audioConnectivityDetailMounted || equalizerConnectivityDetailMounted
     readonly property real connectivityDetailWidth: 318
     readonly property real connectivityDetailHeight: 404
     readonly property bool controlCenterActiveRecording: ScreenRecorder
@@ -662,6 +679,10 @@ PanelWindow {
                 root.audioConnectivityDetailOpen = false;
                 audioConnectivityDetailCleanupTimer.restart();
             }
+            if (kind !== "equalizer" && (root.equalizerConnectivityDetailMounted || root.equalizerConnectivityDetailOpen)) {
+                root.equalizerConnectivityDetailOpen = false;
+                equalizerConnectivityDetailCleanupTimer.restart();
+            }
         }
 
         if (kind === "wifi") {
@@ -718,6 +739,21 @@ PanelWindow {
                 root.audioConnectivityDetailOpen = false;
                 audioConnectivityDetailCleanupTimer.restart();
             }
+            return;
+        }
+
+        if (kind === "equalizer") {
+            if (nextOpen) {
+                equalizerConnectivityDetailCleanupTimer.stop();
+                root.equalizerConnectivityDetailMounted = true;
+                root.equalizerConnectivityDetailOpen = true;
+            } else {
+                if (!root.equalizerConnectivityDetailMounted && !root.equalizerConnectivityDetailOpen)
+                    return;
+                root.equalizerConnectivityDetailOpen = false;
+                equalizerConnectivityDetailCleanupTimer.restart();
+            }
+            return;
         }
     }
 
@@ -727,6 +763,7 @@ PanelWindow {
         setConnectivityDetailVisible("power", false);
         setConnectivityDetailVisible("audio_output", false);
         setConnectivityDetailVisible("audio_input", false);
+        setConnectivityDetailVisible("equalizer", false);
     }
 
     function openOverviewEverywhere() {
@@ -1180,6 +1217,13 @@ PanelWindow {
         interval: root.connectivityDetailAnimationDuration
         repeat: false
         onTriggered: root.audioConnectivityDetailMounted = false
+    }
+
+    Timer {
+        id: equalizerConnectivityDetailCleanupTimer
+        interval: root.connectivityDetailAnimationDuration
+        repeat: false
+        onTriggered: root.equalizerConnectivityDetailMounted = false
     }
 
     OverviewWallpaperCacheController {
@@ -4157,6 +4201,24 @@ PanelWindow {
             mounted: root.audioConnectivityDetailMounted
             rightSide: true
             panelKind: root.audioConnectivityDetailKind
+            provider: controlCenterLoader.item
+            mainCapsule: mainCapsule
+            availableWidth: root.width
+            detailWidth: root.connectivityDetailWidth
+            detailHeight: root.connectivityDetailHeight
+            detailGap: root.connectivityDetailGap
+            iconFontFamily: root.iconFontFamily
+            textFontFamily: root.textFontFamily
+            heroFontFamily: root.heroFontFamily
+        }
+
+        ConnectivityDetailShell {
+            id: equalizerConnectivityDetailShell
+
+            open: root.equalizerConnectivityDetailOpen
+            mounted: root.equalizerConnectivityDetailMounted
+            rightSide: true
+            panelKind: "equalizer"
             provider: controlCenterLoader.item
             mainCapsule: mainCapsule
             availableWidth: root.width

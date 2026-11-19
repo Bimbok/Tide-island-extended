@@ -30,6 +30,14 @@ class SystemServices final : public QObject {
     Q_PROPERTY(QVariantList appStreams READ appStreams NOTIFY appStreamsChanged FINAL)
     Q_PROPERTY(QString defaultAudioSink READ defaultAudioSink NOTIFY defaultAudioSinkChanged FINAL)
     Q_PROPERTY(QString defaultAudioSource READ defaultAudioSource NOTIFY defaultAudioSourceChanged FINAL)
+    Q_PROPERTY(bool equalizerAvailable READ equalizerAvailable NOTIFY equalizerAvailableChanged FINAL)
+    Q_PROPERTY(bool equalizerRunning READ equalizerRunning NOTIFY equalizerRunningChanged FINAL)
+    Q_PROPERTY(bool equalizerEnabled READ equalizerEnabled WRITE setEqualizerEnabled NOTIFY equalizerEnabledChanged FINAL)
+    Q_PROPERTY(QVariantList equalizerBands READ equalizerBands WRITE setEqualizerBands NOTIFY equalizerBandsChanged FINAL)
+    Q_PROPERTY(QString equalizerPreset READ equalizerPreset WRITE applyEqualizerPreset NOTIFY equalizerPresetChanged FINAL)
+    Q_PROPERTY(double equalizerBalance READ equalizerBalance WRITE setEqualizerBalance NOTIFY equalizerBalanceChanged FINAL)
+    Q_PROPERTY(bool equalizerMono READ equalizerMono WRITE setEqualizerMono NOTIFY equalizerMonoChanged FINAL)
+    Q_PROPERTY(QString equalizerDynamics READ equalizerDynamics WRITE setEqualizerDynamics NOTIFY equalizerDynamicsChanged FINAL)
     Q_PROPERTY(bool batteryThresholdSupported READ batteryThresholdSupported NOTIFY batteryThresholdChanged FINAL)
     Q_PROPERTY(QString batteryThresholdType READ batteryThresholdType NOTIFY batteryThresholdChanged FINAL)
     Q_PROPERTY(bool batteryConservationMode READ batteryConservationMode NOTIFY batteryThresholdChanged FINAL)
@@ -65,6 +73,14 @@ public:
     QVariantList appStreams() const { return m_appStreams; }
     QString defaultAudioSink() const { return m_defaultAudioSink; }
     QString defaultAudioSource() const { return m_defaultAudioSource; }
+    bool equalizerAvailable() const;
+    bool equalizerRunning() const { return m_equalizerRunning; }
+    bool equalizerEnabled() const { return m_equalizerEnabled; }
+    QVariantList equalizerBands() const { return m_equalizerBands; }
+    QString equalizerPreset() const { return m_equalizerPreset; }
+    double equalizerBalance() const { return m_equalizerBalance; }
+    bool equalizerMono() const { return m_equalizerMono; }
+    QString equalizerDynamics() const { return m_equalizerDynamics; }
     bool batteryThresholdSupported() const { return m_batteryThresholdSupported; }
     QString batteryThresholdType() const { return m_batteryThresholdType; }
     bool batteryConservationMode() const { return m_batteryConservationMode; }
@@ -106,6 +122,15 @@ public:
     Q_INVOKABLE void toggleAppStreamMute(int streamIndex);
     Q_INVOKABLE void setAudioMonitoringActive(bool active);
     void refreshAudioIfActive();
+    Q_INVOKABLE void requestEqualizerState();
+    Q_INVOKABLE void setEqualizerEnabled(bool enabled);
+    Q_INVOKABLE void setEqualizerBand(int index, double gain);
+    Q_INVOKABLE void setEqualizerBands(const QVariantList &bands);
+    Q_INVOKABLE void applyEqualizerPreset(const QString &presetName);
+    Q_INVOKABLE void setEqualizerBalance(double balance);
+    Q_INVOKABLE void setEqualizerMono(bool mono);
+    Q_INVOKABLE void setEqualizerDynamics(const QString &dynamics);
+    Q_INVOKABLE void resetEqualizer();
     Q_INVOKABLE void requestTlpState();
     Q_INVOKABLE void setTlpMode(const QString &mode,
                                 const QString &sudoPassword = QString(),
@@ -175,6 +200,14 @@ signals:
     void appStreamsChanged();
     void defaultAudioSinkChanged();
     void defaultAudioSourceChanged();
+    void equalizerAvailableChanged();
+    void equalizerRunningChanged();
+    void equalizerEnabledChanged();
+    void equalizerBandsChanged();
+    void equalizerPresetChanged();
+    void equalizerBalanceChanged();
+    void equalizerMonoChanged();
+    void equalizerDynamicsChanged();
 
 private:
     struct CommandResult {
@@ -352,4 +385,21 @@ private:
     int m_batteryCycleCount = 0;
     int m_batteryHealthPercent = 100;
     QString m_batteryChargeState;
+
+    void initEqualizer();
+    void parseEqualizerStateLine(const QString &line);
+    void sendEqualizerCommand(const QString &command, std::function<void(bool success, const QString &reply)> callback = nullptr);
+    void ensureEqualizerDaemon(std::function<void(bool running)> onReady = nullptr);
+    void updateEqualizerPresetName();
+    QString resolveEqualizerExecutable() const;
+
+    bool m_equalizerRunning = false;
+    bool m_equalizerEnabled = false;
+    QVariantList m_equalizerBands;
+    QString m_equalizerPreset = QStringLiteral("Flat");
+    double m_equalizerBalance = 0.0;
+    bool m_equalizerMono = false;
+    bool m_equalizerSwap = false;
+    QString m_equalizerDynamics = QStringLiteral("off");
+    bool m_equalizerDyneq = false;
 };

@@ -34,6 +34,28 @@ target_link_libraries(lyricsmpris PRIVATE
     Qt6::DBus
 )
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)
+
+add_executable(tide-equalizer
+    equalizer/main.cpp
+)
+
+target_include_directories(tide-equalizer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/equalizer
+    ${PIPEWIRE_INCLUDE_DIRS}
+)
+
+target_link_libraries(tide-equalizer PRIVATE
+    ${PIPEWIRE_LIBRARIES}
+    m
+    pthread
+)
+
+target_compile_definitions(tide-equalizer PRIVATE
+    TE_VERSION="${PROJECT_VERSION}"
+)
+
 enable_testing()
 
 add_executable(clipboard_preview_tests tests/clipboard_preview_tests.cpp)
@@ -461,6 +483,9 @@ install(CODE "execute_process(COMMAND \${CMAKE_COMMAND} -E create_symlink tide-i
 # Install helper executables and scripts
 install(TARGETS lyricsmpris
     RUNTIME DESTINATION ${CMAKE_INSTALL_DATADIR}/tide-island/bin
+)
+install(TARGETS tide-equalizer
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(PROGRAMS scripts/cliphist-helper.sh
     DESTINATION ${CMAKE_INSTALL_DATADIR}/tide-island/scripts

@@ -404,6 +404,96 @@ private slots:
 
         QTest::qWait(100);
     }
+
+    void testEqualizerDefaults()
+    {
+        SystemServices services;
+        QCOMPARE(services.equalizerBands().size(), 10);
+        for (int i = 0; i < 10; ++i) {
+            QCOMPARE(services.equalizerBands().at(i).toDouble(), 0.0);
+        }
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Flat"));
+        QCOMPARE(services.equalizerBalance(), 0.0);
+        QCOMPARE(services.equalizerMono(), false);
+        QCOMPARE(services.equalizerDynamics(), QStringLiteral("off"));
+    }
+
+    void testEqualizerPresets()
+    {
+        SystemServices services;
+        QSignalSpy presetSpy(&services, &SystemServices::equalizerPresetChanged);
+        QSignalSpy bandsSpy(&services, &SystemServices::equalizerBandsChanged);
+
+        services.applyEqualizerPreset(QStringLiteral("Bass"));
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Bass"));
+        QCOMPARE(services.equalizerBands().at(0).toDouble(), 5.0);
+        QCOMPARE(services.equalizerBands().at(1).toDouble(), 7.0);
+        QCOMPARE(services.equalizerBands().at(2).toDouble(), 5.0);
+        QVERIFY(presetSpy.count() >= 1);
+        QVERIFY(bandsSpy.count() >= 1);
+
+        services.applyEqualizerPreset(QStringLiteral("Rock"));
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Rock"));
+        QCOMPARE(services.equalizerBands().at(0).toDouble(), 5.0);
+        QCOMPARE(services.equalizerBands().at(3).toDouble(), -1.0);
+        QCOMPARE(services.equalizerBands().at(4).toDouble(), -2.0);
+
+        services.applyEqualizerPreset(QStringLiteral("Flat"));
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Flat"));
+        for (int i = 0; i < 10; ++i) {
+            QCOMPARE(services.equalizerBands().at(i).toDouble(), 0.0);
+        }
+    }
+
+    void testEqualizerBandAdjustmentAndClamping()
+    {
+        SystemServices services;
+        services.applyEqualizerPreset(QStringLiteral("Flat"));
+
+        // Adjusting single band should change preset to Custom
+        services.setEqualizerBand(3, 4.5);
+        QCOMPARE(services.equalizerBands().at(3).toDouble(), 4.5);
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Custom"));
+
+        // Clamping to [-24, 24]
+        services.setEqualizerBand(0, 35.0);
+        QCOMPARE(services.equalizerBands().at(0).toDouble(), 24.0);
+
+        services.setEqualizerBand(1, -35.0);
+        QCOMPARE(services.equalizerBands().at(1).toDouble(), -24.0);
+    }
+
+    void testEqualizerBalanceDynamicsAndReset()
+    {
+        SystemServices services;
+        services.setEqualizerBalance(0.45);
+        QCOMPARE(services.equalizerBalance(), 0.45);
+
+        // Clamping balance to [-1.0, 1.0]
+        services.setEqualizerBalance(2.5);
+        QCOMPARE(services.equalizerBalance(), 1.0);
+        services.setEqualizerBalance(-2.5);
+        QCOMPARE(services.equalizerBalance(), -1.0);
+
+        services.setEqualizerMono(true);
+        QCOMPARE(services.equalizerMono(), true);
+
+        services.setEqualizerDynamics(QStringLiteral("balanced"));
+        QCOMPARE(services.equalizerDynamics(), QStringLiteral("balanced"));
+
+        services.setEqualizerDynamics(QStringLiteral("night"));
+        QCOMPARE(services.equalizerDynamics(), QStringLiteral("night"));
+
+        // Reset restores flat & defaults
+        services.resetEqualizer();
+        QCOMPARE(services.equalizerPreset(), QStringLiteral("Flat"));
+        QCOMPARE(services.equalizerBalance(), 0.0);
+        QCOMPARE(services.equalizerMono(), false);
+        QCOMPARE(services.equalizerDynamics(), QStringLiteral("off"));
+        for (int i = 0; i < 10; ++i) {
+            QCOMPARE(services.equalizerBands().at(i).toDouble(), 0.0);
+        }
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

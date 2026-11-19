@@ -79,6 +79,7 @@ Item {
     property bool powerPanelOpen: false
     property bool audioOutputPanelOpen: false
     property bool audioInputPanelOpen: false
+    property bool equalizerPanelOpen: false
     property bool powerViewActive: false
     property bool batteryDrawerOpen: false
     property bool batteryDrawerDragging: false
@@ -202,7 +203,7 @@ Item {
     readonly property string bluetoothPairingMessage: (bluetoothPairingAgent && bluetoothPairingAgent.promptMessage) || ""
     readonly property string bluetoothPairingDisplayedCode: (bluetoothPairingAgent && bluetoothPairingAgent.displayedCode) || ""
     readonly property bool hasConnectivityPrompt: wifiPendingPasswordSsid.length > 0 || bluetoothPairingActive
-    readonly property bool anyConnectivityPanelOpen: wifiPanelOpen || bluetoothPanelOpen || audioOutputPanelOpen || audioInputPanelOpen || powerPanelOpen
+    readonly property bool anyConnectivityPanelOpen: wifiPanelOpen || bluetoothPanelOpen || audioOutputPanelOpen || audioInputPanelOpen || powerPanelOpen || equalizerPanelOpen
     readonly property string wifiStatusText: (wifiController && wifiController.statusText) || "Unavailable"
     readonly property string bluetoothStatusText: buildBluetoothStatusText()
     readonly property string bluetoothAvailabilityMessage: bluetoothAvailable ? "" : "No Bluetooth adapter is available."
@@ -523,6 +524,7 @@ Item {
         if (kind === "power") return powerPanelOpen;
         if (kind === "audio_output" || kind === "output") return audioOutputPanelOpen;
         if (kind === "audio_input" || kind === "input") return audioInputPanelOpen;
+        if (kind === "equalizer") return equalizerPanelOpen;
         return false;
     }
 
@@ -568,6 +570,10 @@ Item {
                     if (emitSignal) connectivityPanelRequested("audio_input", false);
                 }
                 SystemServices.setAudioMonitoringActive(false);
+            }
+            if (kind !== "equalizer" && equalizerPanelOpen) {
+                equalizerPanelOpen = false;
+                if (emitSignal) connectivityPanelRequested("equalizer", false);
             }
         }
 
@@ -648,6 +654,16 @@ Item {
             }
             if (changed && emitSignal)
                 connectivityPanelRequested("audio_input", nextOpen);
+            return;
+        }
+        else if (kind === "equalizer") {
+            changed = equalizerPanelOpen !== nextOpen;
+            equalizerPanelOpen = nextOpen;
+            if (nextOpen) {
+                SystemServices.requestEqualizerState();
+            }
+            if (changed && emitSignal)
+                connectivityPanelRequested("equalizer", nextOpen);
             return;
         }
         else {

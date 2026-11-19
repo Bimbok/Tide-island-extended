@@ -258,6 +258,7 @@ SystemServices::SystemServices(QObject *parent)
     : QObject(parent) {
     s_systemServicesInstance = this;
     m_cavaLevels = QVariantList{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    for (int i = 0; i < 10; ++i) m_equalizerBands.append(0.0);
     m_cliphistAvailable = !findExecutable(QStringLiteral("cliphist")).isEmpty()
                        && !findExecutable(QStringLiteral("wl-paste")).isEmpty();
 
@@ -308,6 +309,7 @@ SystemServices::SystemServices(QObject *parent)
     requestScreenRecordingSnapshot();
     detectBatteryThresholdSupport();
     requestBatteryThresholdState();
+    initEqualizer();
 }
 
 SystemServices::~SystemServices() {
@@ -3674,4 +3676,414 @@ QStringList SystemServices::wrapTerminalCommand(const QStringList &command) cons
 
     return QStringList{parts.first(), QStringLiteral("-e")} + command;
 }
+
+namespace {
+
+const QMap<QString, QVector<double>> s_equalizerPresets = {
+    {QStringLiteral("Flat"),    { 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0}},
+    {QStringLiteral("Bass"),    { 5.0,  7.0,  5.0,  2.0,  1.0,  0.0,  0.0,  0.0,  1.0,  2.0}},
+    {QStringLiteral("Treble"),  {-2.0, -1.0,  0.0,  1.0,  2.0,  3.0,  4.0,  5.0,  6.0,  6.0}},
+    {QStringLiteral("Vocal"),   {-2.0, -1.0,  1.0,  3.0,  5.0,  5.0,  4.0,  2.0,  1.0,  0.0}},
+    {QStringLiteral("Pop"),     { 2.0,  4.0,  2.0,  0.0,  1.0,  2.0,  4.0,  2.0,  1.0,  2.0}},
+    {QStringLiteral("Rock"),    { 5.0,  4.0,  2.0, -1.0, -2.0, -1.0,  2.0,  4.0,  5.0,  6.0}},
+    {QStringLiteral("Jazz"),    { 3.0,  3.0,  1.0,  1.0,  1.0,  1.0,  2.0,  1.0,  2.0,  3.0}},
+    {QStringLiteral("Classic"), { 0.0,  1.0,  2.0,  2.0,  2.0,  2.0,  1.0,  2.0,  3.0,  4.0}}
+};
+
+QString equalizerSocketPath() {
+    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (!runtime.isEmpty()) return runtime + QStringLiteral("/tide-equalizer.sock");
+    return QStringLiteral("/tmp/tide-equalizer-%1.sock").arg(getuid());
+}
+
+QString equalizerStateFilePath() {
+    QString stateHome = qEnvironmentVariable("XDG_STATE_HOME");
+    if (stateHome.isEmpty()) {
+        stateHome = QDir::homePath() + QStringLiteral("/.local/state");
+    }
+    return stateHome + QStringLiteral("/tide-island/equalizer.state");
+}
+
+} // namespace
+
+QString SystemServices::resolveEqualizerExecutable() const {
+    QString bin = QStandardPaths::findExecutable(QStringLiteral("tide-equalizer"));
+    if (!bin.isEmpty() && QFile::exists(bin)) return bin;
+
+    const QString appDir = QCoreApplication::applicationDirPath();
+    if (QFile::exists(appDir + QStringLiteral("/tide-equalizer")))
+        return appDir + QStringLiteral("/tide-equalizer");
+
+    const QString localBin = QDir::homePath() + QStringLiteral("/.local/bin/tide-equalizer");
+    if (QFile::exists(localBin)) return localBin;
+
+    if (QFile::exists(QStringLiteral("/usr/bin/tide-equalizer")))
+        return QStringLiteral("/usr/bin/tide-equalizer");
+
+    if (QFile::exists(QStringLiteral("/usr/share/tide-island/bin/tide-equalizer")))
+        return QStringLiteral("/usr/share/tide-island/bin/tide-equalizer");
+
+    return QString();
+}
+
+bool SystemServices::equalizerAvailable() const {
+    return !resolveEqualizerExecutable().isEmpty() || QFile::exists(equalizerSocketPath());
+}
+
+void SystemServices::initEqualizer() {
+    const QString statePath = equalizerStateFilePath();
+    if (QFile::exists(statePath)) {
+        QFile f(statePath);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QString line = QString::fromUtf8(f.readLine()).trimmed();
+            if (!line.isEmpty()) {
+                parseEqualizerStateLine(line);
+            }
+        }
+    }
+
+    QTimer::singleShot(400, this, [this]() {
+        sendEqualizerCommand(QStringLiteral("ping"), [this](bool ok, const QString &reply) {
+            bool running = ok && reply.startsWith(QLatin1String("ok"));
+            if (m_equalizerRunning != running) {
+                m_equalizerRunning = running;
+                emit equalizerRunningChanged();
+            }
+            if (running) {
+                requestEqualizerState();
+            }
+        });
+    });
+}
+
+void SystemServices::parseEqualizerStateLine(const QString &line) {
+    int setIdx = line.indexOf(QLatin1String("set "));
+    if (setIdx < 0) return;
+
+    const QString setPart = line.mid(setIdx + 4).trimmed();
+    const QStringList tokens = setPart.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (tokens.size() < 15) return;
+
+    bool anyBandChanged = false;
+    for (int i = 0; i < 10 && i < tokens.size(); ++i) {
+        bool conv = false;
+        double val = tokens[i].toDouble(&conv);
+        if (conv) {
+            val = std::clamp(val, -24.0, 24.0);
+            if (i < m_equalizerBands.size()) {
+                if (std::abs(m_equalizerBands[i].toDouble() - val) > 0.05) {
+                    m_equalizerBands[i] = val;
+                    anyBandChanged = true;
+                }
+            }
+        }
+    }
+    if (anyBandChanged) emit equalizerBandsChanged();
+
+    if (tokens.size() > 10) {
+        double bal = tokens[10].toDouble();
+        bal = std::clamp(bal, -1.0, 1.0);
+        if (std::abs(m_equalizerBalance - bal) > 0.02) {
+            m_equalizerBalance = bal;
+            emit equalizerBalanceChanged();
+        }
+    }
+
+    if (tokens.size() > 11) {
+        bool mono = (tokens[11] == QLatin1String("1"));
+        if (m_equalizerMono != mono) {
+            m_equalizerMono = mono;
+            emit equalizerMonoChanged();
+        }
+    }
+
+    if (tokens.size() > 12) {
+        m_equalizerSwap = (tokens[12] == QLatin1String("1"));
+    }
+
+    if (tokens.size() > 13) {
+        QString dyn = tokens[13];
+        if (dyn != QLatin1String("off") && dyn != QLatin1String("balanced") && dyn != QLatin1String("night"))
+            dyn = QStringLiteral("off");
+        if (m_equalizerDynamics != dyn) {
+            m_equalizerDynamics = dyn;
+            emit equalizerDynamicsChanged();
+        }
+    }
+
+    if (tokens.size() > 14) {
+        bool enabled = (tokens[14] == QLatin1String("0"));
+        if (m_equalizerEnabled != enabled) {
+            m_equalizerEnabled = enabled;
+            emit equalizerEnabledChanged();
+        }
+    }
+
+    if (tokens.size() > 15) {
+        m_equalizerDyneq = (tokens[15] == QLatin1String("1"));
+    }
+
+    updateEqualizerPresetName();
+}
+
+void SystemServices::updateEqualizerPresetName() {
+    QString detected = QStringLiteral("Custom");
+    for (auto it = s_equalizerPresets.cbegin(); it != s_equalizerPresets.cend(); ++it) {
+        const QVector<double> &targetGains = it.value();
+        bool matches = true;
+        for (int i = 0; i < 10 && i < targetGains.size() && i < m_equalizerBands.size(); ++i) {
+            if (std::abs(m_equalizerBands[i].toDouble() - targetGains[i]) > 0.15) {
+                matches = false;
+                break;
+            }
+        }
+        if (matches) {
+            detected = it.key();
+            break;
+        }
+    }
+
+    if (m_equalizerPreset != detected) {
+        m_equalizerPreset = detected;
+        emit equalizerPresetChanged();
+    }
+}
+
+void SystemServices::sendEqualizerCommand(const QString &command, std::function<void(bool success, const QString &reply)> callback) {
+    const QString sockPath = equalizerSocketPath();
+    QLocalSocket *socket = new QLocalSocket(this);
+
+    auto cleanup = [socket]() {
+        socket->deleteLater();
+    };
+
+    connect(socket, &QLocalSocket::connected, [socket, command]() {
+        QByteArray data = (command + QLatin1Char('\n')).toUtf8();
+        socket->write(data);
+        socket->flush();
+    });
+
+    connect(socket, &QLocalSocket::readyRead, this, [this, socket, callback, cleanup]() {
+        const QString reply = QString::fromUtf8(socket->readAll()).trimmed();
+        cleanup();
+        if (callback) {
+            callback(true, reply);
+        }
+    });
+
+    connect(socket, &QLocalSocket::errorOccurred, this, [this, callback, cleanup](QLocalSocket::LocalSocketError) {
+        cleanup();
+        if (callback) {
+            callback(false, QString());
+        }
+    });
+
+    socket->connectToServer(sockPath);
+
+    QTimer::singleShot(1500, socket, [socket]() {
+        if (socket && socket->state() != QLocalSocket::UnconnectedState) {
+            socket->abort();
+            socket->deleteLater();
+        }
+    });
+}
+
+void SystemServices::ensureEqualizerDaemon(std::function<void(bool running)> onReady) {
+    sendEqualizerCommand(QStringLiteral("ping"), [this, onReady](bool ok, const QString &reply) {
+        if (ok && reply.startsWith(QLatin1String("ok"))) {
+            if (!m_equalizerRunning) {
+                m_equalizerRunning = true;
+                emit equalizerRunningChanged();
+            }
+            if (onReady) onReady(true);
+            return;
+        }
+
+        const QString exe = resolveEqualizerExecutable();
+        if (exe.isEmpty()) {
+            qWarning() << "[Equalizer] tide-equalizer executable not found";
+            if (m_equalizerRunning) {
+                m_equalizerRunning = false;
+                emit equalizerRunningChanged();
+            }
+            if (onReady) onReady(false);
+            return;
+        }
+
+        qInfo() << "[Equalizer] Starting tide-equalizer daemon via" << exe;
+        bool started = QProcess::startDetached(exe, QStringList() << QStringLiteral("start"));
+        if (!started) {
+            if (m_equalizerRunning) {
+                m_equalizerRunning = false;
+                emit equalizerRunningChanged();
+            }
+            if (onReady) onReady(false);
+            return;
+        }
+
+        QTimer::singleShot(250, this, [this, onReady]() {
+            sendEqualizerCommand(QStringLiteral("ping"), [this, onReady](bool ok2, const QString &reply2) {
+                bool isUp = ok2 && reply2.startsWith(QLatin1String("ok"));
+                if (m_equalizerRunning != isUp) {
+                    m_equalizerRunning = isUp;
+                    emit equalizerRunningChanged();
+                }
+                if (onReady) onReady(isUp);
+            });
+        });
+    });
+}
+
+void SystemServices::requestEqualizerState() {
+    sendEqualizerCommand(QStringLiteral("get"), [this](bool ok, const QString &reply) {
+        if (ok && reply.startsWith(QLatin1String("set "))) {
+            if (!m_equalizerRunning) {
+                m_equalizerRunning = true;
+                emit equalizerRunningChanged();
+            }
+            parseEqualizerStateLine(reply);
+        } else {
+            if (m_equalizerRunning) {
+                m_equalizerRunning = false;
+                emit equalizerRunningChanged();
+            }
+        }
+    });
+}
+
+void SystemServices::setEqualizerEnabled(bool enabled) {
+    if (m_equalizerEnabled == enabled) return;
+    m_equalizerEnabled = enabled;
+    emit equalizerEnabledChanged();
+
+    if (enabled) {
+        ensureEqualizerDaemon([this](bool running) {
+            if (running) {
+                sendEqualizerCommand(QStringLiteral("bypass 0"), [this](bool ok, const QString &) {
+                    if (ok) requestEqualizerState();
+                });
+            }
+        });
+    } else {
+        if (m_equalizerRunning) {
+            sendEqualizerCommand(QStringLiteral("bypass 1"), [this](bool ok, const QString &) {
+                if (ok) requestEqualizerState();
+            });
+        }
+    }
+}
+
+void SystemServices::setEqualizerBand(int index, double gain) {
+    if (index < 0 || index >= m_equalizerBands.size()) return;
+    gain = std::clamp(gain, -24.0, 24.0);
+    gain = std::round(gain * 10.0) / 10.0;
+
+    m_equalizerBands[index] = gain;
+    emit equalizerBandsChanged();
+    updateEqualizerPresetName();
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(QStringLiteral("band %1 %2").arg(index + 1).arg(gain, 0, 'f', 1));
+    } else if (m_equalizerEnabled) {
+        ensureEqualizerDaemon([this, index, gain](bool running) {
+            if (running) {
+                sendEqualizerCommand(QStringLiteral("band %1 %2").arg(index + 1).arg(gain, 0, 'f', 1));
+            }
+        });
+    }
+}
+
+void SystemServices::setEqualizerBands(const QVariantList &bands) {
+    if (bands.size() != 10) return;
+    for (int i = 0; i < 10; ++i) {
+        m_equalizerBands[i] = std::clamp(bands[i].toDouble(), -24.0, 24.0);
+    }
+    emit equalizerBandsChanged();
+    updateEqualizerPresetName();
+
+    QStringList cmdArgs;
+    cmdArgs.append(QStringLiteral("eq"));
+    for (int i = 0; i < 10; ++i) {
+        cmdArgs.append(QString::number(m_equalizerBands[i].toDouble(), 'f', 1));
+    }
+    const QString cmd = cmdArgs.join(QLatin1Char(' '));
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(cmd);
+    } else if (m_equalizerEnabled) {
+        ensureEqualizerDaemon([this, cmd](bool running) {
+            if (running) sendEqualizerCommand(cmd);
+        });
+    }
+}
+
+void SystemServices::applyEqualizerPreset(const QString &presetName) {
+    if (!s_equalizerPresets.contains(presetName)) return;
+
+    const QVector<double> &gains = s_equalizerPresets[presetName];
+    for (int i = 0; i < 10 && i < gains.size(); ++i) {
+        m_equalizerBands[i] = gains[i];
+    }
+    m_equalizerPreset = presetName;
+    emit equalizerBandsChanged();
+    emit equalizerPresetChanged();
+
+    QStringList cmdArgs;
+    cmdArgs.append(QStringLiteral("eq"));
+    for (int i = 0; i < 10; ++i) {
+        cmdArgs.append(QString::number(gains[i], 'f', 1));
+    }
+    const QString cmd = cmdArgs.join(QLatin1Char(' '));
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(cmd);
+    } else if (m_equalizerEnabled) {
+        ensureEqualizerDaemon([this, cmd](bool running) {
+            if (running) sendEqualizerCommand(cmd);
+        });
+    }
+}
+
+void SystemServices::setEqualizerBalance(double balance) {
+    balance = std::clamp(balance, -1.0, 1.0);
+    balance = std::round(balance * 100.0) / 100.0;
+    if (std::abs(m_equalizerBalance - balance) < 0.005) return;
+
+    m_equalizerBalance = balance;
+    emit equalizerBalanceChanged();
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(QStringLiteral("balance %1").arg(balance, 0, 'f', 2));
+    }
+}
+
+void SystemServices::setEqualizerMono(bool mono) {
+    if (m_equalizerMono == mono) return;
+    m_equalizerMono = mono;
+    emit equalizerMonoChanged();
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(QStringLiteral("mono %1").arg(mono ? 1 : 0));
+    }
+}
+
+void SystemServices::setEqualizerDynamics(const QString &dynamics) {
+    if (dynamics != QLatin1String("off") && dynamics != QLatin1String("balanced") && dynamics != QLatin1String("night"))
+        return;
+    if (m_equalizerDynamics == dynamics) return;
+    m_equalizerDynamics = dynamics;
+    emit equalizerDynamicsChanged();
+
+    if (m_equalizerRunning) {
+        sendEqualizerCommand(QStringLiteral("dynamics %1").arg(dynamics));
+    }
+}
+
+void SystemServices::resetEqualizer() {
+    applyEqualizerPreset(QStringLiteral("Flat"));
+    setEqualizerBalance(0.0);
+    setEqualizerMono(false);
+    setEqualizerDynamics(QStringLiteral("off"));
+}
+
 

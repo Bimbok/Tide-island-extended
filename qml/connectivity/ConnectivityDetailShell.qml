@@ -83,9 +83,23 @@ Item {
             asynchronous: false
             visible: active
 
-            sourceComponent: shell.panelKind.startsWith("audio")
-                ? audioDetailComponent
-                : connectivityDetailComponent
+            sourceComponent: shell.panelKind === "equalizer"
+                ? equalizerDetailComponent
+                : (shell.panelKind.startsWith("audio")
+                    ? audioDetailComponent
+                    : connectivityDetailComponent)
+        }
+
+        Component {
+            id: equalizerDetailComponent
+            EqualizerDetailPanel {
+                provider: shell.provider
+                panelKind: shell.panelKind
+                iconFontFamily: shell.iconFontFamily
+                textFontFamily: shell.textFontFamily
+                heroFontFamily: shell.heroFontFamily
+                presentationProgress: shell.revealProgress
+            }
         }
 
         Component {
