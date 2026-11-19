@@ -391,6 +391,25 @@ private slots:
         QCOMPARE(services.isMultiOutputActive(), false);
         QCOMPARE(services.activeOutputCount(), 1);
 
+        // Test same-sink multi-port selection (e.g. Built-in Speakers + Headphones)
+        services.setAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-speaker"));
+        QCOMPARE(services.isMultiOutputActive(), false);
+        QCOMPARE(services.activeOutputCount(), 1);
+
+        // Toggle headphones port on the same sound card -> activates multi-output!
+        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+        QCOMPARE(services.isMultiOutputActive(), true);
+        QCOMPARE(services.activeOutputCount(), 2);
+
+        // Adjust volume for the headphone port specifically
+        services.setDeviceVolume(QStringLiteral("alsa_output.pci.soundcard"), 0.65, QStringLiteral("analog-output-headphones"));
+        services.toggleDeviceMute(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+
+        // Toggle headphones port off -> drops back to single output mode
+        services.toggleAudioOutput(QStringLiteral("alsa_output.pci.soundcard"), QStringLiteral("analog-output-headphones"));
+        QCOMPARE(services.isMultiOutputActive(), false);
+        QCOMPARE(services.activeOutputCount(), 1);
+
         QTest::qWait(100);
     }
 };

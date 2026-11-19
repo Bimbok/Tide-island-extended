@@ -2070,6 +2070,21 @@ void SystemServices::refreshAudioIfActive() {
     m_recordingSnapshotDebounceTimer.start();
 }
 
+static QString makeAudioDeviceId(const QString &sinkName, const QString &portName) {
+    if (sinkName.isEmpty()) return QString();
+    return portName.isEmpty() ? sinkName : QStringLiteral("%1:%2").arg(sinkName, portName);
+}
+
+static QString extractSinkName(const QString &deviceId) {
+    const int idx = deviceId.indexOf(QLatin1Char(':'));
+    return idx != -1 ? deviceId.left(idx) : deviceId;
+}
+
+static QString extractPortName(const QString &deviceId) {
+    const int idx = deviceId.indexOf(QLatin1Char(':'));
+    return idx != -1 ? deviceId.mid(idx + 1) : QString();
+}
+
 void SystemServices::requestAudioOutputs() {
     if (m_audioOutputsRequestActive) return;
     m_audioOutputsRequestActive = true;
@@ -2117,8 +2132,8 @@ void SystemServices::requestAudioOutputs() {
                             if (tok.startsWith(QStringLiteral("slaves="))) {
                                 const QString slavesStr = tok.mid(7);
                                 const QStringList parsedSlaves = slavesStr.split(QLatin1Char(','), Qt::SkipEmptyParts);
-                                if (!parsedSlaves.isEmpty() && m_activeOutputSinks.isEmpty()) {
-                                    m_activeOutputSinks = parsedSlaves;
+                                if (!parsedSlaves.isEmpty() && m_activeOutputDeviceIds.isEmpty()) {
+                                    m_activeOutputDeviceIds = parsedSlaves;
                                 }
                                 break;
                             }
@@ -2127,17 +2142,6 @@ void SystemServices::requestAudioOutputs() {
                     }
                 }
             }
-        } else {
-            m_combinedSinkModuleId.clear();
-            if (m_activeOutputSinks.isEmpty() || m_activeOutputSinks.size() > 1) {
-                m_activeOutputSinks = { defaultSink };
-            }
-        }
-
-        if (m_isMultiOutputActive != multiActive) {
-            m_isMultiOutputActive = multiActive;
-            emit isMultiOutputActiveChanged();
-            emit activeOutputCountChanged();
         }
 
         QJsonParseError parseErr;
@@ -2175,8 +2179,6 @@ void SystemServices::requestAudioOutputs() {
                 }
             }
             const bool sinkMuted = sinkObj.value(QStringLiteral("mute")).toBool();
-            const bool isSinkSelected = m_isMultiOutputActive ? m_activeOutputSinks.contains(sinkName)
-                                                              : (sinkName == defaultSink);
 
             const QJsonArray ports = sinkObj.value(QStringLiteral("ports")).toArray();
             if (ports.size() > 1) {
@@ -2186,8 +2188,13 @@ void SystemServices::requestAudioOutputs() {
                     const QString pName = portObj.value(QStringLiteral("name")).toString();
                     const QString pDesc = portObj.value(QStringLiteral("description")).toString();
                     const QString pType = portObj.value(QStringLiteral("type")).toString();
-                    const bool isActive = m_isMultiOutputActive ? (m_activeOutputSinks.contains(sinkName) && (activePort.isEmpty() || activePort == pName))
-                                                                : (sinkName == defaultSink && activePort == pName);
+                    const QString devId = makeAudioDeviceId(sinkName, pName);
+
+                    if (m_activeOutputDeviceIds.isEmpty() && !multiActive && sinkName == defaultSink && activePort == pName) {
+                        m_activeOutputDeviceIds.append(devId);
+                    }
+
+                    const bool isActive = m_activeOutputDeviceIds.contains(devId);
 
                     QString iconType = QStringLiteral("speaker");
                     if (pType.compare(QStringLiteral("headphones"), Qt::CaseInsensitive) == 0 ||
@@ -2200,7 +2207,7 @@ void SystemServices::requestAudioOutputs() {
                     }
 
                     QVariantMap item;
-                    item.insert(QStringLiteral("id"), QStringLiteral("%1:%2").arg(sinkName, pName));
+                    item.insert(QStringLiteral("id"), devId);
                     item.insert(QStringLiteral("sinkName"), sinkName);
                     item.insert(QStringLiteral("portName"), pName);
                     item.insert(QStringLiteral("name"), pDesc.isEmpty() ? pName : pDesc);
@@ -2225,19 +2232,32 @@ void SystemServices::requestAudioOutputs() {
                     iconType = QStringLiteral("headphones");
                 }
 
+                const QString devId = sinkName;
+                if (m_activeOutputDeviceIds.isEmpty() && !multiActive && sinkName == defaultSink) {
+                    m_activeOutputDeviceIds.append(devId);
+                }
+                const bool isActive = m_activeOutputDeviceIds.contains(devId);
+
                 QVariantMap item;
-                item.insert(QStringLiteral("id"), sinkName);
+                item.insert(QStringLiteral("id"), devId);
                 item.insert(QStringLiteral("sinkName"), sinkName);
                 item.insert(QStringLiteral("portName"), QString());
                 item.insert(QStringLiteral("name"), sinkDesc.isEmpty() ? sinkName : sinkDesc);
                 item.insert(QStringLiteral("description"), QString());
                 item.insert(QStringLiteral("iconType"), iconType);
-                item.insert(QStringLiteral("active"), isSinkSelected);
+                item.insert(QStringLiteral("active"), isActive);
                 item.insert(QStringLiteral("volume"), std::clamp(sinkVol, 0.0, 1.5));
                 item.insert(QStringLiteral("muted"), sinkMuted);
                 outputs.append(item);
             }
         }
+
+        const bool isMulti = (m_activeOutputDeviceIds.size() > 1);
+        if (m_isMultiOutputActive != isMulti) {
+            m_isMultiOutputActive = isMulti;
+            emit isMultiOutputActiveChanged();
+        }
+        emit activeOutputCountChanged();
 
         if (m_audioOutputs != outputs) {
             m_audioOutputs = outputs;
@@ -2419,13 +2439,18 @@ void SystemServices::setAudioOutput(const QString &sinkName, const QString &port
         m_isMultiOutputActive = false;
         emit isMultiOutputActiveChanged();
 
+        // Restore ALSA Auto-Mute mode
+        startCommand(QStringLiteral("sh"),
+                     {QStringLiteral("-c"), QStringLiteral("amixer -q sset 'Auto-Mute Mode' Enabled 2>/dev/null; true")},
+                     800, nullptr);
+
         QStringList unloadArgs = {QStringLiteral("unload-module")};
         if (!modId.isEmpty()) unloadArgs << modId;
         else unloadArgs << QStringLiteral("module-combine-sink");
         startCommand(QStringLiteral("pactl"), unloadArgs, 1000, nullptr);
     }
 
-    m_activeOutputSinks = { sinkName };
+    m_activeOutputDeviceIds = { makeAudioDeviceId(sinkName, portName) };
     emit activeOutputCountChanged();
 
     startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000,
@@ -2446,86 +2471,153 @@ void SystemServices::setAudioOutput(const QString &sinkName, const QString &port
 void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &portName) {
     if (sinkName.isEmpty()) return;
 
-    QStringList currentSinks = m_activeOutputSinks;
-    if (currentSinks.isEmpty() && !m_defaultAudioSink.isEmpty() && m_defaultAudioSink != QStringLiteral("tide_combined")) {
-        currentSinks.append(m_defaultAudioSink);
+    QString devId = makeAudioDeviceId(sinkName, portName);
+
+    // If portName was empty, check if there's an existing active ID with this sink
+    if (portName.isEmpty() && !m_activeOutputDeviceIds.contains(devId)) {
+        for (const QString &id : m_activeOutputDeviceIds) {
+            if (id.startsWith(sinkName + QLatin1Char(':'))) {
+                devId = id;
+                break;
+            }
+        }
     }
 
-    const bool alreadyActive = currentSinks.contains(sinkName);
+    if (m_activeOutputDeviceIds.isEmpty()) {
+        if (!m_defaultAudioSink.isEmpty() && m_defaultAudioSink != QStringLiteral("tide_combined")) {
+            m_activeOutputDeviceIds.append(m_defaultAudioSink);
+        }
+    }
+
+    const bool alreadyActive = m_activeOutputDeviceIds.contains(devId);
 
     if (alreadyActive) {
-        if (currentSinks.size() <= 1) {
+        if (m_activeOutputDeviceIds.size() <= 1) {
             return; // Cannot deselect the only active device
         }
 
-        currentSinks.removeAll(sinkName);
+        m_activeOutputDeviceIds.removeAll(devId);
 
-        if (currentSinks.size() == 1) {
-            setAudioOutput(currentSinks.first(), QString());
+        if (m_activeOutputDeviceIds.size() == 1) {
+            const QString remainingId = m_activeOutputDeviceIds.first();
+            const QString remSink = extractSinkName(remainingId);
+            const QString remPort = extractPortName(remainingId);
+            setAudioOutput(remSink, remPort);
             return;
         }
     } else {
-        if (!portName.isEmpty()) {
-            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000, nullptr);
-        }
-        currentSinks.append(sinkName);
+        m_activeOutputDeviceIds.append(devId);
     }
 
-    m_activeOutputSinks = currentSinks;
-    m_isMultiOutputActive = true;
+    m_isMultiOutputActive = (m_activeOutputDeviceIds.size() > 1);
     emit isMultiOutputActiveChanged();
     emit activeOutputCountChanged();
 
-    auto loadCombinedSink = [this, currentSinks]() {
-        const QString slavesArg = QStringLiteral("slaves=") + currentSinks.join(QLatin1Char(','));
-        startCommand(QStringLiteral("pactl"),
-                     {QStringLiteral("load-module"),
-                      QStringLiteral("module-combine-sink"),
-                      QStringLiteral("sink_name=tide_combined"),
-                      QStringLiteral("sink_properties=device.description=\"Multi-Device Audio\""),
-                      slavesArg},
-                     2000,
-                     [this](const CommandResult &loadRes) {
-            if (loadRes.exitCode == 0) {
-                m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
-                startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
-                             [this](const CommandResult &) {
-                    requestAudioOutputs();
-                    requestVolume();
-                });
-            } else {
-                requestAudioOutputs();
-            }
-        });
-    };
+    // Determine distinct sinks and any multi-port on same sink
+    QSet<QString> distinctSinks;
+    bool hasSameSinkMultiPort = false;
+    QHash<QString, QStringList> sinkToPorts;
 
-    if (!m_combinedSinkModuleId.isEmpty()) {
-        const QString oldId = m_combinedSinkModuleId;
-        m_combinedSinkModuleId.clear();
-        startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000,
-                     [loadCombinedSink](const CommandResult &) {
-            loadCombinedSink();
-        });
+    for (const QString &id : m_activeOutputDeviceIds) {
+        const QString sName = extractSinkName(id);
+        const QString pName = extractPortName(id);
+        distinctSinks.insert(sName);
+        if (!pName.isEmpty()) {
+            sinkToPorts[sName].append(pName);
+            if (sinkToPorts[sName].size() > 1) {
+                hasSameSinkMultiPort = true;
+            }
+        }
+    }
+
+    if (hasSameSinkMultiPort) {
+        // Disable Auto-Mute mode in ALSA hardware and unmute Speaker & Headphone
+        startCommand(QStringLiteral("sh"),
+                     {QStringLiteral("-c"),
+                      QStringLiteral("amixer -q sset 'Auto-Mute Mode' Disabled 2>/dev/null; "
+                                     "amixer -q sset Speaker unmute 2>/dev/null; "
+                                     "amixer -q sset Headphone unmute 2>/dev/null; true")},
+                     1000, nullptr);
+    }
+
+    if (distinctSinks.size() > 1) {
+        // Multiple separate hardware/software sinks -> use module-combine-sink
+        const QStringList sinkList = distinctSinks.values();
+        const QString slavesArg = QStringLiteral("slaves=") + sinkList.join(QLatin1Char(','));
+
+        auto loadCombinedSink = [this, slavesArg]() {
+            startCommand(QStringLiteral("pactl"),
+                         {QStringLiteral("load-module"),
+                          QStringLiteral("module-combine-sink"),
+                          QStringLiteral("sink_name=tide_combined"),
+                          QStringLiteral("sink_properties=device.description=\"Multi-Device Audio\""),
+                          slavesArg},
+                         2000,
+                         [this](const CommandResult &loadRes) {
+                if (loadRes.exitCode == 0) {
+                    m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
+                    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
+                                 [this](const CommandResult &) {
+                        requestAudioOutputs();
+                        requestVolume();
+                    });
+                } else {
+                    requestAudioOutputs();
+                }
+            });
+        };
+
+        if (!m_combinedSinkModuleId.isEmpty()) {
+            const QString oldId = m_combinedSinkModuleId;
+            m_combinedSinkModuleId.clear();
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000,
+                         [loadCombinedSink](const CommandResult &) {
+                loadCombinedSink();
+            });
+        } else {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), QStringLiteral("module-combine-sink")}, 800,
+                         [loadCombinedSink](const CommandResult &) {
+                loadCombinedSink();
+            });
+        }
     } else {
-        startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), QStringLiteral("module-combine-sink")}, 800,
-                     [loadCombinedSink](const CommandResult &) {
-            loadCombinedSink();
+        // Single distinct sink with multiple ports active (e.g. Speakers + Headphones on built-in card)
+        if (!m_combinedSinkModuleId.isEmpty()) {
+            const QString oldId = m_combinedSinkModuleId;
+            m_combinedSinkModuleId.clear();
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("unload-module"), oldId}, 1000, nullptr);
+        }
+        const QString singleSink = *distinctSinks.begin();
+        startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), singleSink}, 1000,
+                     [this](const CommandResult &) {
+            requestAudioOutputs();
+            requestVolume();
         });
     }
 }
 
-void SystemServices::setDeviceVolume(const QString &sinkName, double volume) {
+void SystemServices::setDeviceVolume(const QString &sinkName, double volume, const QString &portName) {
     if (m_shuttingDown || sinkName.isEmpty()) return;
 
     const int percent = qRound(std::clamp(volume, 0.0, 1.5) * 100.0);
+    const QString devId = makeAudioDeviceId(sinkName, portName);
 
     for (int i = 0; i < m_audioOutputs.size(); ++i) {
         QVariantMap map = m_audioOutputs[i].toMap();
-        if (map.value(QStringLiteral("sinkName")).toString() == sinkName) {
+        if (map.value(QStringLiteral("id")).toString() == devId ||
+            (portName.isEmpty() && map.value(QStringLiteral("sinkName")).toString() == sinkName)) {
             map.insert(QStringLiteral("volume"), volume);
             m_audioOutputs[i] = map;
             emit audioOutputsChanged();
             break;
+        }
+    }
+
+    if (!portName.isEmpty()) {
+        if (portName.contains(QStringLiteral("headphone"), Qt::CaseInsensitive)) {
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Headphone"), QStringLiteral("%1%").arg(percent)}, 800, nullptr);
+        } else if (portName.contains(QStringLiteral("speaker"), Qt::CaseInsensitive)) {
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Speaker"), QStringLiteral("%1%").arg(percent)}, 800, nullptr);
         }
     }
 
@@ -2558,26 +2650,39 @@ void SystemServices::applyPendingSinkVolume(const QString &sinkName) {
     });
 }
 
-void SystemServices::toggleDeviceMute(const QString &sinkName) {
+void SystemServices::toggleDeviceMute(const QString &sinkName, const QString &portName) {
     if (m_shuttingDown || sinkName.isEmpty()) return;
+
+    const QString devId = makeAudioDeviceId(sinkName, portName);
+    bool newMuted = false;
 
     for (int i = 0; i < m_audioOutputs.size(); ++i) {
         QVariantMap map = m_audioOutputs[i].toMap();
-        if (map.value(QStringLiteral("sinkName")).toString() == sinkName) {
-            const bool current = map.value(QStringLiteral("muted")).toBool();
-            map.insert(QStringLiteral("muted"), !current);
+        if (map.value(QStringLiteral("id")).toString() == devId ||
+            (portName.isEmpty() && map.value(QStringLiteral("sinkName")).toString() == sinkName)) {
+            newMuted = !map.value(QStringLiteral("muted")).toBool();
+            map.insert(QStringLiteral("muted"), newMuted);
             m_audioOutputs[i] = map;
             emit audioOutputsChanged();
             break;
         }
     }
 
-    startCommand(QStringLiteral("pactl"),
-                 {QStringLiteral("set-sink-mute"), sinkName, QStringLiteral("toggle")},
-                 800,
-                 [this](const CommandResult &) {
-        requestAudioOutputs();
-    });
+    if (!portName.isEmpty()) {
+        const QString toggleArg = newMuted ? QStringLiteral("mute") : QStringLiteral("unmute");
+        if (portName.contains(QStringLiteral("headphone"), Qt::CaseInsensitive)) {
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Headphone"), toggleArg}, 800, nullptr);
+        } else if (portName.contains(QStringLiteral("speaker"), Qt::CaseInsensitive)) {
+            startCommand(QStringLiteral("amixer"), {QStringLiteral("-q"), QStringLiteral("sset"), QStringLiteral("Speaker"), toggleArg}, 800, nullptr);
+        }
+    } else {
+        startCommand(QStringLiteral("pactl"),
+                     {QStringLiteral("set-sink-mute"), sinkName, QStringLiteral("toggle")},
+                     800,
+                     [this](const CommandResult &) {
+            requestAudioOutputs();
+        });
+    }
 }
 
 void SystemServices::setAudioInput(const QString &sourceName, const QString &portName) {

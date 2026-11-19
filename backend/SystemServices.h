@@ -60,7 +60,7 @@ public:
     QVariantList cavaLevels() const;
     QVariantList audioOutputs() const { return m_audioOutputs; }
     bool isMultiOutputActive() const { return m_isMultiOutputActive; }
-    int activeOutputCount() const { return m_activeOutputSinks.size(); }
+    int activeOutputCount() const { return m_activeOutputDeviceIds.size(); }
     QVariantList audioInputs() const { return m_audioInputs; }
     QVariantList appStreams() const { return m_appStreams; }
     QString defaultAudioSink() const { return m_defaultAudioSink; }
@@ -99,8 +99,8 @@ public:
     Q_INVOKABLE void requestAppStreams();
     Q_INVOKABLE void setAudioOutput(const QString &sinkName, const QString &portName = QString());
     Q_INVOKABLE void toggleAudioOutput(const QString &sinkName, const QString &portName = QString());
-    Q_INVOKABLE void setDeviceVolume(const QString &sinkName, double volume);
-    Q_INVOKABLE void toggleDeviceMute(const QString &sinkName);
+    Q_INVOKABLE void setDeviceVolume(const QString &sinkName, double volume, const QString &portName = QString());
+    Q_INVOKABLE void toggleDeviceMute(const QString &sinkName, const QString &portName = QString());
     Q_INVOKABLE void setAudioInput(const QString &sourceName, const QString &portName = QString());
     Q_INVOKABLE void setAppStreamVolume(int streamIndex, double volume);
     Q_INVOKABLE void toggleAppStreamMute(int streamIndex);
@@ -320,7 +320,7 @@ private:
 
     QVariantList m_audioOutputs;
     bool m_isMultiOutputActive = false;
-    QStringList m_activeOutputSinks;
+    QStringList m_activeOutputDeviceIds;
     QString m_combinedSinkModuleId;
     QHash<QString, int> m_pendingSinkVolumePercents;
     QSet<QString> m_activeSinkVolumeCommands;

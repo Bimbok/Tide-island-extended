@@ -275,7 +275,7 @@ Item {
                 radius: 16
                 color: modelData.active
                     ? StyleTokens.withAlpha(StyleTokens.accent, 0.15)
-                    : (outputMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.cardFill)
+                    : (cardMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.cardFill)
                 border.width: 1
                 border.color: modelData.active ? StyleTokens.accent : StyleTokens.inputBorder
                 clip: true
@@ -294,6 +294,25 @@ Item {
                         width: parent.width
                         height: 36
                         anchors.top: parent.top
+
+                        // Card mouse area: clicking device title/icon switches output (or toggles if multi active)
+                        MouseArea {
+                            id: cardMouse
+                            anchors.left: parent.left
+                            anchors.right: outCheckIcon.left
+                            anchors.rightMargin: 8
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (SystemServices.isMultiOutputActive) {
+                                    SystemServices.toggleAudioOutput(modelData.sinkName, modelData.portName);
+                                } else {
+                                    SystemServices.setAudioOutput(modelData.sinkName, modelData.portName);
+                                }
+                            }
+                        }
 
                         // Icon bubble
                         Rectangle {
@@ -344,7 +363,7 @@ Item {
                             }
                         }
 
-                        // Multi-select Checkbox Badge (Clicking toggles device in multi-output)
+                        // Multi-select Checkbox Badge (Clicking ALWAYS toggles device in multi-output)
                         Rectangle {
                             id: outCheckIcon
                             anchors.right: parent.right
@@ -355,7 +374,7 @@ Item {
                             color: modelData.active ? StyleTokens.accent : StyleTokens.transparent
                             border.width: modelData.active ? 0 : 1
                             border.color: checkMouse.containsMouse ? StyleTokens.accent : StyleTokens.textSubtle
-                            scale: checkMouse.containsMouse ? 1.08 : 1.0
+                            scale: checkMouse.containsMouse ? 1.15 : 1.0
 
                             Behavior on scale { NumberAnimation { duration: 120 } }
                             Behavior on color { ColorAnimation { duration: 120 } }
@@ -373,9 +392,10 @@ Item {
                             MouseArea {
                                 id: checkMouse
                                 anchors.fill: parent
-                                anchors.margins: -6
+                                anchors.margins: -10
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
                                 onClicked: (mouse) => {
                                     SystemServices.toggleAudioOutput(modelData.sinkName, modelData.portName);
                                     mouse.accepted = true;
@@ -423,7 +443,7 @@ Item {
                                 cursorShape: Qt.PointingHandCursor
                                 preventStealing: true
                                 onClicked: (mouse) => {
-                                    SystemServices.toggleDeviceMute(modelData.sinkName);
+                                    SystemServices.toggleDeviceMute(modelData.sinkName, modelData.portName);
                                     mouse.accepted = true;
                                 }
                             }
@@ -467,7 +487,7 @@ Item {
 
                                 function updateVolume(mouseX) {
                                     const ratio = Math.max(0, Math.min(1.0, mouseX / devSliderTrack.width));
-                                    SystemServices.setDeviceVolume(modelData.sinkName, ratio);
+                                    SystemServices.setDeviceVolume(modelData.sinkName, ratio, modelData.portName);
                                 }
 
                                 onPressed: (mouse) => {
@@ -495,24 +515,6 @@ Item {
                             font.weight: Font.DemiBold
                             horizontalAlignment: Text.AlignRight
                             width: 38
-                        }
-                    }
-                }
-
-                // Card body click: single select if in standard mode, toggle if in multi-output mode
-                MouseArea {
-                    id: outputMouse
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: 56
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (SystemServices.isMultiOutputActive) {
-                            SystemServices.toggleAudioOutput(modelData.sinkName, modelData.portName);
-                        } else {
-                            SystemServices.setAudioOutput(modelData.sinkName, modelData.portName);
                         }
                     }
                 }
