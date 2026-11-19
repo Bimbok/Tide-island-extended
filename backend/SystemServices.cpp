@@ -2195,15 +2195,41 @@ void SystemServices::requestAudioOutputs() {
 
             const QJsonArray ports = sinkObj.value(QStringLiteral("ports")).toArray();
             if (ports.size() > 1) {
-                QString chosenPort;
+                QString explicitPort;
                 for (const QString &id : m_activeOutputDeviceIds) {
                     if (extractSinkName(id) == sinkName) {
-                        chosenPort = extractPortName(id);
+                        explicitPort = extractPortName(id);
                         break;
                     }
                 }
+
+                QString availableHeadphonePort;
+                QString availableSpeakerPort;
+                for (const QJsonValue &pVal : ports) {
+                    const QJsonObject pObj = pVal.toObject();
+                    const QString pName = pObj.value(QStringLiteral("name")).toString();
+                    const QString pAvail = pObj.value(QStringLiteral("availability")).toString();
+                    if (pName.contains(QStringLiteral("headphone"), Qt::CaseInsensitive) && pAvail != QLatin1String("not available")) {
+                        availableHeadphonePort = pName;
+                    } else if (pName.contains(QStringLiteral("speaker"), Qt::CaseInsensitive)) {
+                        availableSpeakerPort = pName;
+                    }
+                }
+
+                QString chosenPort = explicitPort;
                 if (chosenPort.isEmpty()) {
-                    chosenPort = activePort;
+                    if (!availableHeadphonePort.isEmpty()) {
+                        chosenPort = availableHeadphonePort;
+                    } else if (!availableSpeakerPort.isEmpty()) {
+                        chosenPort = availableSpeakerPort;
+                    } else {
+                        chosenPort = activePort;
+                    }
+                }
+
+                // If headphones are plugged in or chosen port differs from hardware active_port, update sink port
+                if (isSinkActive && !chosenPort.isEmpty() && activePort != chosenPort) {
+                    startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, chosenPort}, 1000, nullptr);
                 }
 
                 for (const QJsonValue &pVal : ports) {
@@ -2476,6 +2502,14 @@ void SystemServices::setAudioOutput(const QString &sinkName, const QString &port
 
     startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), sinkName}, 1000,
                  [this, sinkName, portName](const CommandResult &) {
+        // Move active application streams to the newly selected sink
+        const QString moveScript = QStringLiteral(
+            "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+            "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+            "done; true"
+        ).arg(sinkName);
+        startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+
         if (!portName.isEmpty()) {
             startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000,
                          [this](const CommandResult &) {
@@ -2590,6 +2624,12 @@ void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &p
                     m_combinedSinkModuleId = QString::fromUtf8(loadRes.stdoutData).trimmed();
                     startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_combined")}, 1000,
                                  [this](const CommandResult &) {
+                        const QString moveScript = QStringLiteral(
+                            "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+                            "  pactl move-sink-input \"$id\" tide_combined 2>/dev/null; "
+                            "done; true"
+                        );
+                        startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
                         requestAudioOutputs();
                         requestVolume();
                     });
@@ -2620,7 +2660,13 @@ void SystemServices::toggleAudioOutput(const QString &sinkName, const QString &p
         }
         const QString singleSink = *distinctSinks.begin();
         startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), singleSink}, 1000,
-                     [this](const CommandResult &) {
+                     [this, singleSink](const CommandResult &) {
+            const QString moveScript = QStringLiteral(
+                "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+                "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                "done; true"
+            ).arg(singleSink);
+            startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
             requestAudioOutputs();
             requestVolume();
         });
