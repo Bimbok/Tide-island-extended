@@ -2,6 +2,7 @@
 
 #include <QtTest>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -9,7 +10,30 @@ class SystemServicesNotificationTests : public QObject
 {
     Q_OBJECT
 
+private:
+    QTemporaryDir m_tempStateDir;
+    QTemporaryDir m_tempRuntimeDir;
+    QByteArray m_origXdgState;
+    QByteArray m_origXdgRuntime;
+
 private slots:
+    void initTestCase()
+    {
+        m_origXdgState = qgetenv("XDG_STATE_HOME");
+        m_origXdgRuntime = qgetenv("XDG_RUNTIME_DIR");
+        qputenv("XDG_STATE_HOME", m_tempStateDir.path().toLocal8Bit());
+        qputenv("XDG_RUNTIME_DIR", m_tempRuntimeDir.path().toLocal8Bit());
+    }
+
+    void cleanupTestCase()
+    {
+        if (!m_origXdgState.isEmpty()) qputenv("XDG_STATE_HOME", m_origXdgState);
+        else qunsetenv("XDG_STATE_HOME");
+
+        if (!m_origXdgRuntime.isEmpty()) qputenv("XDG_RUNTIME_DIR", m_origXdgRuntime);
+        else qunsetenv("XDG_RUNTIME_DIR");
+    }
+
     void testRichNotificationParsing()
     {
         SystemServices services;
