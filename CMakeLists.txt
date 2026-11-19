@@ -109,6 +109,22 @@ target_link_libraries(bluetooth_formatting_tests PRIVATE
 
 add_test(NAME bluetooth_formatting COMMAND bluetooth_formatting_tests)
 
+add_executable(media_time_utils_tests
+    tests/media_time_utils_tests.cpp
+)
+
+target_compile_definitions(media_time_utils_tests PRIVATE
+    MEDIA_TIME_UTILS_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/common/MediaTimeUtils.js"
+)
+
+target_link_libraries(media_time_utils_tests PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Test
+)
+
+add_test(NAME media_time_utils COMMAND media_time_utils_tests)
+
 add_executable(file_shelf_model_tests
     tests/file_shelf_model_tests.cpp
     backend/FileShelfModel.h

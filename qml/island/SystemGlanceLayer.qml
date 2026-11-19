@@ -18,6 +18,71 @@ FocusScope {
     signal openCalendarRequested()
     signal openWeatherRequested()
 
+    // -------------------------------------------------------------
+    // Reusable Sub-Components for System Telemetry
+    // -------------------------------------------------------------
+    component MetricCardContainer: Rectangle {
+        id: cardRoot
+        default property alias content: innerCol.data
+        property alias colSpacing: innerCol.spacing
+        width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
+        height: 76
+        radius: 14
+        color: StyleTokens.cardFill
+        border.width: 1
+        border.color: StyleTokens.inputBorder
+
+        Column {
+            id: innerCol
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 6
+        }
+    }
+
+    component MetricBadge: Rectangle {
+        id: badgeRoot
+        property alias text: badgeText.text
+        property color badgeColor: StyleTokens.accent
+        property string fontFam: root.textFontFamily
+
+        height: 18
+        width: badgeText.implicitWidth + 10
+        radius: 9
+        color: StyleTokens.withAlpha(badgeColor, 0.18)
+
+        Text {
+            id: badgeText
+            anchors.centerIn: parent
+            font.family: badgeRoot.fontFam
+            font.pixelSize: 9
+            font.weight: Font.Bold
+            color: badgeRoot.badgeColor
+        }
+    }
+
+    component MetricProgressBar: Rectangle {
+        id: barRoot
+        property real progressRatio: 0.0
+        property color barColor: StyleTokens.accent
+
+        width: parent.width
+        height: 4
+        radius: 2
+        color: StyleTokens.cardFillHover
+
+        Rectangle {
+            height: parent.height
+            radius: 2
+            width: Math.max(4, parent.width * Math.min(1.0, Math.max(0, barRoot.progressRatio)))
+            color: barRoot.barColor
+
+            Behavior on width {
+                NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+            }
+        }
+    }
+
     readonly property real contentHeight: mainCol.implicitHeight + 28
 
     focus: root.showCondition
@@ -482,434 +547,290 @@ FocusScope {
             // --------------------
             // Card 1: CPU Card
             // --------------------
-            Rectangle {
-                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
-                height: 76
-                radius: 14
-                color: StyleTokens.cardFill
-                border.width: 1
-                border.color: StyleTokens.inputBorder
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
-
-                    Item {
-                        width: parent.width
-                        height: 18
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-
-                            Text {
-                                text: "\uf2db"
-                                font.family: root.iconFontFamily
-                                font.pixelSize: 11
-                                color: StyleTokens.accent
-                            }
-
-                            Text {
-                                text: "CPU"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                                color: StyleTokens.textPrimaryBright
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            height: 18
-                            width: cpuTempText.implicitWidth + 10
-                            radius: 9
-                            color: StyleTokens.withAlpha(
-                                (SystemGlance.cpuTemperature || 0) >= 80 ? StyleTokens.danger
-                                : ((SystemGlance.cpuTemperature || 0) >= 65 ? StyleTokens.warning : StyleTokens.success),
-                                0.18
-                            )
-
-                            Text {
-                                id: cpuTempText
-                                anchors.centerIn: parent
-                                text: (SystemGlance.cpuTemperature || 0) + "°C"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 9
-                                font.weight: Font.Bold
-                                color: (SystemGlance.cpuTemperature || 0) >= 80 ? StyleTokens.danger
-                                    : ((SystemGlance.cpuTemperature || 0) >= 65 ? StyleTokens.warning : StyleTokens.success)
-                            }
-                        }
-                    }
+            MetricCardContainer {
+                Item {
+                    width: parent.width
+                    height: 18
 
                     Row {
-                        width: parent.width
-                        spacing: 8
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
 
                         Text {
-                            text: Math.round(SystemGlance.cpuUsage || 0) + "%"
+                            text: "\uf2db"
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 11
+                            color: StyleTokens.accent
+                        }
+
+                        Text {
+                            text: "CPU"
                             font.family: root.heroFontFamily
-                            font.pixelSize: 18
+                            font.pixelSize: 11
                             font.weight: Font.Bold
                             color: StyleTokens.textPrimaryBright
                         }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: SystemGlance.cpuModel || "Processor"
-                            font.family: root.textFontFamily
-                            font.pixelSize: 10
-                            color: StyleTokens.textSecondary
-                            elide: Text.ElideRight
-                            width: parent.width - 55
-                        }
                     }
 
-                    // Progress Bar
-                    Rectangle {
-                        width: parent.width
-                        height: 4
-                        radius: 2
-                        color: StyleTokens.cardFillHover
-
-                        Rectangle {
-                            height: parent.height
-                            radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.cpuUsage || 0) / 100.0))
-                            color: (SystemGlance.cpuUsage || 0) >= 85 ? StyleTokens.danger
-                                : ((SystemGlance.cpuUsage || 0) >= 60 ? StyleTokens.warning : StyleTokens.accent)
-
-                            Behavior on width {
-                                NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-                            }
-                        }
+                    MetricBadge {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        badgeColor: (SystemGlance.cpuTemperature || 0) >= 80 ? StyleTokens.danger
+                            : ((SystemGlance.cpuTemperature || 0) >= 65 ? StyleTokens.warning : StyleTokens.success)
+                        text: (SystemGlance.cpuTemperature || 0) + "°C"
                     }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    Text {
+                        text: Math.round(SystemGlance.cpuUsage || 0) + "%"
+                        font.family: root.heroFontFamily
+                        font.pixelSize: 18
+                        font.weight: Font.Bold
+                        color: StyleTokens.textPrimaryBright
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: SystemGlance.cpuModel || "Processor"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 10
+                        color: StyleTokens.textSecondary
+                        elide: Text.ElideRight
+                        width: parent.width - 55
+                    }
+                }
+
+                MetricProgressBar {
+                    progressRatio: (SystemGlance.cpuUsage || 0) / 100.0
+                    barColor: (SystemGlance.cpuUsage || 0) >= 85 ? StyleTokens.danger
+                        : ((SystemGlance.cpuUsage || 0) >= 60 ? StyleTokens.warning : StyleTokens.accent)
                 }
             }
 
             // --------------------
             // Card 2: Memory (RAM) Card
             // --------------------
-            Rectangle {
-                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
-                height: 76
-                radius: 14
-                color: StyleTokens.cardFill
-                border.width: 1
-                border.color: StyleTokens.inputBorder
+            MetricCardContainer {
+                Item {
+                    width: parent.width
+                    height: 18
 
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
-
-                    Item {
-                        width: parent.width
-                        height: 18
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-
-                            Text {
-                                text: "\uf538"
-                                font.family: root.iconFontFamily
-                                font.pixelSize: 11
-                                color: "#af52de"
-                            }
-
-                            Text {
-                                text: "Memory"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                                color: StyleTokens.textPrimaryBright
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            height: 18
-                            width: memPercentText.implicitWidth + 10
-                            radius: 9
-                            color: StyleTokens.withAlpha("#af52de", 0.18)
-
-                            Text {
-                                id: memPercentText
-                                anchors.centerIn: parent
-                                text: Math.round(SystemGlance.memoryUsagePercent || 0) + "%"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 9
-                                font.weight: Font.Bold
-                                color: "#af52de"
-                            }
-                        }
-                    }
-
-                    Item {
-                        width: parent.width
-                        height: 18
+                    Row {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
 
                         Text {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: SystemGlance.memoryText || "0 / 0 GB"
+                            text: "\uf538"
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 11
+                            color: "#af52de"
+                        }
+
+                        Text {
+                            text: "Memory"
                             font.family: root.heroFontFamily
-                            font.pixelSize: 14
+                            font.pixelSize: 11
                             font.weight: Font.Bold
                             color: StyleTokens.textPrimaryBright
                         }
-
-                        Text {
-                            visible: !!SystemGlance.hasSwap
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "Swap " + Math.round(SystemGlance.swapUsagePercent || 0) + "%"
-                            font.family: root.textFontFamily
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                            color: StyleTokens.textSecondary
-                        }
                     }
 
-                    // Progress Bar
-                    Rectangle {
-                        width: parent.width
-                        height: 4
-                        radius: 2
-                        color: StyleTokens.cardFillHover
-
-                        Rectangle {
-                            height: parent.height
-                            radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.memoryUsagePercent || 0) / 100.0))
-                            color: "#af52de"
-
-                            Behavior on width {
-                                NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-                            }
-                        }
+                    MetricBadge {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        badgeColor: "#af52de"
+                        text: Math.round(SystemGlance.memoryUsagePercent || 0) + "%"
                     }
+                }
+
+                Item {
+                    width: parent.width
+                    height: 18
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: SystemGlance.memoryText || "0 / 0 GB"
+                        font.family: root.heroFontFamily
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                        color: StyleTokens.textPrimaryBright
+                    }
+
+                    Text {
+                        visible: !!SystemGlance.hasSwap
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Swap " + Math.round(SystemGlance.swapUsagePercent || 0) + "%"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        color: StyleTokens.textSecondary
+                    }
+                }
+
+                MetricProgressBar {
+                    progressRatio: (SystemGlance.memoryUsagePercent || 0) / 100.0
+                    barColor: "#af52de"
                 }
             }
 
             // --------------------
             // Card 3: Network Throughput Card
             // --------------------
-            Rectangle {
-                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
-                height: 76
-                radius: 14
-                color: StyleTokens.cardFill
-                border.width: 1
-                border.color: StyleTokens.inputBorder
+            MetricCardContainer {
+                colSpacing: 5
 
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 5
+                Item {
+                    width: parent.width
+                    height: 18
 
-                    Item {
-                        width: parent.width
-                        height: 18
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.right: vpnBadge.visible ? vpnBadge.left : parent.right
-                            anchors.rightMargin: vpnBadge.visible ? 6 : 0
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-
-                            Text {
-                                text: "\uf1eb"
-                                font.family: root.iconFontFamily
-                                font.pixelSize: 11
-                                color: "#0a84ff"
-                            }
-
-                            Text {
-                                text: SystemGlance.networkInterface || "Offline"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                                color: StyleTokens.textPrimaryBright
-                                elide: Text.ElideRight
-                                width: Math.min(implicitWidth, parent.width - 20)
-                            }
-                        }
-
-                        Rectangle {
-                            id: vpnBadge
-                            visible: !!SystemGlance.vpnActive
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            height: 18
-                            width: vpnText.implicitWidth + 10
-                            radius: 9
-                            color: StyleTokens.withAlpha(StyleTokens.success, 0.18)
-
-                            Text {
-                                id: vpnText
-                                anchors.centerIn: parent
-                                text: "VPN"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 9
-                                font.weight: Font.Bold
-                                color: StyleTokens.success
-                            }
-                        }
-                    }
-
-                    // Speeds row
                     Row {
-                        width: parent.width
-                        spacing: 12
+                        anchors.left: parent.left
+                        anchors.right: vpnBadge.visible ? vpnBadge.left : parent.right
+                        anchors.rightMargin: vpnBadge.visible ? 6 : 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
 
-                        Row {
-                            spacing: 3
-                            Text {
-                                text: "↓"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 12
-                                font.weight: Font.Bold
-                                color: StyleTokens.success
-                            }
-                            Text {
-                                text: SystemGlance.downloadSpeedText ? SystemGlance.downloadSpeedText.replace("↓ ", "") : "0 B/s"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 12
-                                font.weight: Font.DemiBold
-                                color: StyleTokens.textPrimaryBright
-                            }
+                        Text {
+                            text: "\uf1eb"
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 11
+                            color: "#0a84ff"
                         }
 
-                        Row {
-                            spacing: 3
-                            Text {
-                                text: "↑"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 12
-                                font.weight: Font.Bold
-                                color: "#0a84ff"
-                            }
-                            Text {
-                                text: SystemGlance.uploadSpeedText ? SystemGlance.uploadSpeedText.replace("↑ ", "") : "0 B/s"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 12
-                                font.weight: Font.DemiBold
-                                color: StyleTokens.textPrimaryBright
-                            }
+                        Text {
+                            text: SystemGlance.networkInterface || "Offline"
+                            font.family: root.heroFontFamily
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                            color: StyleTokens.textPrimaryBright
+                            elide: Text.ElideRight
+                            width: Math.min(implicitWidth, parent.width - 20)
                         }
                     }
 
-                    Text {
-                        text: "IP: " + (SystemGlance.ipAddress || "127.0.0.1")
-                        font.family: root.textFontFamily
-                        font.pixelSize: 10
-                        color: StyleTokens.textSecondary
-                        elide: Text.ElideRight
-                        width: parent.width
+                    MetricBadge {
+                        id: vpnBadge
+                        visible: !!SystemGlance.vpnActive
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        badgeColor: StyleTokens.success
+                        text: "VPN"
                     }
+                }
+
+                // Speeds row
+                Row {
+                    width: parent.width
+                    spacing: 12
+
+                    Row {
+                        spacing: 3
+                        Text {
+                            text: "↓"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: StyleTokens.success
+                        }
+                        Text {
+                            text: SystemGlance.downloadSpeedText ? SystemGlance.downloadSpeedText.replace("↓ ", "") : "0 B/s"
+                            font.family: root.heroFontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: StyleTokens.textPrimaryBright
+                        }
+                    }
+
+                    Row {
+                        spacing: 3
+                        Text {
+                            text: "↑"
+                            font.family: root.textFontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: "#0a84ff"
+                        }
+                        Text {
+                            text: SystemGlance.uploadSpeedText ? SystemGlance.uploadSpeedText.replace("↑ ", "") : "0 B/s"
+                            font.family: root.heroFontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: StyleTokens.textPrimaryBright
+                        }
+                    }
+                }
+
+                Text {
+                    text: "IP: " + (SystemGlance.ipAddress || "127.0.0.1")
+                    font.family: root.textFontFamily
+                    font.pixelSize: 10
+                    color: StyleTokens.textSecondary
+                    elide: Text.ElideRight
+                    width: parent.width
                 }
             }
 
             // --------------------
             // Card 4: GPU / Disk Card
             // --------------------
-            Rectangle {
-                width: Math.floor((metricGrid.width - metricGrid.spacing) / 2)
-                height: 76
-                radius: 14
-                color: StyleTokens.cardFill
-                border.width: 1
-                border.color: StyleTokens.inputBorder
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 6
-
-                    Item {
-                        width: parent.width
-                        height: 18
-
-                        Row {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-
-                            Text {
-                                text: "\uf0a0"
-                                font.family: root.iconFontFamily
-                                font.pixelSize: 11
-                                color: StyleTokens.warning
-                            }
-
-                            Text {
-                                text: "Storage"
-                                font.family: root.heroFontFamily
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                                color: StyleTokens.textPrimaryBright
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            height: 18
-                            width: diskPercentText.implicitWidth + 10
-                            radius: 9
-                            color: StyleTokens.withAlpha(StyleTokens.warning, 0.18)
-
-                            Text {
-                                id: diskPercentText
-                                anchors.centerIn: parent
-                                text: Math.round(SystemGlance.diskUsagePercent || 0) + "%"
-                                font.family: root.textFontFamily
-                                font.pixelSize: 9
-                                font.weight: Font.Bold
-                                color: StyleTokens.warning
-                            }
-                        }
-                    }
+            MetricCardContainer {
+                Item {
+                    width: parent.width
+                    height: 18
 
                     Row {
-                        width: parent.width
-                        spacing: 8
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
 
                         Text {
-                            text: SystemGlance.diskText || "0 / 0 GB"
+                            text: "\uf0a0"
+                            font.family: root.iconFontFamily
+                            font.pixelSize: 11
+                            color: StyleTokens.warning
+                        }
+
+                        Text {
+                            text: "Storage"
                             font.family: root.heroFontFamily
-                            font.pixelSize: 14
+                            font.pixelSize: 11
                             font.weight: Font.Bold
                             color: StyleTokens.textPrimaryBright
                         }
                     }
 
-                    // Progress Bar
-                    Rectangle {
-                        width: parent.width
-                        height: 4
-                        radius: 2
-                        color: StyleTokens.cardFillHover
-
-                        Rectangle {
-                            height: parent.height
-                            radius: 2
-                            width: Math.max(4, parent.width * Math.min(1.0, (SystemGlance.diskUsagePercent || 0) / 100.0))
-                            color: StyleTokens.warning
-
-                            Behavior on width {
-                                NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-                            }
-                        }
+                    MetricBadge {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        badgeColor: StyleTokens.warning
+                        text: Math.round(SystemGlance.diskUsagePercent || 0) + "%"
                     }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    Text {
+                        text: SystemGlance.diskText || "0 / 0 GB"
+                        font.family: root.heroFontFamily
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                        color: StyleTokens.textPrimaryBright
+                    }
+                }
+
+                MetricProgressBar {
+                    progressRatio: (SystemGlance.diskUsagePercent || 0) / 100.0
+                    barColor: StyleTokens.warning
                 }
             }
         }

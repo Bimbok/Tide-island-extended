@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Services.Mpris
 import IslandBackend
+import "../common/MediaTimeUtils.js" as MediaTimeUtils
 
 Item {
     id: root
@@ -117,17 +118,7 @@ Item {
     }
 
     function formatTime(value) {
-        const numberValue = Number(value);
-        if (isNaN(numberValue) || numberValue <= 0) return "0:00";
-
-        let totalSeconds = 0;
-        if (numberValue < 10000) totalSeconds = Math.floor(numberValue);
-        else if (numberValue < 100000000) totalSeconds = Math.floor(numberValue / 1000);
-        else totalSeconds = Math.floor(numberValue / 1000000);
-
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = Math.floor(totalSeconds % 60);
-        return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+        return MediaTimeUtils.formatTime(value);
     }
 
     function cleanLyricLineText(text) {
@@ -169,19 +160,11 @@ Item {
     }
 
     function toSeconds(value) {
-        const numberValue = Number(value);
-        if (isNaN(numberValue) || numberValue <= 0) return 0;
-        if (numberValue < 10000) return numberValue;
-        if (numberValue < 100000000) return numberValue / 1000.0;
-        return numberValue / 1000000.0;
+        return MediaTimeUtils.toSeconds(value);
     }
 
     function getPlayerLengthSeconds(player) {
-        if (!player) return 0;
-        let len = Number(player.length) || 0;
-        if (len <= 0 && player.metadata && player.metadata["mpris:length"])
-            len = Number(player.metadata["mpris:length"]);
-        return toSeconds(len);
+        return MediaTimeUtils.getPlayerLengthSeconds(player);
     }
 
     function captureBaseline(player, overridePosSec) {
@@ -195,7 +178,7 @@ Item {
         if (overridePosSec !== undefined) {
             _basePositionSec = Math.max(0, Number(overridePosSec));
         } else if (player.position !== undefined) {
-            _basePositionSec = toSeconds(player.position);
+            _basePositionSec = MediaTimeUtils.toSeconds(player.position);
         } else {
             _basePositionSec = 0;
         }
@@ -204,13 +187,13 @@ Item {
 
     function currentEstimatedPositionSec() {
         if (!root.activePlayer) return 0;
-        if (!root._isPlaying) return root._basePositionSec;
-        const elapsedSec = (Date.now() - root._baseTimestampMs) / 1000.0;
-        const estimated = root._basePositionSec + (elapsedSec * root._playbackRate);
-        const totalLen = getPlayerLengthSeconds(root.activePlayer);
-        if (totalLen > 0)
-            return Math.max(0, Math.min(totalLen, estimated));
-        return Math.max(0, estimated);
+        return MediaTimeUtils.estimatePositionSec(
+            root._basePositionSec,
+            root._baseTimestampMs,
+            root._playbackRate,
+            MediaTimeUtils.getPlayerLengthSeconds(root.activePlayer),
+            root._isPlaying
+        );
     }
 
     function syncProgress(positionOverride) {
