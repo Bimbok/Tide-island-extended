@@ -506,6 +506,22 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.closeGlanceWindow ? window.closeGlanceWindow() : null);
         }
 
+        function toggleEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.toggleEqualizerWindow());
+        }
+
+        function showEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow());
+        }
+
+        function openEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow());
+        }
+
+        function closeEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.closeEqualizerWindow());
+        }
+
         function reloadTheme() {
             StyleTokens.reload();
         }
@@ -913,6 +929,26 @@ Scope {
 
         function toggle() {
             globalLockscreen.toggle();
+        }
+    }
+
+    IpcHandler {
+        target: "equalizer"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleEqualizerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closeEqualizerWindow());
         }
     }
 

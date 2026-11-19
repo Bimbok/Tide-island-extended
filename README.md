@@ -197,6 +197,17 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - **Symmetrical Flyout Architecture & Mutual Exclusivity**:
   - All side panels (Wi-Fi, Bluetooth, Audio, Battery) share identical 318×404 geometry and unified typography.
   - Clean mutual exclusivity automatically dismisses active sibling panels when a new flyout is opened, eliminating clutter.
+- **Native 10-Band DSP Audio Equalizer**:
+  - **Zero-Dependency Native PipeWire DSP**: Built-in 10-band peaking biquad filter chain running directly on PipeWire (`pipewire-pulse` / `spa-dsp`) with zero external daemon or binary dependencies.
+  - **10 Precision Frequency Bands**: 31 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, and 16 kHz with ±12 dB continuous boost/cut gain control and direct numeric feedback.
+  - **Instant Preset Library**: 8 curated audio profiles (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with single-click activation and custom sliders fine-tuning.
+  - **Global Bypass & Enable Toggle**: Master bypass switch to instantly A/B compare sound before and after equalization.
+  - **Multiple Access Methods**:
+    - **Header Pill in Audio Flyout**: Click the `EQ` pill in the top-right header of the Audio output flyout.
+    - **Global Keyboard Shortcut**: `SUPER+ALT+E` (fully configurable in Tide Island Settings under Shortcuts).
+    - **CLI Launcher**: `tide-island equalizer` (or `tide-island eq`).
+    - **Quickshell IPC**: `quickshell ipc call equalizer toggle`.
+    - **CLI Daemon Controller**: `tide-equalizer ctl preset Bass`, `tide-equalizer ctl bypass on`, etc.
 - **Dedicated Microphone & Audio Dynamic Island OSD Feedback**: Real-time PipeWire audio source/sink monitoring (`pactl subscribe`) that keeps sliders in sync and triggers matching Dynamic Island pills (`[   XX%  ◯ ]` and `[ 󰝟  XX%  ◯ ]`) whenever adjusted via hotkeys, CLI commands, or UI clicks.
 - **Throttled Slider Performance**: Event throttling on microphone, volume, and brightness slider drags to eliminate IPC and D-Bus lag, maintaining smooth 60fps+ responsiveness.
 - **Unified Icon Weight Harmony**: Clean, consistent icon line weights across volume, microphone, brightness, battery, and weather.
@@ -244,6 +255,7 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - Music player
 - Control Center
 - Audio device switcher & per-app volume mixer
+- Native 10-Band DSP Equalizer (`SUPER + ALT + E`, EQ pill in Audio flyout, `tide-island eq`, or IPC)
 - Microphone control & mute toggle
 - Battery health & charge limit (conservation mode)
 - Timer
@@ -615,6 +627,12 @@ You can control Tide Island remotely using `quickshell ipc call`:
 | --- | --- |
 | `quickshell ipc call tide togglePlayer` | Open or close music player |
 | `quickshell ipc call tide toggleControlCenter` | Open or close control center |
+| `quickshell ipc call equalizer toggle` | Open or close native DSP equalizer |
+| `quickshell ipc call equalizer show` | Open native DSP equalizer |
+| `quickshell ipc call equalizer close` | Close native DSP equalizer |
+| `quickshell ipc call tide toggleEqualizer` | Open or close native DSP equalizer |
+| `quickshell ipc call tide showEqualizer` | Open native DSP equalizer |
+| `quickshell ipc call tide closeEqualizer` | Close native DSP equalizer |
 | `quickshell ipc call tide togglePowerMenu` | Open or close power menu |
 | `quickshell ipc call tide toggleFileShelf` | Open or close file shelf |
 | `quickshell ipc call tide toggleWallpaperPicker` | Open or close wallpaper switcher |

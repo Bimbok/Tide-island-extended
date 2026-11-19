@@ -52,6 +52,7 @@ private slots:
     void defaultsIncludeGlance();
     void defaultsIncludeToggleIslandStyle();
     void defaultsIncludeLockScreen();
+    void defaultsIncludeEqualizer();
     void applicationLauncherFavoritesPersistAndResolveNames();
     void disabledShortcutPersistsAndIsNotGenerated();
     void disabledShortcutUpdatesActiveHyprlandLuaBlock();
@@ -408,6 +409,26 @@ void ShortcutConfigTests::defaultsIncludeApplicationLauncher()
     QVERIFY(foundApplicationLauncher);
 }
 
+void ShortcutConfigTests::defaultsIncludeEqualizer()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundEqualizer = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundEqualizer = foundEqualizer
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER+ALT")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("E")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("tide")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("toggleEqualizer"));
+    }
+    QVERIFY(foundEqualizer);
+}
+
 void ShortcutConfigTests::configAppColorSchemePersists()
 {
     QTemporaryDir configHome;
@@ -573,7 +594,7 @@ void ShortcutConfigTests::niriDefaultsExcludeWorkspaceOverview()
     Backend backend;
     QVERIFY(!backend.supportsTideWorkspaceOverview());
     QVERIFY(backend.supportsNiriShortcutSnippets());
-    QCOMPARE(backend.shortcutBindings().size(), 19);
+    QCOMPARE(backend.shortcutBindings().size(), 20);
 
     for (const QVariant &value : backend.shortcutBindings()) {
         const QVariantMap binding = value.toMap();

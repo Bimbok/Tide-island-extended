@@ -1028,6 +1028,30 @@ PanelWindow {
             islandContainer.smartRestoreState();
     }
 
+    function toggleEqualizerWindow() {
+        if (root.equalizerConnectivityDetailOpen) {
+            setConnectivityDetailVisible("equalizer", false);
+        } else {
+            if (islandContainer.islandState !== "control_center") {
+                islandContainer.showControlCenter();
+            }
+            showIslandWindow();
+            setConnectivityDetailVisible("equalizer", true);
+        }
+    }
+
+    function showEqualizerWindow() {
+        if (islandContainer.islandState !== "control_center") {
+            islandContainer.showControlCenter();
+        }
+        showIslandWindow();
+        setConnectivityDetailVisible("equalizer", true);
+    }
+
+    function closeEqualizerWindow() {
+        setConnectivityDetailVisible("equalizer", false);
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)

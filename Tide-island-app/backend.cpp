@@ -71,6 +71,7 @@ QVariantList defaultShortcutBindings()
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("G"), QStringLiteral("glance"), QStringLiteral("toggle")),
         shortcutMap(QStringLiteral("SUPER+SHIFT"), QStringLiteral("P"), QStringLiteral("privacy"), QStringLiteral("toggle")),
         shortcutMap(QStringLiteral("SUPER+ALT"), QStringLiteral("L"), QStringLiteral("lock"), QStringLiteral("lock")),
+        shortcutMap(QStringLiteral("SUPER+ALT"), QStringLiteral("E"), QStringLiteral("tide"), QStringLiteral("toggleEqualizer")),
     };
 }
 

@@ -60,6 +60,24 @@ if [[ "$cmd_basename" == "tide-island-lock" || "$1" == "--lock" || "$1" == "-l" 
   exit 1
 fi
 
+if [[ "$cmd_basename" == "tide-island-equalizer" || "$1" == "--equalizer" || "$1" == "-e" || "$1" == "equalizer" || "$1" == "eq" ]]; then
+  running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
+  if [[ -n "$running_pid" ]]; then
+    if "$QUICKSHELL_BIN" ipc --pid "$running_pid" call equalizer toggle >/dev/null 2>&1; then
+      exit 0
+    fi
+  fi
+
+  for test_path in "$QML_PATH" "$INSTALL_PREFIX/share/tide-island" "/usr/share/tide-island" "/usr/local/share/tide-island" "${HOME}/.local/share/tide-island"; do
+    if [[ -d "$test_path" ]]; then
+      if "$QUICKSHELL_BIN" ipc --any-display -p "$test_path" call equalizer toggle >/dev/null 2>&1; then
+        exit 0
+      fi
+    fi
+  done
+  exit 1
+fi
+
 if [[ "${SYSTEMD_EXEC_PID:-}" != "$$" ]]; then
   running_pid="$(pgrep -u "$(id -u)" -f "quickshell.*tide-island" | head -n 1)"
   if [[ -n "$running_pid" ]]; then
