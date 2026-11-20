@@ -155,7 +155,7 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 ### Extended Enhancements
 
 - **MacBook Top Notch & Dynamic Island Style Switcher**:
-  - **Fluid Dual-Style Morphing**: Freely toggle between the classic floating **Dynamic Island** (floating pill capsule with customizable top margin) and top-attached **MacBook-Style Notch** (flush with the top bezel at `y: 0`, flat 0px top corners, 16px bottom rounded corners, and smooth 10px concave transition ears curving naturally into the screen bezel).
+  - **Fluid Dual-Style Morphing**: Freely toggle between the classic floating **Dynamic Island** (floating pill capsule with customizable top margin) and top-attached **MacBook-Style Notch** (flush with the top bezel at `y: 0`, flat 0px top corners, and smooth rounded bottom corners that blend directly and seamlessly with the edge of the screen across all modules and expanded states).
   - **Full Workspace & Panel Harmony**: Seamlessly applied across resting island states, expanded panels, notifications, and the workspace overview switcher.
   - **In-App Toggle & Direct Shortcut**: Switch on the fly via the **Island Style** selector in **Tide Island Extended Settings** (`[ Island ]` / `[ Notch ]`), pressing `SUPER+ALT+N`, or via Quickshell IPC.
 - **Bluetooth Earphone & Headset Satellite Bubble**:

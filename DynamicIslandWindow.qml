@@ -1355,7 +1355,7 @@ PanelWindow {
         readonly property int privacyBubbleSize: 36
         readonly property int privacyBubbleGap: 8
         readonly property int privacyBubbleStep: privacyBubbleSize + privacyBubbleGap
-        readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap + (isNotchMode ? 10 : 0)
+        readonly property real bubblesBaseX: mainCapsule.x + mainCapsule.width + privacyBubbleGap
         readonly property bool cameraBubbleWanted: userConfig.privacyCameraBubbleEnabled
             && cameraActive
             && !root.overviewVisible
@@ -3680,58 +3680,6 @@ PanelWindow {
 
         }
 
-        // Left concave wing for MacBook Notch mode
-        Shape {
-            id: notchLeftEar
-            z: 5
-            visible: islandContainer.isNotchMode && root.autoHideProgress > 0.05
-            opacity: root.autoHideProgress
-            x: mainCapsule.x - width
-            y: mainCapsule.y
-            width: 10
-            height: 10
-
-            ShapePath {
-                fillColor: mainCapsule.color
-                strokeColor: StyleTokens.transparent
-                startX: 0
-                startY: 0
-                PathLine { x: notchLeftEar.width; y: 0 }
-                PathLine { x: notchLeftEar.width; y: notchLeftEar.height }
-                PathArc {
-                    x: 0; y: 0
-                    radiusX: notchLeftEar.width; radiusY: notchLeftEar.height
-                    direction: PathArc.Clockwise
-                }
-            }
-        }
-
-        // Right concave wing for MacBook Notch mode
-        Shape {
-            id: notchRightEar
-            z: 5
-            visible: islandContainer.isNotchMode && root.autoHideProgress > 0.05
-            opacity: root.autoHideProgress
-            x: mainCapsule.x + mainCapsule.width
-            y: mainCapsule.y
-            width: 10
-            height: 10
-
-            ShapePath {
-                fillColor: mainCapsule.color
-                strokeColor: StyleTokens.transparent
-                startX: 0
-                startY: 0
-                PathLine { x: notchRightEar.width; y: 0 }
-                PathArc {
-                    x: 0; y: notchRightEar.height
-                    radiusX: notchRightEar.width; radiusY: notchRightEar.height
-                    direction: PathArc.Clockwise
-                }
-                PathLine { x: 0; y: 0 }
-            }
-        }
-
         BluetoothEarphoneBubble {
             id: bluetoothEarphoneBubble
 
@@ -3740,7 +3688,7 @@ PanelWindow {
             iconFontFamily: root.iconFontFamily
             textFontFamily: root.textFontFamily
             bubbleSize: 36
-            shownX: mainCapsule.x - bubbleSize - 8 - (islandContainer.isNotchMode ? 10 : 0)
+            shownX: mainCapsule.x - bubbleSize - 8
             hiddenX: mainCapsule.x + 8
             centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
             autoHideProgress: root.autoHideProgress
