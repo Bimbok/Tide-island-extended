@@ -119,31 +119,34 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   </tr>
   <tr>
     <td width="50%">
+      <img src="docs/preview/system_glance.png" width="100%" alt="System Glance & Mini Dashboard" />
+    </td>
+    <td width="50%">
       <img src="docs/preview/battery_panel.png" width="100%" alt="Battery Health & Charge Conservation Mode" />
     </td>
+  </tr>
+  <tr>
     <td width="50%">
       <img src="docs/preview/app_launcher.png" width="100%" alt="Application Launcher" />
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <img src="docs/preview/wallpaper_switcher.png" width="100%" alt="Wallpaper Switcher" />
     </td>
+  </tr>
+  <tr>
     <td width="50%">
       <img src="docs/preview/weather.png" width="100%" alt="Weather & Forecast" />
     </td>
-  </tr>
-  <tr>
     <td width="50%">
       <img src="docs/preview/calendar.png" width="100%" alt="Calendar & Notes" />
     </td>
+  </tr>
+  <tr>
     <td width="50%">
       <img src="docs/preview/clipboard.png" width="100%" alt="Clipboard History" />
     </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <img src="docs/preview/clipboard_preview.png" width="50%" alt="Clipboard Image Preview & File Shelf" />
+    <td width="50%">
+      <img src="docs/preview/clipboard_preview.png" width="100%" alt="Clipboard Image Preview & File Shelf" />
     </td>
   </tr>
 </table>
