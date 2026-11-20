@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import IslandBackend
+import "../common"
 
 Item {
     id: root
@@ -514,57 +515,23 @@ Item {
                         }
 
                         // Interactive Slider Capsule
-                        Rectangle {
-                            id: devSliderTrack
+                        CapsuleSlider {
+                            id: devSlider
                             anchors.left: devMuteBtn.right
                             anchors.leftMargin: 8
                             anchors.right: devVolLabel.left
                             anchors.rightMargin: 8
                             anchors.verticalCenter: parent.verticalCenter
-                            height: devSliderMouse.containsMouse || devSliderMouse.pressed ? 8 : 6
-                            radius: height / 2
-                            color: StyleTokens.track
-                            clip: true
-
-                            Behavior on height { NumberAnimation { duration: 120 } }
-
-                            Rectangle {
-                                id: devSliderFill
-                                anchors.left: parent.left
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                radius: parent.radius
-                                color: modelData.muted ? StyleTokens.textMuted : StyleTokens.accent
-                                width: {
-                                    const vol = modelData.volume !== undefined ? modelData.volume : 1.0;
-                                    return modelData.muted ? 0 : Math.max(0, Math.min(parent.width, parent.width * vol));
-                                }
+                            height: 24
+                            normalHeight: 7
+                            hoverHeight: 13
+                            value: modelData.volume !== undefined ? modelData.volume : 1.0
+                            muted: modelData.muted || false
+                            onMoved: (val) => {
+                                SystemServices.setDeviceVolume(modelData.sinkName, val, modelData.portName);
                             }
-
-                            MouseArea {
-                                id: devSliderMouse
-                                anchors.fill: parent
-                                anchors.margins: -8
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                preventStealing: true
-
-                                function updateVolume(mX) {
-                                    const trackPos = mapToItem(devSliderTrack, mX, 0);
-                                    const ratio = Math.max(0, Math.min(1.0, trackPos.x / devSliderTrack.width));
-                                    SystemServices.setDeviceVolume(modelData.sinkName, ratio, modelData.portName);
-                                }
-
-                                onPressed: (mouse) => {
-                                    updateVolume(mouse.x);
-                                    mouse.accepted = true;
-                                }
-                                onPositionChanged: (mouse) => {
-                                    if (pressed) {
-                                        updateVolume(mouse.x);
-                                        mouse.accepted = true;
-                                    }
-                                }
+                            onCommitted: (val) => {
+                                SystemServices.setDeviceVolume(modelData.sinkName, val, modelData.portName);
                             }
                         }
 
@@ -573,8 +540,8 @@ Item {
                             id: devVolLabel
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.muted ? "Muted" : Math.round((modelData.volume !== undefined ? modelData.volume : 1.0) * 100) + "%"
-                            color: modelData.muted ? StyleTokens.danger : StyleTokens.textSecondary
+                            text: modelData.muted ? "Muted" : Math.round((devSlider.isDragging ? devSlider.internalValue : (modelData.volume !== undefined ? modelData.volume : 1.0)) * 100) + "%"
+                            color: modelData.muted ? StyleTokens.danger : (devSlider.isHovered ? StyleTokens.textPrimary : StyleTokens.textSecondary)
                             font.pixelSize: 10
                             font.family: root.textFontFamily
                             font.weight: Font.DemiBold
@@ -769,7 +736,7 @@ Item {
 
                     property real displayedVolume: (modelData && modelData.volume !== undefined) ? modelData.volume : 0.0
                     property real pendingVolume: displayedVolume
-                    readonly property bool isDragging: sliderMouse.pressed
+                    readonly property bool isDragging: appSlider.isDragging
 
                     onModelDataChanged: {
                         if (!isDragging && modelData && modelData.volume !== undefined) {
@@ -896,65 +863,18 @@ Item {
                         }
 
                         // Volume Slider Track
-                        Rectangle {
-                            id: appSliderTrack
+                        CapsuleSlider {
+                            id: appSlider
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            height: 20
-                            radius: 10
-                            color: StyleTokens.track
-                            border.width: 1
-                            border.color: StyleTokens.inputBorder
-                            clip: true
-
-                            Rectangle {
-                                id: appSliderFill
-                                width: streamDelegate.displayedVolume <= 0.001
-                                    ? 0
-                                    : Math.min(appSliderTrack.width, appSliderTrack.width * streamDelegate.displayedVolume)
-                                height: parent.height
-                                radius: parent.radius
-                                color: modelData.muted
-                                    ? StyleTokens.withAlpha(StyleTokens.accent, 0.45)
-                                    : StyleTokens.accent
-
-                                Behavior on color { ColorAnimation { duration: 140 } }
-                            }
-
-                            MouseArea {
-                                id: sliderMouse
-                                anchors.fill: parent
-                                anchors.topMargin: -8
-                                anchors.bottomMargin: -8
-                                preventStealing: true
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-
-                                function updateFromMouse(mouseX) {
-                                    const nextVal = Math.max(0.0, Math.min(1.0, mouseX / appSliderTrack.width));
-                                    streamDelegate.updateVolumeFromMouse(nextVal);
-                                }
-
-                                onPressed: function(mouse) {
-                                    updateFromMouse(mouse.x);
-                                }
-                                onPositionChanged: function(mouse) {
-                                    if (pressed) {
-                                        updateFromMouse(mouse.x);
-                                    }
-                                }
-                                onReleased: streamDelegate.commitVolume()
-                                onCanceled: streamDelegate.commitVolume()
-
-                                onWheel: function(wheel) {
-                                    const delta = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
-                                    const nextVal = Math.max(0.0, Math.min(1.0, streamDelegate.displayedVolume + delta));
-                                    streamDelegate.displayedVolume = nextVal;
-                                    streamDelegate.pendingVolume = nextVal;
-                                    streamDelegate.commitVolume();
-                                }
-                            }
+                            height: 24
+                            normalHeight: 8
+                            hoverHeight: 14
+                            value: streamDelegate.displayedVolume
+                            muted: modelData.muted || false
+                            onMoved: (val) => streamDelegate.updateVolumeFromMouse(val)
+                            onCommitted: (val) => streamDelegate.commitVolume()
                         }
                     }
                 }

@@ -4,6 +4,7 @@ import Qt5Compat.GraphicalEffects
 import Quickshell.Widgets
 import IslandBackend
 import "../island"
+import "../common"
 
 Rectangle {
     id: root
@@ -128,67 +129,15 @@ Rectangle {
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            Item {
+            CapsuleSlider {
                 id: trackContainer
                 Layout.fillWidth: true
                 height: 22
-
-                readonly property bool isHovered: progressMouse.containsMouse || progressMouse.pressed
-                readonly property real currentTrackHeight: isHovered ? 14 : 8
-
-                // Mac / Control Center style rounded capsule track
-                Rectangle {
-                    id: trackBg
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: trackContainer.currentTrackHeight
-                    radius: height / 2
-                    color: trackContainer.isHovered
-                        ? Qt.rgba(255, 255, 255, 0.16)
-                        : Qt.rgba(255, 255, 255, 0.10)
-                    border.width: 1
-                    border.color: trackContainer.isHovered
-                        ? Qt.rgba(255, 255, 255, 0.20)
-                        : Qt.rgba(255, 255, 255, 0.06)
-                    clip: true
-
-                    Behavior on height {
-                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-                    }
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                    // Active filled progress capsule
-                    Rectangle {
-                        id: trackFill
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        radius: parent.radius
-                        color: StyleTokens.accent
-                        width: root.trackProgress <= 0.001
-                            ? 0
-                            : Math.min(parent.width, parent.width * Math.max(0, Math.min(1.0, root.trackProgress)))
-
-                        Behavior on width {
-                            enabled: !progressMouse.pressed
-                            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-
-                MouseArea {
-                    id: progressMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onPressed: mouse => root.seekRequested(mouse.x / width)
-                    onClicked: mouse => root.seekRequested(mouse.x / width)
-                    onPositionChanged: mouse => {
-                        if (pressed) root.seekRequested(mouse.x / width)
-                    }
-                }
+                normalHeight: 8
+                hoverHeight: 14
+                value: root.trackProgress
+                onMoved: ratio => root.seekRequested(ratio)
+                onCommitted: ratio => root.seekRequested(ratio)
             }
 
             Text {
