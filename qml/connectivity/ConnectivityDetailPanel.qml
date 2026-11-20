@@ -157,55 +157,31 @@ Item {
             }
         }
 
-        Item {
+        FlyoutHeader {
             id: headerRow
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 24
+            title: root.isWifi ? "Wi-Fi" : root.isBluetooth ? "Bluetooth" : "Battery"
+            heroFontFamily: root.heroFontFamily
+            textFontFamily: root.textFontFamily
+            iconFontFamily: root.iconFontFamily
 
-            Text {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.isWifi ? "Wi-Fi" : root.isBluetooth ? "Bluetooth" : "Battery"
-                color: StyleTokens.textPrimary
-                font.pixelSize: 15
-                font.family: root.heroFontFamily
-                font.weight: Font.Bold
-            }
-
-            Rectangle {
+            ActionPill {
                 id: bluetoothScanButton
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: 58
                 height: 24
-                radius: 12
                 visible: root.isBluetooth && root.provider
                     && root.provider.bluetoothAvailable
                     && root.provider.bluetoothEnabled
-                color: bluetoothScanMouse.containsMouse
-                    ? StyleTokens.moduleHover
-                    : StyleTokens.secondaryButton
-
-                Text {
-                    anchors.centerIn: parent
-                    text: root.bluetoothScanning ? "Stop" : "Scan"
-                    color: root.bluetoothScanning ? StyleTokens.accentSoft : StyleTokens.textPrimary
-                    font.pixelSize: 10
-                    font.family: root.textFontFamily
-                    font.weight: Font.DemiBold
-                }
-
-                MouseArea {
-                    id: bluetoothScanMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (root.provider)
-                            root.provider.toggleBluetoothScan();
-                    }
+                text: root.bluetoothScanning ? "Stop" : "Scan"
+                active: root.bluetoothScanning
+                activeTextColor: StyleTokens.accentSoft
+                textFontFamily: root.textFontFamily
+                fontSize: 10
+                horizontalPadding: 14
+                onClicked: {
+                    if (root.provider)
+                        root.provider.toggleBluetoothScan();
                 }
             }
         }
@@ -868,107 +844,42 @@ Item {
                         }
 
                         // Presets Row for Lenovo IdeaPad (Conservation Mode)
-                        Row {
+                        SegmentedTabBar {
                             visible: SystemServices.batteryThresholdType === "conservation"
                             width: parent.width
-                            spacing: 8
-
-                            readonly property real pillWidth: (width - spacing) / 2
-
-                            Rectangle {
-                                width: parent.pillWidth
-                                height: 32
-                                radius: 10
-                                color: SystemServices.batteryConservationMode ? StyleTokens.accent : StyleTokens.moduleHover
-                                opacity: SystemServices.batteryThresholdBusy ? 0.6 : 1.0
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 150 }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "80% Conservation"
-                                    color: SystemServices.batteryConservationMode ? StyleTokens.textOnAccent : StyleTokens.textPrimary
-                                    font.pixelSize: 11
-                                    font.family: root.textFontFamily
-                                    font.weight: SystemServices.batteryConservationMode ? Font.DemiBold : Font.Normal
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    enabled: !SystemServices.batteryThresholdBusy
-                                    onClicked: SystemServices.setBatteryConservationMode(true)
-                                }
-                            }
-
-                            Rectangle {
-                                width: parent.pillWidth
-                                height: 32
-                                radius: 10
-                                color: !SystemServices.batteryConservationMode ? StyleTokens.accent : StyleTokens.moduleHover
-                                opacity: SystemServices.batteryThresholdBusy ? 0.6 : 1.0
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 150 }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "100% Full Charge"
-                                    color: !SystemServices.batteryConservationMode ? StyleTokens.textOnAccent : StyleTokens.textPrimary
-                                    font.pixelSize: 11
-                                    font.family: root.textFontFamily
-                                    font.weight: !SystemServices.batteryConservationMode ? Font.DemiBold : Font.Normal
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    enabled: !SystemServices.batteryThresholdBusy
-                                    onClicked: SystemServices.setBatteryConservationMode(false)
-                                }
+                            height: 32
+                            radius: 10
+                            enabled: !SystemServices.batteryThresholdBusy
+                            opacity: SystemServices.batteryThresholdBusy ? 0.6 : 1.0
+                            textFontFamily: root.textFontFamily
+                            currentId: SystemServices.batteryConservationMode ? "80" : "100"
+                            model: [
+                                { id: "80", label: "80% Conservation" },
+                                { id: "100", label: "100% Full Charge" }
+                            ]
+                            onTabSelected: (id) => {
+                                SystemServices.setBatteryConservationMode(id === "80");
                             }
                         }
 
                         // Presets Row for Generic Thresholds (ThinkPad, ASUS, etc.)
-                        Row {
+                        SegmentedTabBar {
                             visible: SystemServices.batteryThresholdType === "threshold"
                             width: parent.width
-                            spacing: 6
-
-                            Repeater {
-                                model: [80, 85, 90, 100]
-
-                                delegate: Rectangle {
-                                    readonly property bool active: SystemServices.batteryThresholdValue === modelData
-                                    width: (parent.width - 18) / 4
-                                    height: 32
-                                    radius: 10
-                                    color: active ? StyleTokens.accent : StyleTokens.moduleHover
-                                    opacity: SystemServices.batteryThresholdBusy ? 0.6 : 1.0
-
-                                    Behavior on color {
-                                        ColorAnimation { duration: 150 }
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: modelData + "%"
-                                        color: active ? StyleTokens.textOnAccent : StyleTokens.textPrimary
-                                        font.pixelSize: 11
-                                        font.family: root.textFontFamily
-                                        font.weight: active ? Font.DemiBold : Font.Normal
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        enabled: !SystemServices.batteryThresholdBusy
-                                        onClicked: SystemServices.setBatteryThreshold(modelData)
-                                    }
-                                }
+                            height: 32
+                            radius: 10
+                            enabled: !SystemServices.batteryThresholdBusy
+                            opacity: SystemServices.batteryThresholdBusy ? 0.6 : 1.0
+                            textFontFamily: root.textFontFamily
+                            currentId: String(SystemServices.batteryThresholdValue)
+                            model: [
+                                { id: "80", label: "80%" },
+                                { id: "85", label: "85%" },
+                                { id: "90", label: "90%" },
+                                { id: "100", label: "100%" }
+                            ]
+                            onTabSelected: (id) => {
+                                SystemServices.setBatteryThreshold(parseInt(id));
                             }
                         }
 

@@ -45,71 +45,27 @@ Item {
         }
 
         // Header Row
-        Item {
+        FlyoutHeader {
             id: headerRow
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 26
+            title: "Equalizer"
+            heroFontFamily: root.heroFontFamily
+            textFontFamily: root.textFontFamily
+            iconFontFamily: root.iconFontFamily
 
-            Row {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
-
-                // Equalizer Icon
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "\udb80\udf79"
-                    color: SystemServices.equalizerEnabled ? StyleTokens.accent : StyleTokens.textMuted
-                    font.pixelSize: 15
-                    font.family: root.iconFontFamily
-                }
-
-                // Title
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Equalizer"
-                    color: StyleTokens.textPrimary
-                    font.pixelSize: 15
-                    font.family: root.heroFontFamily
-                    font.weight: Font.Bold
-                }
-
-                // Preset / Status Badge
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 20
-                    width: statusBadgeText.implicitWidth + 12
-                    radius: 10
-                    color: SystemServices.equalizerEnabled
-                        ? StyleTokens.withAlpha(StyleTokens.accent, 0.20)
-                        : StyleTokens.withAlpha(StyleTokens.textMuted, 0.15)
-                    border.width: 1
-                    border.color: SystemServices.equalizerEnabled
-                        ? StyleTokens.accent
-                        : StyleTokens.withAlpha(StyleTokens.textMuted, 0.40)
-
-                    Text {
-                        id: statusBadgeText
-                        anchors.centerIn: parent
-                        text: SystemServices.equalizerEnabled
-                            ? SystemServices.equalizerPreset
-                            : "Bypassed"
-                        color: SystemServices.equalizerEnabled
-                            ? StyleTokens.accent
-                            : StyleTokens.textMuted
-                        font.pixelSize: 9
-                        font.family: root.heroFontFamily
-                        font.weight: Font.Bold
-                    }
-                }
+            ActionPill {
+                text: SystemServices.equalizerEnabled ? SystemServices.equalizerPreset : "Bypassed"
+                highlighted: SystemServices.equalizerEnabled
+                clickable: false
+                fontSize: 9
+                textFontFamily: root.heroFontFamily
             }
 
             // Master Enable / Bypass Switch (Reusable Island Switch)
             SwitchToggle {
                 id: masterToggle
-                anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 checked: SystemServices.equalizerEnabled
                 activeColor: StyleTokens.success
@@ -143,51 +99,20 @@ Item {
                     Repeater {
                         model: root.presetList
 
-                        Rectangle {
-                            id: presetChip
-                            readonly property bool isSelected: SystemServices.equalizerEnabled && SystemServices.equalizerPreset === modelData
+                        ActionPill {
                             height: 26
-                            width: presetLabel.implicitWidth + 16
-                            radius: 13
-                            color: isSelected
-                                ? StyleTokens.accent
-                                : (chipMouse.containsMouse
-                                    ? StyleTokens.cardFillHover
-                                    : StyleTokens.cardFill)
-                            border.width: 1
-                            border.color: isSelected
-                                ? StyleTokens.accent
-                                : StyleTokens.inputBorder
-
-                            Behavior on color {
-                                ColorAnimation { duration: 120 }
-                            }
-
-                            Text {
-                                id: presetLabel
-                                anchors.centerIn: parent
-                                text: modelData
-                                font.pixelSize: 10
-                                font.family: root.textFontFamily
-                                font.weight: presetChip.isSelected ? Font.Bold : Font.Normal
-                                color: presetChip.isSelected
-                                    ? StyleTokens.black
-                                    : (chipMouse.containsMouse
-                                        ? StyleTokens.textPrimary
-                                        : StyleTokens.textSecondary)
-                            }
-
-                            MouseArea {
-                                id: chipMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (!SystemServices.equalizerEnabled) {
-                                        SystemServices.setEqualizerEnabled(true);
-                                    }
-                                    SystemServices.applyEqualizerPreset(modelData);
+                            text: modelData
+                            active: SystemServices.equalizerEnabled && SystemServices.equalizerPreset === modelData
+                            activeColor: StyleTokens.accent
+                            activeBorderColor: StyleTokens.accent
+                            activeTextColor: StyleTokens.black
+                            textFontFamily: root.textFontFamily
+                            fontSize: 10
+                            onClicked: {
+                                if (!SystemServices.equalizerEnabled) {
+                                    SystemServices.setEqualizerEnabled(true);
                                 }
+                                SystemServices.applyEqualizerPreset(modelData);
                             }
                         }
                     }
@@ -398,35 +323,13 @@ Item {
                 Repeater {
                     model: ["off", "balanced", "night"]
 
-                    Rectangle {
-                        id: dynChip
-                        readonly property bool isSelected: SystemServices.equalizerDynamics === modelData
+                    ActionPill {
                         height: 24
-                        width: dynLabel.implicitWidth + 12
-                        radius: 12
-                        color: isSelected
-                            ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
-                            : (dynMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill)
-                        border.width: 1
-                        border.color: isSelected ? StyleTokens.accent : StyleTokens.inputBorder
-
-                        Text {
-                            id: dynLabel
-                            anchors.centerIn: parent
-                            text: modelData === "off" ? "Off" : (modelData === "balanced" ? "Bal" : "Night")
-                            font.pixelSize: 9
-                            font.family: root.textFontFamily
-                            font.weight: dynChip.isSelected ? Font.Bold : Font.Normal
-                            color: dynChip.isSelected ? StyleTokens.accent : StyleTokens.textSecondary
-                        }
-
-                        MouseArea {
-                            id: dynMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: SystemServices.setEqualizerDynamics(modelData)
-                        }
+                        text: modelData === "off" ? "Off" : (modelData === "balanced" ? "Bal" : "Night")
+                        active: SystemServices.equalizerDynamics === modelData
+                        fontSize: 9
+                        textFontFamily: root.textFontFamily
+                        onClicked: SystemServices.setEqualizerDynamics(modelData)
                     }
                 }
             }
@@ -437,64 +340,21 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
 
-                // Mono Pill Toggle
-                Rectangle {
-                    id: monoButton
+                ActionPill {
                     height: 24
-                    width: monoText.implicitWidth + 14
-                    radius: 12
-                    color: SystemServices.equalizerMono
-                        ? StyleTokens.withAlpha(StyleTokens.accent, 0.25)
-                        : (monoMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill)
-                    border.width: 1
-                    border.color: SystemServices.equalizerMono ? StyleTokens.accent : StyleTokens.inputBorder
-
-                    Text {
-                        id: monoText
-                        anchors.centerIn: parent
-                        text: "Mono"
-                        font.pixelSize: 9
-                        font.family: root.textFontFamily
-                        font.weight: SystemServices.equalizerMono ? Font.Bold : Font.Normal
-                        color: SystemServices.equalizerMono ? StyleTokens.accent : StyleTokens.textSecondary
-                    }
-
-                    MouseArea {
-                        id: monoMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemServices.setEqualizerMono(!SystemServices.equalizerMono)
-                    }
+                    text: "Mono"
+                    active: SystemServices.equalizerMono
+                    fontSize: 9
+                    textFontFamily: root.textFontFamily
+                    onClicked: SystemServices.setEqualizerMono(!SystemServices.equalizerMono)
                 }
 
-                // Reset Button
-                Rectangle {
-                    id: resetButton
+                ActionPill {
                     height: 24
-                    width: resetText.implicitWidth + 14
-                    radius: 12
-                    color: resetMouse.containsMouse ? StyleTokens.cardFillHover : StyleTokens.cardFill
-                    border.width: 1
-                    border.color: StyleTokens.inputBorder
-
-                    Text {
-                        id: resetText
-                        anchors.centerIn: parent
-                        text: "Reset"
-                        font.pixelSize: 9
-                        font.family: root.textFontFamily
-                        font.weight: Font.Medium
-                        color: resetMouse.containsMouse ? StyleTokens.textPrimary : StyleTokens.textSecondary
-                    }
-
-                    MouseArea {
-                        id: resetMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: SystemServices.resetEqualizer()
-                    }
+                    text: "Reset"
+                    fontSize: 9
+                    textFontFamily: root.textFontFamily
+                    onClicked: SystemServices.resetEqualizer()
                 }
             }
         }
