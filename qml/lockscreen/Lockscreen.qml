@@ -795,7 +795,7 @@ Scope {
                 Image {
                     id: wpImage
                     anchors.fill: parent
-                    source: root.wallpaper !== "" ? (root.wallpaper.startsWith("/") || root.wallpaper.startsWith("file://") ? (root.wallpaper.startsWith("file://") ? root.wallpaper : "file://" + encodeURI(root.wallpaper)) : root.wallpaper) : ""
+                    source: (root.locked && root.wallpaper !== "") ? (root.wallpaper.startsWith("/") || root.wallpaper.startsWith("file://") ? (root.wallpaper.startsWith("file://") ? root.wallpaper : "file://" + encodeURI(root.wallpaper)) : root.wallpaper) : ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
@@ -1373,7 +1373,7 @@ Scope {
                                                         id: avatarImg
                                                         anchors.fill: parent
                                                         source: {
-                                                            if (root.avatarPath === "") return "";
+                                                            if (!root.locked || root.avatarPath === "") return "";
                                                             if (root.avatarPath.startsWith("file://")) return root.avatarPath;
                                                             if (root.avatarPath.startsWith("/")) return "file://" + encodeURI(root.avatarPath);
                                                             return root.avatarPath;
