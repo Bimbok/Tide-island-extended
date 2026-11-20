@@ -395,6 +395,7 @@ private:
 
     bool m_equalizerRunning = false;
     bool m_equalizerEnabled = false;
+    QString m_equalizerTargetSink;
     QVariantList m_equalizerBands;
     QString m_equalizerPreset = QStringLiteral("Flat");
     double m_equalizerBalance = 0.0;

@@ -2170,7 +2170,8 @@ void SystemServices::requestAudioOutputs() {
             if (sinkName == QStringLiteral("tide_combined") || sinkName.startsWith(QStringLiteral("tide_combined"))) {
                 continue;
             }
-            if (sinkName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) && !m_equalizerEnabled) {
+            if (sinkName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
+                sinkName.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
                 continue;
             }
 
@@ -2196,7 +2197,10 @@ void SystemServices::requestAudioOutputs() {
             const bool sinkMuted = sinkObj.value(QStringLiteral("mute")).toBool();
 
             const bool isSinkActive = multiActive ? (combinedSlaves.contains(sinkName) || m_activeOutputDeviceIds.contains(sinkName))
-                                                  : (sinkName == defaultSink);
+                                                  : (m_equalizerEnabled && !m_activeOutputDeviceIds.isEmpty()
+                                                      ? (m_activeOutputDeviceIds.contains(sinkName) ||
+                                                         m_activeOutputDeviceIds.contains(makeAudioDeviceId(sinkName, activePort)))
+                                                      : (sinkName == defaultSink));
 
             const QJsonArray ports = sinkObj.value(QStringLiteral("ports")).toArray();
             if (ports.size() > 1) {
@@ -2497,15 +2501,22 @@ void SystemServices::requestAppStreams() {
             const QString ownerMod = streamObj.value(QStringLiteral("owner_module")).toString();
             const QString pulseModId = props.value(QStringLiteral("pulse.module.id")).toString();
 
+            const QString nodeGroup = props.value(QStringLiteral("node.group")).toString();
+            const QString nodeLinkGroup = props.value(QStringLiteral("node.link-group")).toString();
+            const QString devDesc = props.value(QStringLiteral("device.description")).toString();
+
             // Filter out internal combine-sink routing streams, equalizer routing streams, and non-client virtual streams
-            if (nodeName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
-                nodeName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
+            if (nodeName.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                mediaName.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                appNameProp.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                nodeGroup.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                nodeLinkGroup.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                devDesc.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive) ||
+                nodeName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
                 mediaName.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
-                mediaName.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
-                mediaName.contains(QStringLiteral("Tide Equalizer"), Qt::CaseInsensitive) ||
                 appNameProp.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
-                appNameProp.contains(QStringLiteral("tide_equalizer"), Qt::CaseInsensitive) ||
-                appNameProp.contains(QStringLiteral("Tide Equalizer"), Qt::CaseInsensitive) ||
+                nodeGroup.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
+                nodeLinkGroup.contains(QStringLiteral("tide_combined"), Qt::CaseInsensitive) ||
                 (!m_combinedSinkModuleId.isEmpty() && (ownerMod == m_combinedSinkModuleId || pulseModId == m_combinedSinkModuleId)) ||
                 streamObj.value(QStringLiteral("client")).isNull() ||
                 props.value(QStringLiteral("node.virtual")).toString() == QLatin1String("true")) {
@@ -2570,6 +2581,20 @@ void SystemServices::setAudioOutput(const QString &sinkName, const QString &port
 
     if (!portName.isEmpty()) {
         startCommand(QStringLiteral("pactl"), {QStringLiteral("set-sink-port"), sinkName, portName}, 1000, nullptr);
+    }
+
+    if (m_equalizerEnabled) {
+        m_equalizerTargetSink = sinkName;
+        sendEqualizerCommand(QStringLiteral("target %1").arg(sinkName));
+        const QString moveEqScript = QStringLiteral(
+            "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") == \"tide_equalizer_output\") | .index'); do "
+            "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+            "done; true"
+        ).arg(sinkName);
+        startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveEqScript}, 1000, nullptr);
+        requestAudioOutputs();
+        requestVolume();
+        return;
     }
 
     applyCombinedSink({sinkName});
@@ -2769,22 +2794,39 @@ void SystemServices::applyCombinedSink(const QStringList &sinks) {
             auto finalizeSingle = [self, targetSink, onSingleFinished]() {
                 if (!self || self->m_shuttingDown) return;
                 if (!targetSink.isEmpty()) {
-                    self->startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
-                                       [self, targetSink, onSingleFinished](const CommandResult &) {
-                        if (!self || self->m_shuttingDown) return;
-                        const QString moveScript = QStringLiteral(
-                            "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+                    if (self->m_equalizerEnabled) {
+                        self->m_equalizerTargetSink = targetSink;
+                        self->sendEqualizerCommand(QStringLiteral("target %1").arg(targetSink));
+                        const QString moveEqScript = QStringLiteral(
+                            "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") == \"tide_equalizer_output\") | .index'); do "
                             "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
                             "done; true"
                         ).arg(targetSink);
-                        self->startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000,
+                        self->startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveEqScript}, 1000,
                                            [self, onSingleFinished](const CommandResult &) {
                             if (!self || self->m_shuttingDown) return;
                             self->requestAudioOutputs();
                             self->requestVolume();
                             onSingleFinished();
                         });
-                    });
+                    } else {
+                        self->startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
+                                           [self, targetSink, onSingleFinished](const CommandResult &) {
+                            if (!self || self->m_shuttingDown) return;
+                            const QString moveScript = QStringLiteral(
+                                "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") != \"tide_equalizer_output\" and ((.properties[\"node.name\"] // \"\") | test(\"equalizer|combined\") | not)) | .index'); do "
+                                "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                                "done; true"
+                            ).arg(targetSink);
+                            self->startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000,
+                                               [self, onSingleFinished](const CommandResult &) {
+                                if (!self || self->m_shuttingDown) return;
+                                self->requestAudioOutputs();
+                                self->requestVolume();
+                                onSingleFinished();
+                            });
+                        });
+                    }
                 } else {
                     self->requestAudioOutputs();
                     self->requestVolume();
@@ -2801,17 +2843,30 @@ void SystemServices::applyCombinedSink(const QStringList &sinks) {
                 finalizeSingle();
             });
         } else if (!targetSink.isEmpty()) {
-            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
-                         [this, targetSink](const CommandResult &) {
-                const QString moveScript = QStringLiteral(
-                    "for id in $(pactl list sink-inputs short 2>/dev/null | awk '{print $1}'); do "
+            if (m_equalizerEnabled) {
+                m_equalizerTargetSink = targetSink;
+                sendEqualizerCommand(QStringLiteral("target %1").arg(targetSink));
+                const QString moveEqScript = QStringLiteral(
+                    "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") == \"tide_equalizer_output\") | .index'); do "
                     "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
                     "done; true"
                 ).arg(targetSink);
-                startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+                startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveEqScript}, 1000, nullptr);
                 requestAudioOutputs();
                 requestVolume();
-            });
+            } else {
+                startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000,
+                             [this, targetSink](const CommandResult &) {
+                    const QString moveScript = QStringLiteral(
+                        "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") != \"tide_equalizer_output\" and ((.properties[\"node.name\"] // \"\") | test(\"equalizer|combined\") | not)) | .index'); do "
+                        "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                        "done; true"
+                    ).arg(targetSink);
+                    startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+                    requestAudioOutputs();
+                    requestVolume();
+                });
+            }
         }
     }
 }
@@ -3973,26 +4028,89 @@ void SystemServices::setEqualizerEnabled(bool enabled) {
     emit equalizerEnabledChanged();
 
     if (enabled) {
-        ensureEqualizerDaemon([this](bool running) {
+        QString targetSink;
+        if (!m_activeOutputDeviceIds.isEmpty()) {
+            targetSink = extractSinkName(m_activeOutputDeviceIds.first());
+        }
+        if (targetSink.isEmpty() || targetSink.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+            targetSink = m_defaultAudioSink;
+        }
+        if (targetSink.isEmpty() || targetSink.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+            for (const auto &out : m_audioOutputs) {
+                const QString s = out.toMap().value(QStringLiteral("sinkName")).toString();
+                if (!s.isEmpty() && !s.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+                    targetSink = s;
+                    break;
+                }
+            }
+        }
+        m_equalizerTargetSink = targetSink;
+
+        ensureEqualizerDaemon([this, targetSink](bool running) {
             if (running) {
+                if (!targetSink.isEmpty()) {
+                    sendEqualizerCommand(QStringLiteral("target %1").arg(targetSink));
+                }
                 sendEqualizerCommand(QStringLiteral("bypass 0"), [this](bool ok, const QString &) {
                     if (ok) requestEqualizerState();
                 });
                 setEqualizerBands(m_equalizerBands);
-                requestAudioOutputs();
+
+                // Set default sink to tide_equalizer_sink so all new streams flow through equalizer
+                startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), QStringLiteral("tide_equalizer_sink")}, 1000,
+                             [this](const CommandResult &) {
+                    // Reroute existing playing app streams strictly into tide_equalizer_sink
+                    const QString moveScript = QStringLiteral(
+                        "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") != \"tide_equalizer_output\" and ((.properties[\"node.name\"] // \"\") | test(\"equalizer|combined\") | not)) | .index'); do "
+                        "  pactl move-sink-input \"$id\" tide_equalizer_sink 2>/dev/null; "
+                        "done; true"
+                    );
+                    startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveScript}, 1000, nullptr);
+                    requestAudioOutputs();
+                    requestAppStreams();
+                });
             }
         });
     } else {
+        QString targetSink = m_equalizerTargetSink;
+        if (targetSink.isEmpty() || targetSink.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+            if (!m_activeOutputDeviceIds.isEmpty()) {
+                targetSink = extractSinkName(m_activeOutputDeviceIds.first());
+            }
+        }
+        if (targetSink.isEmpty() || targetSink.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+            for (const auto &out : m_audioOutputs) {
+                const QString s = out.toMap().value(QStringLiteral("sinkName")).toString();
+                if (!s.isEmpty() && !s.contains(QStringLiteral("equalizer"), Qt::CaseInsensitive)) {
+                    targetSink = s;
+                    break;
+                }
+            }
+        }
+
+        // Restore default sink and move streams back to physical sink
+        if (!targetSink.isEmpty()) {
+            startCommand(QStringLiteral("pactl"), {QStringLiteral("set-default-sink"), targetSink}, 1000, nullptr);
+            const QString moveBackScript = QStringLiteral(
+                "for id in $(pactl -f json list sink-inputs 2>/dev/null | jq -r '.[] | select((.properties[\"node.name\"] // \"\") != \"tide_equalizer_output\" and ((.properties[\"node.name\"] // \"\") | test(\"equalizer|combined\") | not)) | .index'); do "
+                "  pactl move-sink-input \"$id\" \"%1\" 2>/dev/null; "
+                "done; true"
+            ).arg(targetSink);
+            startCommand(QStringLiteral("sh"), {QStringLiteral("-c"), moveBackScript}, 1000, nullptr);
+        }
+
         if (m_equalizerRunning) {
             sendEqualizerCommand(QStringLiteral("bypass 1"), [this](bool, const QString &) {
                 sendEqualizerCommand(QStringLiteral("quit"), [this](bool, const QString &) {
                     m_equalizerRunning = false;
                     emit equalizerRunningChanged();
                     requestAudioOutputs();
+                    requestAppStreams();
                 });
             });
         } else {
             requestAudioOutputs();
+            requestAppStreams();
         }
     }
 }

@@ -207,9 +207,10 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **10 Precision Frequency Bands**: 31 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, and 16 kHz with ±12 dB continuous boost/cut gain control and live numeric decibel readouts.
   - **Curated Preset Profiles**: 8 instant audio profiles (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with single-click activation and real-time slider animation.
   - **Stereo & Dynamics Processing**: Continuous stereo Balance (L/R) slider, Mono summing toggle, and Dynamics processing modes (`off`, `smooth`, `dynamic_eq`, `warm`, `crisp`) for complete acoustic customization.
-  - **Zero-Resource On-Demand Lifecycle**: When toggled OFF, `tide-equalizer` terminates immediately, consuming **0 CPU, 0 MB RAM, and 0 background processes**. It starts on-demand only when toggled ON (~4.7 MB).
+  - **Universal Robust Passthrough & Dynamic Routing**: When enabled, 100% of application audio streams strictly route through `tide_equalizer_sink`. Switching output devices (Speakers, Headphones, Bluetooth earbuds) dynamically commands the equalizer to target that hardware, preserving active streams and continuous DSP enhancement without interruption.
+  - **Zero-Resource On-Demand Lifecycle**: When toggled OFF, `tide-equalizer` terminates immediately, consuming **0 CPU, 0 MB RAM, and 0 background processes/polling loops**. It starts on-demand only when toggled ON (~4.7 MB).
   - **Seamless Control Center Access**: Click the `[ 󰎆 EQ ]` pill in the top-right header of the Audio flyout to open the dedicated Equalizer panel. Closes smoothly via `Escape` key or clicking outside.
-  - **Clean Output Isolation**: The virtual equalizer sink is automatically filtered from the Audio Output device list and Mixer tab, ensuring no confusing loopback sinks clutter standard device switching.
+  - **Clean Hardware Isolation**: Virtual equalizer sinks and routing streams are permanently filtered from both the Audio Output device list and the Mixer tab. Real audio hardware retains active indicators and volume sliders, while the Mixer badge strictly counts genuine user applications.
 - **Dedicated Microphone & Audio Dynamic Island OSD Feedback**: Real-time PipeWire audio source/sink monitoring (`pactl subscribe`) that keeps sliders in sync and triggers matching Dynamic Island pills (`[   XX%  ◯ ]` and `[ 󰝟  XX%  ◯ ]`) whenever adjusted via hotkeys, CLI commands, or UI clicks.
 - **Throttled Slider Performance**: Event throttling on microphone, volume, and brightness slider drags to eliminate IPC and D-Bus lag, maintaining smooth 60fps+ responsiveness.
 - **Unified Icon Weight Harmony**: Clean, consistent icon line weights across volume, microphone, brightness, battery, and weather.
@@ -340,6 +341,7 @@ Tide Island Extended is engineered to deliver fluid 60fps+ animations while main
 - **Retina Image Decode Bounding**: All dynamic image elements (lockscreen wallpapers, MPRIS high-res album covers, user avatars, notifications, and clipboard previews) specify explicit `sourceSize` bounds. 4K/8K images are downsampled at decode time, preventing multi-megapixel raw bitmaps from inflating memory.
 - **Multiplexed D-Bus Event Loop**: Notification mirroring and portal screencast monitoring are consolidated into a single `dbus-monitor` process with combined match rules, eliminating process duplication.
 - **Declarative Scene Graph Animation**: Audio visualizer waves and phase loops run directly on the Qt Quick Scene Graph hardware render thread, avoiding high-frequency JavaScript timer wakeups.
+- **Lazy-Loaded Standby Lockscreen Scene**: The entire lockscreen visual scene (ambient lighting, PAM authentication cards, hero media player, and visualizer nodes) is encapsulated within a dynamic `Loader` gated strictly to `sessionLock.locked`. Continuous scene graph animations are paused while unlocked, eliminating idle QSGRenderThread CPU wakeups and conserving system heap.
 - **Lazy Shader & FBO Allocation**: Full-screen wallpaper blur buffers and OpacityMask shaders are conditionally instantiated (`layer.enabled: root.locked && root.blurEnabled`), completely freeing offscreen framebuffer textures from GPU VRAM when the session is unlocked or panels are closed.
 - **Dormant Workspace Tracking**: Background `hyprctl` window snapshot queries are suspended when the Workspace Overview is hidden, eliminating IPC polling while working.
 
@@ -553,13 +555,13 @@ tide-island-config-app
   - **Multi-Device Simultaneous Output ("Multi-Audio")**: Click multiple output devices (e.g. Speakers, Bluetooth earphones, USB DAC) to play audio through all of them simultaneously. When multiple devices are selected, each device displays its own individual volume slider and mute button for fine-grained level control. The flyout header displays a `Multi-Audio (N)` badge.
   - **Single Device Switching**: Click any inactive device to route audio directly to it, or toggle devices out of the multi-audio group. Same-card ports (like internal Speakers vs 3.5mm Headphone jack) switch mutually exclusively.
   - **Input Devices**: Switch active microphone sources in real time.
-  - **Application Mixer**: Switch to the **Mixer** tab to adjust individual per-application volume sliders and toggle mute status, complete with freedesktop desktop application icons. Internal combined-sink loopbacks are automatically hidden.
+  - **Application Mixer**: Switch to the **Mixer** tab to adjust individual per-application volume sliders and toggle mute status, complete with freedesktop desktop application icons. Internal combined-sink loopbacks and equalizer DSP output streams are cleanly isolated and hidden.
 - **Native 10-Band DSP Audio Equalizer**:
   - Click the `[ 󰎆 EQ ]` pill in the top-right header of the Audio flyout to open the Equalizer panel.
   - **10 Frequency Sliders**: Fine-tune gains from 31 Hz to 16 kHz with ±12 dB continuous adjustment and live numeric decibel feedback.
   - **Preset Profiles**: Select from 8 curated presets (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with instant slider alignment.
   - **Acoustic Processing**: Continuous stereo Balance slider, Mono summing toggle, and Dynamics processing modes (`off`, `smooth`, `dynamic_eq`, `warm`, `crisp`).
-  - **Master Enable Switch**: Turn equalization on or off with an instant A/B bypass comparison. When toggled off, the `tide-equalizer` process exits immediately, using 0% CPU and 0 MB RAM.
+  - **Master Enable Switch & Dynamic Routing**: Turn equalization on or off with an instant A/B bypass comparison. When enabled, all audio streams strictly route through `tide_equalizer_sink`, dynamically switching output endpoints whenever you select different physical headphones, earbuds, or speakers. When toggled off, the `tide-equalizer` process exits immediately, using 0% CPU, 0 MB RAM, and 0 polling loops.
   - **Universal Dismissal**: Press `Escape` or click anywhere outside the flyout to close.
 - **Lockscreen Settings**:
   - Set a custom lockscreen wallpaper path (with file picker and live preview), or automatically use the active desktop wallpaper (`awww`, `swww`, `hyprpaper`).

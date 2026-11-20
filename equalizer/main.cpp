@@ -263,6 +263,19 @@ private:
                    sa::serialize(params_);
         }
         if (line == "get") return sa::serialize(params_);
+        if (line.rfind("target ", 0) == 0) {
+            std::string t = line.substr(7);
+            while (!t.empty() && (t.front() == ' ' || t.front() == '\t')) t.erase(t.begin());
+            while (!t.empty() && (t.back() == ' ' || t.back() == '\t' || t.back() == '\r')) t.pop_back();
+            explicitTarget_ = t;
+            if (!explicitTarget_.empty()) {
+                adoptTarget(explicitTarget_);
+                return "ok target=" + explicitTarget_;
+            } else {
+                refreshTarget();
+                return "ok target=" + target_;
+            }
+        }
         if (!sa::applyCommand(params_, line)) return "error";
         pushParams();
         saveState();
@@ -487,17 +500,18 @@ private:
 
     bool routable(const spa_dict* props) const {
         const char* name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
-        if (name && (std::strcmp(name, kOutputName) == 0 || std::strstr(name, "tide_combined"))) return false;
+        if (name && (std::strcmp(name, kOutputName) == 0 || std::strstr(name, "tide_combined") || std::strstr(name, "tide_equalizer"))) return false;
         const char* mediaName = spa_dict_lookup(props, PW_KEY_MEDIA_NAME);
-        if (mediaName && std::strstr(mediaName, "tide_combined")) return false;
-        if (spa_dict_lookup(props, PW_KEY_NODE_LINK_GROUP)) return false;
+        if (mediaName && (std::strstr(mediaName, "tide_combined") || std::strstr(mediaName, "tide_equalizer") || std::strstr(mediaName, "Tide Equalizer"))) return false;
+        if (const char* lg = spa_dict_lookup(props, PW_KEY_NODE_LINK_GROUP)) {
+            if (std::strstr(lg, "tide-equalizer") || std::strstr(lg, "tide_combined")) return false;
+        }
+        if (const char* ng = spa_dict_lookup(props, PW_KEY_NODE_GROUP)) {
+            if (std::strstr(ng, "tide-equalizer") || std::strstr(ng, "tide_combined")) return false;
+        }
         if (sa::isExcludedStream(spa_dict_lookup(props, PW_KEY_APP_NAME), spa_dict_lookup(props, PW_KEY_APP_PROCESS_BINARY),
                                  spa_dict_lookup(props, PW_KEY_MEDIA_ROLE)))
             return false;
-        for (const char* key : {kTargetObjectKey, kTargetNodeKey, "node.target"}) {
-            const char* target = spa_dict_lookup(props, key);
-            if (target && !isOwnTarget(target) && !isCurrentOutput(target)) return false;
-        }
         const char* autoconnect = spa_dict_lookup(props, PW_KEY_NODE_AUTOCONNECT);
         if (autoconnect && !isTrue(autoconnect)) return false;
         return !isTrue(spa_dict_lookup(props, "node.dont-move"));
@@ -531,12 +545,7 @@ private:
         auto it = streams_.find(id);
         if (it == streams_.end() || !metadata_) return;
         StreamState& s = it->second;
-        if (s.routed || s.pinned) return;
-        const auto pinned = streamTargets_.find(id);
-        if (pinned != streamTargets_.end() && isOtherSink(pinned->second)) {
-            s.pinned = true;
-            return;
-        }
+        if (s.routed) return;
         s.routed = true;
         pw_metadata_set_property(metadata_, id, kTargetObjectKey, "Spa:String", kSinkName);
     }
@@ -563,10 +572,7 @@ private:
         if (isOwnTarget(v)) {
             s.routed = true;
             s.pinned = false;
-        } else if (isOtherSink(v)) {
-            s.routed = false;
-            s.pinned = true;
-        } else if (v.empty() && (s.routed || s.pinned)) {
+        } else if (v.empty() && s.routed) {
             s.routed = false;
             s.pinned = false;
             if (synced_) route(subject);
@@ -633,7 +639,9 @@ private:
     // the session manager would not have chosen.
     void refreshTarget() {
         std::string want;
-        if (defaultName_.empty() || defaultName_ == kSinkName) {
+        if (!explicitTarget_.empty() && (hasSink(explicitTarget_) || explicitTarget_ == "tide_combined" || explicitTarget_.rfind("bluez_output", 0) == 0 || explicitTarget_.rfind("alsa_output", 0) == 0)) {
+            want = explicitTarget_;
+        } else if (defaultName_.empty() || defaultName_ == kSinkName) {
             want = bestSink();
         } else if (hasSink(defaultName_)) {
             want = defaultName_;
@@ -744,6 +752,7 @@ private:
     std::map<uint32_t, std::unique_ptr<Probe>> probes_;
     std::map<uint32_t, std::string> streamTargets_;
     std::string target_;
+    std::string explicitTarget_;
     std::string defaultName_;
     std::string configuredName_;
     uint32_t ownId_ = SPA_ID_INVALID;

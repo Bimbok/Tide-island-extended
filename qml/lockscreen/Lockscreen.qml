@@ -669,10 +669,22 @@ Scope {
                 return true;
             }
 
-            Item {
-                id: scene
+            Loader {
+                id: sceneLoader
                 anchors.fill: parent
-                focus: true
+                active: sessionLock.locked
+                asynchronous: false
+
+                onLoaded: {
+                    if (item)
+                        item.forceActiveFocus();
+                }
+
+                sourceComponent: Component {
+                    Item {
+                        id: scene
+                        anchors.fill: parent
+                        focus: true
 
                 // -------------------------------------------------------------
                 // ANIMATION CONTROLLER (IN & OUT)
@@ -880,7 +892,7 @@ Scope {
 
                                 SequentialAnimation on opacity {
                                     loops: Animation.Infinite
-                                    running: true
+                                    running: root.locked
                                     NumberAnimation { to: 0.35; duration: 1000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
                                 }
@@ -1129,7 +1141,7 @@ Scope {
 
                                                     SequentialAnimation on opacity {
                                                         loops: Animation.Infinite
-                                                        running: true
+                                                        running: root.locked
                                                         NumberAnimation { to: 0.35; duration: 1000; easing.type: Easing.InOutSine }
                                                         NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
                                                     }
@@ -1314,13 +1326,13 @@ Scope {
 
                                                     SequentialAnimation on scale {
                                                         loops: Animation.Infinite
-                                                        running: true
+                                                        running: root.locked
                                                         NumberAnimation { to: 1.06; duration: 2400; easing.type: Easing.InOutSine }
                                                         NumberAnimation { to: 0.98; duration: 2400; easing.type: Easing.InOutSine }
                                                     }
                                                     SequentialAnimation on opacity {
                                                         loops: Animation.Infinite
-                                                        running: true
+                                                        running: root.locked
                                                         NumberAnimation { to: 0.8; duration: 2400; easing.type: Easing.InOutSine }
                                                         NumberAnimation { to: 0.25; duration: 2400; easing.type: Easing.InOutSine }
                                                     }
@@ -1337,7 +1349,7 @@ Scope {
 
                                                     SequentialAnimation on opacity {
                                                         loops: Animation.Infinite
-                                                        running: true
+                                                        running: root.locked
                                                         NumberAnimation { to: 0.90; duration: 2200; easing.type: Easing.InOutSine }
                                                         NumberAnimation { to: 0.40; duration: 2200; easing.type: Easing.InOutSine }
                                                     }
@@ -1424,7 +1436,7 @@ Scope {
 
                                                         SequentialAnimation on opacity {
                                                             loops: Animation.Infinite
-                                                            running: true
+                                                            running: root.locked
                                                             NumberAnimation { to: 0.4; duration: 1200; easing.type: Easing.InOutSine }
                                                             NumberAnimation { to: 1.0; duration: 1200; easing.type: Easing.InOutSine }
                                                         }
@@ -1606,7 +1618,7 @@ Scope {
 
                                                             SequentialAnimation on opacity {
                                                                 loops: Animation.Infinite
-                                                                running: root.buffer.length === 0 && !root.isShakingFailed
+                                                                running: root.locked && root.buffer.length === 0 && !root.isShakingFailed
                                                                 NumberAnimation { to: 1.0; duration: 520 }
                                                                 NumberAnimation { to: 0.15; duration: 520 }
                                                             }
@@ -1895,7 +1907,7 @@ Scope {
 
                                                         SequentialAnimation on opacity {
                                                             loops: Animation.Infinite
-                                                            running: root.batCharging
+                                                            running: root.locked && root.batCharging
                                                             NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
                                                             NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
                                                         }
@@ -2140,4 +2152,6 @@ Scope {
             }
         }
     }
+}
+}
 }
