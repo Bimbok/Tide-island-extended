@@ -554,6 +554,12 @@ tide-island-config-app
 - **System Tray (SNI)**:
   - Tucked inside the Control Center drawer with an item count pill badge and smooth horizontal wheel/touch scrolling.
   - Supports left-click activate, right-click context menus, wheel scrolling, and tooltip previews on hover.
+- **System Glance & Mini Dashboard**:
+  - Open anytime by pressing `Super + G`, swiping down on the dynamic island capsule, or triggering via IPC (`quickshell ipc call glance toggle`).
+  - **User Profile & Diagnostics**: Circular user avatar (click to change or auto-detected), hostname, system uptime, and multi-metric battery telemetry (`⚡ 100% • Full • 99% Health` with power wattage and cycle count tooltips).
+  - **Live Hardware Monitoring**: Real-time meters for CPU utilization & core temperature, RAM & Swap consumption, active network interface upload/download throughput with local IP address, and storage disk space.
+  - **Package Updates & Kernel Info**: Displays available package updates with a one-click terminal launcher, alongside active Linux kernel release, CPU governor (`powersave`), and 1m/5m/15m system load averages.
+  - **Zero Background Overhead**: Metrics are sampled on demand directly from standard Linux `/proc` and `/sys` interfaces only while the dashboard is visible (0% CPU at idle).
 - **Battery Health & Charge Limit (Conservation Mode)**:
   - Protect laptop battery longevity when connected to AC power. On supported hardware (such as Lenovo IdeaPads with `ideapad_acpi` or generic laptops supporting `charge_control_end_threshold`), toggle between **80% Conservation** mode and **100% Full Charge** directly in the dedicated Battery flyout panel.
   - Open the panel anytime by clicking the battery indicator pill in the Control Center header or clicking `›` on the drawer's Battery card.
@@ -673,6 +679,9 @@ You can control Tide Island remotely using `quickshell ipc call`:
 | `quickshell ipc call privacy toggle` | Open or close Privacy & Media Activity HUD |
 | `quickshell ipc call privacy show` | Open Privacy & Media Activity HUD |
 | `quickshell ipc call privacy close` | Close Privacy & Media Activity HUD |
+| `quickshell ipc call tide toggleGlance` | Open or close System Glance & Dashboard |
+| `quickshell ipc call tide openGlance` | Open System Glance & Dashboard |
+| `quickshell ipc call glance toggle` | Open or close System Glance & Dashboard |
 | `quickshell ipc call island toggle` | Toggle dynamic island capsules |
 | `quickshell ipc call island show` | Show dynamic island capsules |
 | `quickshell ipc call island hide` | Hide dynamic island capsules |
