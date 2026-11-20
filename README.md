@@ -180,14 +180,19 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **Microphone Intensity Slider**: Native input gain slider powered by WirePlumber (`@DEFAULT_AUDIO_SOURCE@`) with 40ms event throttling, fluid drags, and instant click-to-mute corner toggle.
   - **Click-to-Mute Sound Card**: One-click corner icon toggle for system audio (`@DEFAULT_AUDIO_SINK@`) with dynamic mute icon (`󰝟`), `"Sound (Muted)"` title indicator, and dimmed accent fill.
   - **Dynamic Sun Glyph & Brightness Presets**: Real-time morphing sun icon matching backlight level (`󰃞` <30%, `󰃟` 30%–70%, `󰃠` >70%) plus click-to-cycle presets (`10% ➔ 30% ➔ 65% ➔ 100% ➔ 10%...`).
-- **Audio Device Switcher Flyout (Outputs & Inputs)**: Side flyout panel opened with one click on the chevron (`›`) on either the Sound or Microphone card:
-  - **Output Devices**: Instantly switch default audio sink/port between Speakers, Headphones, Bluetooth earbuds, and HDMI with visual active indicator checkmarks.
+- **Audio Device Switcher Flyout & Multi-Device Simultaneous Output ("Multi-Audio")**: Side flyout panel opened with one click on the chevron (`›`) on either the Sound or Microphone card:
+  - **Multi-Device Simultaneous Audio Output ("Multi-Audio")**: Play audio across multiple physical outputs at the same time (e.g. Speakers + Headphones + Bluetooth earbuds / USB DAC) without third-party audio routing utilities.
+  - **Independent Device Volume Controls**: When multiple devices are active, each device card dynamically expands to show an independent volume slider and click-to-mute toggle, allowing custom level balancing across rooms or outputs.
+  - **Multi-Audio Header Badge**: The flyout header dynamically indicates multi-output status with a `Multi-Audio (N)` badge displaying the number of active streams.
+  - **Automatic Combined Sink Lifecycle**: Powered by PipeWire's `module-combine-sink` (`tide_combined`). Activating multiple outputs automatically instantiates and serializes the combined sink, transparently migrates existing playback streams without audio dropouts, and tears down cleanly when returning to a single output.
+  - **Port Conflict Resolution**: Automatically manages same-sink hardware ports (e.g. built-in Speakers vs 3.5mm Headphone jack on the same sound card) to switch mutually exclusively, preventing invalid ALSA routing states while allowing simultaneous playback across distinct audio cards.
+  - **Hotplug & Disconnect Resilience**: If a secondary output device or Bluetooth headset disconnects while Multi-Audio is running, the engine automatically reconfigures the combined sink or falls back to the remaining active output seamlessly.
   - **Input Devices**: Instantly switch active microphone source between Internal Mic, USB Mic, and Headsets.
   - **Sleek Tab Switcher**: Segmented pills (`[ Output | Input | Mixer ]`) allow seamless navigation between output devices, microphones, and per-app streams in place.
-- **Per-App Volume Mixer**: Integrated PipeWire/WirePlumber application volume mixer:
-  - Displays all active applications playing audio (Firefox, Spotify, Discord, Steam, games).
-  - High-res desktop app icons resolved automatically via the freedesktop icon theme.
-  - Compact individual volume sliders and one-click app mute toggles.
+- **Per-App Volume Mixer & Clean Stream Isolation**:
+  - **Filtered Application Streams**: Internal PipeWire routing streams (such as `tide_combined output` loopback sinks) are automatically detected and filtered out in C++, ensuring only genuine user applications (Firefox, Spotify, Discord, Steam, games) appear in the mixer.
+  - **High-Res App Icons**: Resolved automatically via the freedesktop icon theme.
+  - **Fluid Sliders & Mute**: Compact individual volume sliders with 40ms event throttling and one-click app mute toggles.
 - **Battery Health, Charge Limit & Conservation Mode**: Direct hardware control for laptop battery lifespan preservation:
   - **Lenovo IdeaPad Conservation Mode**: Hardware-level 80% charge threshold integration via `ideapad_acpi` (`conservation_mode`), capping charge at 80% while plugged in to prevent battery wear.
   - **Generic Laptop Charge End Threshold**: Automatic support for standard Linux battery threshold interfaces (`charge_control_end_threshold`) with preset pills (`80%`, `85%`, `90%`, `100%`).
@@ -195,14 +200,16 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
   - **Live Battery Telemetry**: Real-time display of battery charge status, health percentage (`batteryHealthPercent`), cycle count (`batteryCycleCount`), and an active `80% Cap` badge.
   - **Zero-Latency Non-Blocking Control**: Asynchronous C++ backend paired with automated `systemd-tmpfiles` permissions (`tide-island-battery.conf`) for instantaneous toggling without root password prompts or UI freezes.
 - **Symmetrical Flyout Architecture & Mutual Exclusivity**:
-  - All side panels (Wi-Fi, Bluetooth, Audio, Battery) share identical 318×404 geometry and unified typography.
+  - All side panels (Wi-Fi, Bluetooth, Audio, Battery, Equalizer) share identical 318×404 geometry and unified typography.
   - Clean mutual exclusivity automatically dismisses active sibling panels when a new flyout is opened, eliminating clutter.
 - **Native 10-Band DSP Audio Equalizer**:
-  - **Zero-Dependency Native PipeWire DSP**: Built-in 10-band peaking biquad filter chain running directly on PipeWire (`pipewire-pulse` / `spa-dsp`) with zero external daemon or binary dependencies.
-  - **10 Precision Frequency Bands**: 31 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, and 16 kHz with ±12 dB continuous boost/cut gain control and direct numeric feedback.
-  - **Instant Preset Library**: 8 curated audio profiles (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with single-click activation and custom sliders fine-tuning.
-  - **Global Bypass & Enable Toggle**: Master bypass switch to instantly A/B compare sound before and after equalization.
-  - **Seamless Control Center Access**: Click the `EQ` pill in the top-right header of the Audio output flyout to open the equalizer panel, and close it smoothly with `Escape`.
+  - **Dedicated DSP Audio Engine**: High-performance C++ equalizer engine (`tide-equalizer`) based on 10-band peaking biquad filters, dynamic EQ, and stereo enhancement, communicating with Tide Island via low-latency UNIX domain sockets (`/run/user/<uid>/tide-equalizer.sock`).
+  - **10 Precision Frequency Bands**: 31 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, and 16 kHz with ±12 dB continuous boost/cut gain control and live numeric decibel readouts.
+  - **Curated Preset Profiles**: 8 instant audio profiles (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with single-click activation and real-time slider animation.
+  - **Stereo & Dynamics Processing**: Continuous stereo Balance (L/R) slider, Mono summing toggle, and Dynamics processing modes (`off`, `smooth`, `dynamic_eq`, `warm`, `crisp`) for complete acoustic customization.
+  - **Zero-Resource On-Demand Lifecycle**: When toggled OFF, `tide-equalizer` terminates immediately, consuming **0 CPU, 0 MB RAM, and 0 background processes**. It starts on-demand only when toggled ON (~4.7 MB).
+  - **Seamless Control Center Access**: Click the `[ 󰎆 EQ ]` pill in the top-right header of the Audio flyout to open the dedicated Equalizer panel. Closes smoothly via `Escape` key or clicking outside.
+  - **Clean Output Isolation**: The virtual equalizer sink is automatically filtered from the Audio Output device list and Mixer tab, ensuring no confusing loopback sinks clutter standard device switching.
 - **Dedicated Microphone & Audio Dynamic Island OSD Feedback**: Real-time PipeWire audio source/sink monitoring (`pactl subscribe`) that keeps sliders in sync and triggers matching Dynamic Island pills (`[   XX%  ◯ ]` and `[ 󰝟  XX%  ◯ ]`) whenever adjusted via hotkeys, CLI commands, or UI clicks.
 - **Throttled Slider Performance**: Event throttling on microphone, volume, and brightness slider drags to eliminate IPC and D-Bus lag, maintaining smooth 60fps+ responsiveness.
 - **Unified Icon Weight Harmony**: Clean, consistent icon line weights across volume, microphone, brightness, battery, and weather.
@@ -249,8 +256,8 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - Bluetooth earphone connection bubble with dynamic battery gauge ring
 - Music player
 - Control Center
-- Audio device switcher & per-app volume mixer
-- Native 10-Band DSP Equalizer (Direct EQ pill in Audio flyout)
+- Audio device switcher, multi-device simultaneous output ("Multi-Audio") & per-app volume mixer
+- Native 10-Band DSP Audio Equalizer (Dedicated flyout, 10 bands, 8 presets, and zero-resource on-demand lifecycle)
 - Microphone control & mute toggle
 - Battery health & charge limit (conservation mode)
 - Timer
@@ -317,10 +324,12 @@ Tide Island Extended is engineered to deliver fluid 60fps+ animations while main
 | **Idle CPU Usage** | **~0.1% – 0.5%** | Measured over 19+ hours daemon uptime; 99.5%+ of time spent in deep kernel sleep with zero timer polling |
 | **Unique Process RAM** | **~50 – 65 MB** | Private anonymous heap/object memory unique to Tide Island |
 | **Total RSS Footprint** | **~135 – 150 MB** | As reported by `btop` / `top` during continuous extended uptime (includes shared Mesa GPU drivers & Qt6 libraries; down from 245 MB+) |
-| **On-Demand Daemons (`lyricsmpris`)** | **0 MB idle** (saves 24 MB) | Only spawned when lyrics capsule is visibly active; terminates cleanly via a 30s idle timer |
+| **On-Demand Daemons (`tide-equalizer`, `lyricsmpris`)** | **0 MB idle** (saves ~30 MB) | Equalizer and lyrics daemons terminate completely when toggled off or idle; zero CPU, zero RAM |
 | **Active Subprocesses** | **Direct & Event-Driven** | Idle `bash` wrappers eliminated (saves 3 MB); native `wl-paste` managed directly by Quickshell |
 
 ### Architectural Optimizations
+- **On-Demand DSP Equalizer Lifecycle**: The `tide-equalizer` DSP daemon runs on an on-demand lifecycle. When equalization is toggled off, the background daemon process terminates immediately (reclaiming memory and CPU cycles to absolute zero). Furthermore, all QML equalizer UI components are dynamically unloaded when the flyout is closed.
+- **PipeWire Combined Sink & Stream Isolation**: Activating Multi-Audio orchestrates a low-latency combined sink via `module-combine-sink` and moves streams without stutter. Internal loopback routing streams are automatically stripped in C++ before hitting QML, preventing UI clutter and eliminating redundant scene graph updates.
 - **On-Demand Lyrics Daemon Lifecycle**: The `lyricsmpris` C++ backend process is conditionally spawned only when the lyrics capsule is active. An automatic 30-second idle countdown reclaims ~24 MB of RAM as soon as playback stops or the island rests in clock mode.
 - **Local Extrapolation & MPRIS Dead Reckoning**: Replaced high-frequency 350 ms and 500 ms D-Bus polling loops with local timestamp-based dead reckoning (`Position_0 + (Now - t_0) * Rate`). Listens strictly to MPRIS D-Bus state events (`PlaybackStatus`, `Seeked`, `TrackChanged`), dropping active D-Bus query traffic to 0 while maintaining silky 60 FPS slider animations.
 - **Event-Driven Media Discovery**: Replaced 1,500 ms D-Bus `ListNames` polling in the lyrics daemon with reactive `org.freedesktop.DBus.NameOwnerChanged` signal matching for `org.mpris.MediaPlayer2.*`, completely eliminating background discovery polling.
@@ -539,10 +548,19 @@ tide-island-config-app
   - Protect laptop battery longevity when connected to AC power. On supported hardware (such as Lenovo IdeaPads with `ideapad_acpi` or generic laptops supporting `charge_control_end_threshold`), toggle between **80% Conservation** mode and **100% Full Charge** directly in the dedicated Battery flyout panel.
   - Open the panel anytime by clicking the battery indicator pill in the Control Center header or clicking `›` on the drawer's Battery card.
   - The installer automatically configures `/usr/lib/tmpfiles.d/tide-island-battery.conf`, enabling instantaneous, passwordless switching without root prompts.
-- **Audio Device Switcher & Application Mixer**:
-  - Click the `›` chevron on either the Sound or Microphone card in the Control Center to reveal the Audio flyout panel.
-  - Instantly switch default output endpoints (Speakers, Headphones, HDMI, Bluetooth earbuds) and active microphone sources in real time.
-  - Switch to the **Mixer** tab to adjust individual per-application volume sliders and toggle mute status, complete with freedesktop application icons.
+- **Audio Device Switcher, Multi-Device Output & Application Mixer**:
+  - Click the `›` chevron on either the Sound or Microphone card in the Control Center to open the Audio flyout panel.
+  - **Multi-Device Simultaneous Output ("Multi-Audio")**: Click multiple output devices (e.g. Speakers, Bluetooth earphones, USB DAC) to play audio through all of them simultaneously. When multiple devices are selected, each device displays its own individual volume slider and mute button for fine-grained level control. The flyout header displays a `Multi-Audio (N)` badge.
+  - **Single Device Switching**: Click any inactive device to route audio directly to it, or toggle devices out of the multi-audio group. Same-card ports (like internal Speakers vs 3.5mm Headphone jack) switch mutually exclusively.
+  - **Input Devices**: Switch active microphone sources in real time.
+  - **Application Mixer**: Switch to the **Mixer** tab to adjust individual per-application volume sliders and toggle mute status, complete with freedesktop desktop application icons. Internal combined-sink loopbacks are automatically hidden.
+- **Native 10-Band DSP Audio Equalizer**:
+  - Click the `[ 󰎆 EQ ]` pill in the top-right header of the Audio flyout to open the Equalizer panel.
+  - **10 Frequency Sliders**: Fine-tune gains from 31 Hz to 16 kHz with ±12 dB continuous adjustment and live numeric decibel feedback.
+  - **Preset Profiles**: Select from 8 curated presets (`Flat`, `Bass Boost`, `Vocal`, `Rock`, `Classical`, `Electronic`, `Pop`, `Treble Boost`) with instant slider alignment.
+  - **Acoustic Processing**: Continuous stereo Balance slider, Mono summing toggle, and Dynamics processing modes (`off`, `smooth`, `dynamic_eq`, `warm`, `crisp`).
+  - **Master Enable Switch**: Turn equalization on or off with an instant A/B bypass comparison. When toggled off, the `tide-equalizer` process exits immediately, using 0% CPU and 0 MB RAM.
+  - **Universal Dismissal**: Press `Escape` or click anywhere outside the flyout to close.
 - **Lockscreen Settings**:
   - Set a custom lockscreen wallpaper path (with file picker and live preview), or automatically use the active desktop wallpaper (`awww`, `swww`, `hyprpaper`).
   - Responsive toggle switches for Wallpaper Blur, Lockscreen Media Player, Power Action pills, and Battery Status pill.
