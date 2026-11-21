@@ -1031,8 +1031,10 @@ Scope {
                             width: finalW
                             height: finalH
                             radius: finalR
-                            topLeftRadius: root.isNotchMode ? 0 : radius
-                            topRightRadius: root.isNotchMode ? 0 : radius
+                            topLeftRadius: radius
+                            topRightRadius: radius
+                            bottomLeftRadius: radius
+                            bottomRightRadius: radius
 
                             // Premium multi-layered frosted glass body
                             color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.76)
@@ -1045,10 +1047,10 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 1
                                 radius: Math.max(0, box.radius - 1)
-                                topLeftRadius: box.topLeftRadius > 0 ? Math.max(0, box.topLeftRadius - 1) : 0
-                                topRightRadius: box.topRightRadius > 0 ? Math.max(0, box.topRightRadius - 1) : 0
-                                bottomLeftRadius: Math.max(0, box.bottomLeftRadius - 1)
-                                bottomRightRadius: Math.max(0, box.bottomRightRadius - 1)
+                                topLeftRadius: radius
+                                topRightRadius: radius
+                                bottomLeftRadius: radius
+                                bottomRightRadius: radius
                                 color: StyleTokens.transparent
                                 border.width: 1
                                 border.color: StyleTokens.surfaceHighlight
