@@ -204,7 +204,7 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - **Battery Health, Charge Limit & Conservation Mode**: Direct hardware control for laptop battery lifespan preservation:
   - **Lenovo IdeaPad Conservation Mode**: Hardware-level 80% charge threshold integration via `ideapad_acpi` (`conservation_mode`), capping charge at 80% while plugged in to prevent battery wear.
   - **Generic Laptop Charge End Threshold**: Automatic support for standard Linux battery threshold interfaces (`charge_control_end_threshold`) with preset pills (`80%`, `85%`, `90%`, `100%`).
-  - **Dedicated Battery Flyout Panel**: Symmetrical 318×404 flyout opened by clicking the battery pill in the Control Center header or the chevron (`›`) on the drawer Battery card.
+  - **Dedicated Battery Flyout Panel**: Symmetrical 318×404 flyout opened by clicking the battery pill in the Control Center header.
   - **Live Battery Telemetry**: Real-time display of battery charge status, health percentage (`batteryHealthPercent`), cycle count (`batteryCycleCount`), and an active `80% Cap` badge.
   - **Zero-Latency Non-Blocking Control**: Asynchronous C++ backend paired with automated `systemd-tmpfiles` permissions (`tide-island-battery.conf`) for instantaneous toggling without root password prompts or UI freezes.
 - **Symmetrical Flyout Architecture & Mutual Exclusivity**:
@@ -562,7 +562,7 @@ tide-island-config-app
   - **Zero Background Overhead**: Metrics are sampled on demand directly from standard Linux `/proc` and `/sys` interfaces only while the dashboard is visible (0% CPU at idle).
 - **Battery Health & Charge Limit (Conservation Mode)**:
   - Protect laptop battery longevity when connected to AC power. On supported hardware (such as Lenovo IdeaPads with `ideapad_acpi` or generic laptops supporting `charge_control_end_threshold`), toggle between **80% Conservation** mode and **100% Full Charge** directly in the dedicated Battery flyout panel.
-  - Open the panel anytime by clicking the battery indicator pill in the Control Center header or clicking `›` on the drawer's Battery card.
+  - Open the panel anytime by clicking the battery indicator pill in the Control Center header.
   - The installer automatically configures `/usr/lib/tmpfiles.d/tide-island-battery.conf`, enabling instantaneous, passwordless switching without root prompts.
 - **Audio Device Switcher, Multi-Device Output & Application Mixer**:
   - Click the `›` chevron on either the Sound or Microphone card in the Control Center to open the Audio flyout panel.

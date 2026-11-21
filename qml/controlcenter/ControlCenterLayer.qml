@@ -2289,46 +2289,23 @@ Item {
                     }
                 }
 
-                Row {
+                Text {
                     anchors.right: parent.right
-                    anchors.rightMargin: 10
+                    anchors.rightMargin: 12
                     anchors.top: parent.top
-                    anchors.topMargin: 10
-                    spacing: 4
-
-                    Text {
-                        width: Math.max(0, batteryModeCard.width - 105)
-                        text: controlCenter.batteryModeError.length > 0
-                            ? controlCenter.batteryModeError
-                            : (controlCenter.batteryModeInfoMessage.length > 0
-                                ? controlCenter.batteryModeInfoMessage
-                                : controlCenter.batteryModeStatusText)
-                        color: controlCenter.batteryModeError.length > 0 ? StyleTokens.error : StyleTokens.textMuted
-                        horizontalAlignment: Text.AlignRight
-                        font.pixelSize: 9
-                        font.family: textFontFamily
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Text {
-                        text: "›"
-                        color: controlCenter.powerPanelOpen ? cardAccent : StyleTokens.textSubtle
-                        font.pixelSize: 16
-                        font.family: textFontFamily
-                        font.weight: Font.DemiBold
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-
-                MouseArea {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: 28
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: controlCenter.toggleConnectivityOverlay("power")
+                    anchors.topMargin: 12
+                    width: Math.max(0, batteryModeCard.width - 105)
+                    text: controlCenter.batteryModeError.length > 0
+                        ? controlCenter.batteryModeError
+                        : (controlCenter.batteryModeInfoMessage.length > 0
+                            ? controlCenter.batteryModeInfoMessage
+                            : controlCenter.batteryModeStatusText)
+                    color: controlCenter.batteryModeError.length > 0 ? StyleTokens.error : StyleTokens.textMuted
+                    horizontalAlignment: Text.AlignRight
+                    font.pixelSize: 9
+                    font.family: textFontFamily
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
                 }
 
                 Item {
