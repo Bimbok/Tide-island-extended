@@ -75,7 +75,11 @@ bool ScreenRecorderController::isPollTimerActive() const {
 }
 
 bool ScreenRecorderController::isRecording() const {
-    return m_isRecording;
+    return m_isRecording || m_isStopping;
+}
+
+bool ScreenRecorderController::isStopping() const {
+    return m_isStopping;
 }
 
 bool ScreenRecorderController::isPaused() const {
@@ -322,7 +326,7 @@ QString ScreenRecorderController::detectDefaultScreen() const {
     if (!gsr.isEmpty()) {
         QProcess proc;
         proc.start(gsr, {QStringLiteral("--list-monitors")});
-        if (proc.waitForFinished(300)) {
+        if (proc.waitForFinished(1000)) {
             const QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
             const QStringList lines = out.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
             for (const QString &line : lines) {
@@ -335,8 +339,7 @@ QString ScreenRecorderController::detectDefaultScreen() const {
         }
     }
 
-    m_cachedDetectedScreen = QStringLiteral("eDP-1");
-    return m_cachedDetectedScreen;
+    return QStringLiteral("eDP-1");
 }
 
 QString ScreenRecorderController::resolveAudioSource(bool withMic) const {
@@ -346,8 +349,8 @@ QString ScreenRecorderController::resolveAudioSource(bool withMic) const {
 }
 
 void ScreenRecorderController::startRecording(bool withMic) {
-    if (m_isRecording) {
-        emit notificationRequested(QStringLiteral("Screen Recorder"), QStringLiteral("Recording is already in progress."));
+    if (m_isRecording || m_isStopping) {
+        emit notificationRequested(QStringLiteral("Screen Recorder"), QStringLiteral("Recording is already in progress or finishing."));
         return;
     }
 
@@ -386,6 +389,7 @@ void ScreenRecorderController::startRecording(bool withMic) {
     attachProcessWatcher(pid, false);
 
     m_isRecording = true;
+    m_isStopping = false;
     m_isPaused = false;
     m_recordingSeconds = 0;
     m_tickTimer.start();
@@ -402,45 +406,45 @@ void ScreenRecorderController::startRecording(bool withMic) {
 }
 
 void ScreenRecorderController::stopRecording() {
-    detachProcessWatcher(false);
-
     qint64 pid = m_recordPid;
     if (pid <= 0)
         pid = readPidFromFile(recordPidFilePath());
 
     if (pid <= 0 || !isProcessRunning(pid)) {
         m_isRecording = false;
+        m_isStopping = false;
         m_isPaused = false;
         m_recordPid = 0;
         removePidFile(recordPidFilePath());
         m_tickTimer.stop();
+        detachProcessWatcher(false);
         emit recordingStateChanged();
         if (SystemServices::instance())
             SystemServices::instance()->updateScreenRecordingActive();
         return;
     }
 
-    // SIGINT cleanly finishes the MP4 container
-    kill(static_cast<pid_t>(pid), SIGINT);
-    removePidFile(recordPidFilePath());
-
-    m_isRecording = false;
-    m_isPaused = false;
-    m_recordPid = 0;
+    // Set stopping state and stop tick counter immediately
+    m_isStopping = true;
     m_tickTimer.stop();
-
-    m_lastSavedFile = m_currentRecordingFile;
-    emit lastSavedFileChanged();
     emit recordingStateChanged();
 
-    emit notificationRequested(QStringLiteral("Recording Saved"),
-                               m_currentRecordingFile.isEmpty() ? m_recordingsDir : m_currentRecordingFile);
+    // SIGINT cleanly finishes the MP4 container
+    kill(static_cast<pid_t>(pid), SIGINT);
 
-    if (SystemServices::instance())
-        SystemServices::instance()->updateScreenRecordingActive();
+    // Keep watcher attached so when gpu-screen-recorder flushes and exits,
+    // pollExternalState() will finalize state and emit "Recording Saved".
+    // Fallback safety timeout in case it hangs
+    QTimer::singleShot(5000, this, [this, pid]() {
+        if (m_isStopping && m_recordPid == pid && isProcessRunning(pid)) {
+            kill(static_cast<pid_t>(pid), SIGKILL);
+        }
+    });
 }
 
 void ScreenRecorderController::toggleRecording() {
+    if (m_isStopping)
+        return;
     if (m_isRecording)
         stopRecording();
     else
@@ -609,22 +613,39 @@ void ScreenRecorderController::pollExternalState() {
         removePidFile(recordPidFilePath());
     }
 
-    if (recRunning != m_isRecording) {
-        m_isRecording = recRunning;
-        m_recordPid = recRunning ? recPid : 0;
-        if (m_isRecording) {
+    if (recRunning != m_isRecording || m_isStopping) {
+        if (!recRunning) {
+            const bool wasActive = (m_isRecording || m_isStopping);
+            m_isRecording = false;
+            m_isStopping = false;
+            m_isPaused = false;
+            m_recordPid = 0;
+            m_tickTimer.stop();
+            removePidFile(recordPidFilePath());
+            detachProcessWatcher(false);
+
+            if (wasActive) {
+                m_lastSavedFile = m_currentRecordingFile;
+                emit lastSavedFileChanged();
+                emit recordingStateChanged();
+
+                emit notificationRequested(QStringLiteral("Recording Saved"),
+                                           m_currentRecordingFile.isEmpty() ? m_recordingsDir : m_currentRecordingFile);
+
+                if (SystemServices::instance())
+                    SystemServices::instance()->updateScreenRecordingActive();
+            }
+        } else if (!m_isRecording) {
+            m_isRecording = true;
+            m_isStopping = false;
+            m_recordPid = recPid;
             if (!m_tickTimer.isActive())
                 m_tickTimer.start();
             attachProcessWatcher(m_recordPid, false);
-        } else {
-            m_tickTimer.stop();
-            m_isPaused = false;
-            removePidFile(recordPidFilePath());
-            detachProcessWatcher(false);
+            emit recordingStateChanged();
+            if (SystemServices::instance())
+                SystemServices::instance()->updateScreenRecordingActive();
         }
-        emit recordingStateChanged();
-        if (SystemServices::instance())
-            SystemServices::instance()->updateScreenRecordingActive();
     } else if (m_isRecording && m_recordPid > 0 && m_recordPidFd < 0) {
         attachProcessWatcher(m_recordPid, false);
     }

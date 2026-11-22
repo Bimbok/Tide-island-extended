@@ -144,21 +144,26 @@ QString UserConfigBackend::wallpaperPath() const
         }
     }
 
-    // Try detecting from active wallpaper managers once
+    // Try detecting from active wallpaper managers (cache on success, throttle retries on miss)
     if (!m_probedActiveWallpaper) {
-        m_probedActiveWallpaper = true;
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - m_lastWallpaperProbeTime < 3000) {
+            return m_wallpaperPath;
+        }
+        m_lastWallpaperProbeTime = now;
 
         const QString awwwBin = QStandardPaths::findExecutable(QStringLiteral("awww"));
         if (!awwwBin.isEmpty()) {
             QProcess proc;
             proc.start(awwwBin, {QStringLiteral("query")});
-            if (proc.waitForFinished(150)) {
+            if (proc.waitForFinished(200)) {
                 const QString output = QString::fromUtf8(proc.readAllStandardOutput());
                 const int idx = output.indexOf(QStringLiteral("image: "));
                 if (idx != -1) {
                     QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
                     if (!path.isEmpty() && QFile::exists(path)) {
                         m_resolvedWallpaperPath = path;
+                        m_probedActiveWallpaper = true;
                         return m_resolvedWallpaperPath;
                     }
                 }
@@ -169,13 +174,14 @@ QString UserConfigBackend::wallpaperPath() const
         if (!swwwBin.isEmpty()) {
             QProcess proc;
             proc.start(swwwBin, {QStringLiteral("query")});
-            if (proc.waitForFinished(150)) {
+            if (proc.waitForFinished(200)) {
                 const QString output = QString::fromUtf8(proc.readAllStandardOutput());
                 const int idx = output.indexOf(QStringLiteral("image: "));
                 if (idx != -1) {
                     QString path = output.mid(idx + 7).split(u'\n').first().trimmed();
                     if (!path.isEmpty() && QFile::exists(path)) {
                         m_resolvedWallpaperPath = path;
+                        m_probedActiveWallpaper = true;
                         return m_resolvedWallpaperPath;
                     }
                 }
@@ -777,6 +783,7 @@ void UserConfigBackend::loadConfig()
     updateWatchedPaths();
 
     m_probedActiveWallpaper = false;
+    m_lastWallpaperProbeTime = 0;
     m_resolvedWallpaperPath.clear();
 
     QJsonObject configObject;

@@ -263,6 +263,7 @@ private:
     QString m_wallpaperPath;
     mutable QString m_resolvedWallpaperPath;
     mutable bool m_probedActiveWallpaper = false;
+    mutable qint64 m_lastWallpaperProbeTime = 0;
     QString m_wallpaperLibraryPath;
     bool m_wallpaperPywalEnabled = false;
     bool m_wallpaperCustomCommandEnabled = false;
