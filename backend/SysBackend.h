@@ -121,6 +121,7 @@ private:
     QString m_batteryStatus;
     QString m_upowerBatteryPath;
     bool m_hasBatteryState;
+    bool m_shuttingDown = false;
 
     struct udev *m_udev;
     struct udev_monitor *m_batteryMonitor;

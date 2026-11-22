@@ -52,6 +52,7 @@ SysBackend::SysBackend(QObject *parent)
 }
 
 SysBackend::~SysBackend() {
+    m_shuttingDown = true;
     stopLyricsBackend();
     if (m_batteryMonitor) udev_monitor_unref(m_batteryMonitor);
     if (m_udev) udev_unref(m_udev);
@@ -715,10 +716,31 @@ void SysBackend::stopLyricsBackend() {
     if (m_lyricsRestartTimer)
         m_lyricsRestartTimer->stop();
     if (m_lyricsProcess && m_lyricsProcess->state() != QProcess::NotRunning) {
-        m_lyricsProcess->terminate();
-        if (!m_lyricsProcess->waitForFinished(150)) {
-            m_lyricsProcess->kill();
-            m_lyricsProcess->waitForFinished(300);
+        auto *proc = m_lyricsProcess;
+        m_lyricsProcess = nullptr;
+        proc->disconnect();
+        proc->terminate();
+        if (m_shuttingDown) {
+            if (!proc->waitForFinished(50)) {
+                proc->kill();
+                proc->waitForFinished(50);
+            }
+            delete proc;
+        } else {
+            // Asynchronously kill after 200ms grace period to avoid blocking UI event loop
+            QTimer::singleShot(200, proc, [proc]() {
+                if (proc->state() != QProcess::NotRunning) {
+                    proc->kill();
+                }
+            });
+            connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
+
+            m_lyricsProcess = new QProcess(this);
+            connect(m_lyricsProcess, &QProcess::readyReadStandardOutput, this, &SysBackend::handleLyricsReadyRead);
+            connect(m_lyricsProcess, &QProcess::readyReadStandardError, this, &SysBackend::handleLyricsStderr);
+            connect(m_lyricsProcess, &QProcess::stateChanged, this, &SysBackend::handleLyricsProcessStateChanged);
+            connect(m_lyricsProcess, &QProcess::errorOccurred, this, &SysBackend::handleLyricsProcessError);
+            connect(m_lyricsProcess, &QProcess::finished, this, &SysBackend::handleLyricsProcessFinished);
         }
     }
 

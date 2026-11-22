@@ -855,7 +855,7 @@ bool Backend::hyprlandUsesLuaConfig() const{
     process.setProgram(QStringLiteral("hyprctl"));
     process.setArguments({QStringLiteral("binds")});
     process.start();
-    if (!process.waitForFinished(3000)
+    if (!process.waitForFinished(500)
         || process.exitStatus() != QProcess::NormalExit
         || process.exitCode() != 0) {
         return false;
@@ -1081,7 +1081,7 @@ bool Backend::reloadHyprland(){
     process.setStandardOutputFile(QProcess::nullDevice());
     process.setStandardErrorFile(QProcess::nullDevice());
     process.start();
-    return process.waitForFinished(5000)
+    return process.waitForFinished(800)
         && process.exitStatus() == QProcess::NormalExit
         && process.exitCode() == 0;
 }
@@ -1102,14 +1102,14 @@ bool Backend::validateNiriConfig(const QString &configText){
     process.setProgram(QStringLiteral("niri"));
     process.setArguments({QStringLiteral("validate"), QStringLiteral("-c"), tempFile.fileName()});
     process.start();
-    if (!process.waitForStarted(3000)) {
+    if (!process.waitForStarted(500)) {
         setErrorString(QStringLiteral("Could not run niri validate. Install niri or check PATH."));
         return false;
     }
 
-    if (!process.waitForFinished(5000)) {
+    if (!process.waitForFinished(1000)) {
         process.kill();
-        process.waitForFinished(1000);
+        process.waitForFinished(200);
         setErrorString(QStringLiteral("niri validate timed out."));
         return false;
     }

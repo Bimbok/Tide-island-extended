@@ -327,6 +327,14 @@ SystemServices::~SystemServices() {
     m_pendingAppStreamVolumePercents.clear();
     m_activeAppStreamVolumeCommands.clear();
 
+    const QList<QProcess*> procs = {m_busMonitor, m_pipeWireMonitor, m_recordingSnapshot, m_tlpSetter, m_cavaProcess};
+    for (auto *p : procs) {
+        if (p && p->state() != QProcess::NotRunning) {
+            p->disconnect();
+            p->terminate();
+        }
+    }
+
     stopProcess(m_busMonitor);
     stopProcess(m_pipeWireMonitor);
     stopProcess(m_recordingSnapshot);
@@ -510,9 +518,20 @@ void SystemServices::stopProcess(QProcess *&process) {
     current->disconnect();
     if (current->state() != QProcess::NotRunning) {
         current->terminate();
-        if (!current->waitForFinished(150)) {
-            current->kill();
-            current->waitForFinished(300);
+        if (m_shuttingDown) {
+            if (!current->waitForFinished(50)) {
+                current->kill();
+                current->waitForFinished(50);
+            }
+        } else {
+            // Asynchronously kill after 200ms grace period without blocking the UI event loop
+            QTimer::singleShot(200, current, [current]() {
+                if (current->state() != QProcess::NotRunning) {
+                    current->kill();
+                }
+            });
+            connect(current, &QProcess::finished, current, &QObject::deleteLater);
+            return;
         }
     }
     current->deleteLater();
@@ -1105,10 +1124,10 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
         if (!niriSocketPath.isEmpty()) {
             QLocalSocket socket;
             socket.connectToServer(niriSocketPath);
-            if (socket.waitForConnected(300)) {
+            if (socket.waitForConnected(50)) {
                 socket.write("\"Windows\"\n");
                 socket.flush();
-                while (socket.waitForReadyRead(300)) {
+                while (socket.waitForReadyRead(50)) {
                     responseBytes.append(socket.readAll());
                     if (responseBytes.contains('\n')) break;
                 }
@@ -1117,7 +1136,7 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
         if (responseBytes.isEmpty() && !niriCmd.isEmpty()) {
             QProcess proc;
             proc.start(niriCmd, {QStringLiteral("msg"), QStringLiteral("--json"), QStringLiteral("windows")});
-            if (proc.waitForFinished(800)) {
+            if (proc.waitForFinished(200)) {
                 responseBytes = proc.readAllStandardOutput();
             }
         }
@@ -1211,13 +1230,17 @@ void SystemServices::focusSenderWindow(const QString &appName, qint64 pid, const
             if (!niriSocketPath.isEmpty()) {
                 QLocalSocket socket;
                 socket.connectToServer(niriSocketPath);
-                if (socket.waitForConnected(300)) {
+                if (socket.waitForConnected(50)) {
                     const QString actionJson = QStringLiteral("{\"Action\":{\"FocusWindow\":{\"id\":%1}}}\n").arg(bestId);
                     socket.write(actionJson.toUtf8());
                     socket.flush();
-                    socket.waitForBytesWritten(300);
-                    if (socket.waitForReadyRead(300)) {
-                        focused = true;
+                    socket.waitForBytesWritten(50);
+                    if (socket.waitForReadyRead(50)) {
+                        const QByteArray reply = socket.readAll();
+                        const QJsonDocument replyDoc = QJsonDocument::fromJson(reply);
+                        if (replyDoc.isObject() && (replyDoc.object().contains(QStringLiteral("Ok")) || replyDoc.object().contains(QStringLiteral("Handled")))) {
+                            focused = true;
+                        }
                     }
                 }
             }
