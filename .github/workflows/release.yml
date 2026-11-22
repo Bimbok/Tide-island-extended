@@ -25,7 +25,7 @@ jobs:
             install: >-
               dnf install -y gcc-c++ cmake ninja-build pkgconf-pkg-config git
               tar dbus-daemon qt6-qtbase-devel qt6-qtdeclarative-devel
-              qt6-qt5compat systemd-devel
+              qt6-qt5compat systemd-devel pipewire-devel
           - name: Debian 13
             image: debian:trixie
             experimental: false
@@ -33,7 +33,7 @@ jobs:
               apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
               build-essential cmake ninja-build pkg-config git tar dbus
               qt6-base-dev qt6-declarative-dev libudev-dev
-              qml6-module-qt5compat-graphicaleffects
+              qml6-module-qt5compat-graphicaleffects libpipewire-0.3-dev
           - name: openSUSE Tumbleweed
             image: opensuse/tumbleweed
             experimental: true
@@ -41,7 +41,7 @@ jobs:
               zypper --non-interactive --gpg-auto-import-keys refresh &&
               zypper --non-interactive install --no-recommends gcc-c++ cmake
               ninja pkg-config git tar gzip dbus-1 qt6-base-devel
-              qt6-declarative-devel qt6-qt5compat-imports systemd-devel
+              qt6-declarative-devel qt6-qt5compat-imports systemd-devel pipewire-devel
     container:
       image: ${{ matrix.image }}
 

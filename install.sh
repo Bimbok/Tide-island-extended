@@ -466,6 +466,7 @@ apt_install_dependencies() {
     qt6-wayland qt6-wayland-dev qt6-wayland-private-dev
     qt6-shadertools-dev libqt6svg6 libqt6svg6-dev
     libudev-dev libdrm-dev libwayland-dev wayland-protocols
+    libpipewire-0.3-dev
     libgbm-dev vulkan-headers libjemalloc-dev libcli11-dev spirv-tools
   )
   local runtime_packages=(
@@ -530,6 +531,7 @@ dnf_install_dependencies() {
     qt6-qtdeclarative-devel qt6-qtwayland-devel
     qt6-qtshadertools-devel qt6-qtsvg-devel
     systemd-devel libdrm-devel wayland-devel wayland-protocols-devel
+    pipewire-devel
     mesa-libgbm-devel vulkan-headers jemalloc-devel cli11-devel spirv-tools-devel
   )
   local runtime_packages=(
@@ -590,6 +592,7 @@ zypper_install_dependencies() {
     qt6-base-devel qt6-declarative-devel qt6-wayland-devel
     qt6-shadertools-devel qt6-svg-devel
     systemd-devel libdrm-devel wayland-devel wayland-protocols-devel
+    pipewire-devel
     Mesa-libgbm-devel vulkan-headers libjemalloc-devel cli11-devel spirv-tools-devel
   )
   local runtime_packages=(

@@ -55,6 +55,7 @@ stdenv.mkDerivation (finalAttrs: {
     kdePackages.qtshadertools
     kdePackages.qtsvg
     udev
+    pipewire
     wayland
     wayland-protocols
     libdrm
