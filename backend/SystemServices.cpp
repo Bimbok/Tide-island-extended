@@ -417,11 +417,15 @@ QProcess *SystemServices::startCommand(const QString &program,
                                        const QByteArray &stdinData) {
     const QString executable = findExecutable(program);
     if (executable.isEmpty()) {
-        CommandResult result;
-        result.errorString = QStringLiteral("%1 is not installed.").arg(program);
-        QTimer::singleShot(0, this, [callback, result]() {
-            callback(result);
-        });
+        if (callback) {
+            CommandResult result;
+            result.errorString = QStringLiteral("%1 is not installed.").arg(program);
+            QTimer::singleShot(0, this, [callback, result]() {
+                if (callback) {
+                    callback(result);
+                }
+            });
+        }
         return nullptr;
     }
 
