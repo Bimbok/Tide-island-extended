@@ -18,6 +18,10 @@
 </p>
 
 <p align="center">
+  <a href="https://trendshift.io/repositories/361921?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-361921" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/361921/daily?language=QML" alt="Bimbok%2FTide-island-extended | Trendshift" width="250" height="55"/></a>
+</p>
+
+<p align="center">
   <b>Upstream:</b> <a href="https://github.com/enhaoswen/Tide-island">enhaoswen/Tide-island</a>
 </p>
 
