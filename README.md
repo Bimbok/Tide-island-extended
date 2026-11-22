@@ -265,7 +265,7 @@ It is built with Quickshell, QML, and C++/Qt 6. Animations are tuned to be fluid
 - Clock
 - Dynamic Island Lockscreen & Ambient Multi-Monitor Standby (`tide-island --lock`, desktop shortcut, or IPC)
 - Dynamic Island & MacBook Top Notch styles (Super + Alt + N, Settings, or IPC)
-- System Glance & Dashboard (Super + G, swipe down, or IPC)
+- System Glance & Dashboard (Super + G, Control Center, or IPC)
 - Bluetooth earphone connection bubble with dynamic battery gauge ring
 - Music player
 - Control Center
@@ -559,7 +559,7 @@ tide-island-config-app
   - Tucked inside the Control Center drawer with an item count pill badge and smooth horizontal wheel/touch scrolling.
   - Supports left-click activate, right-click context menus, wheel scrolling, and tooltip previews on hover.
 - **System Glance & Mini Dashboard**:
-  - Open anytime by pressing `Super + G`, swiping down on the dynamic island capsule, or triggering via IPC (`quickshell ipc call glance toggle`).
+  - Open anytime by pressing `Super + G`, via the Control Center drawer, or triggering via IPC (`quickshell ipc call glance toggle`).
   - **User Profile & Diagnostics**: Circular user avatar (click to change or auto-detected), hostname, system uptime, and multi-metric battery telemetry (`⚡ 100% • Full • 99% Health` with power wattage and cycle count tooltips).
   - **Live Hardware Monitoring**: Real-time meters for CPU utilization & core temperature, RAM & Swap consumption, active network interface upload/download throughput with local IP address, and storage disk space.
   - **Package Updates & Kernel Info**: Displays available package updates with a one-click terminal launcher, alongside active Linux kernel release, CPU governor (`powersave`), and 1m/5m/15m system load averages.

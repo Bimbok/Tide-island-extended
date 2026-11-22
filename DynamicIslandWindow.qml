@@ -2763,8 +2763,6 @@ PanelWindow {
                 property bool sideSwipeInteractive: false
                 property bool suppressNextClick: false
                 property bool preparedOverviewOnPress: false
-                property bool swipeDownDetected: false
-                property bool swipeUpDetected: false
 
                 Timer {
                     id: swipeSuppressReset
@@ -2797,8 +2795,6 @@ PanelWindow {
                     const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
                     swipeStartX = mappedPoint.x;
                     swipeStartY = mappedPoint.y;
-                    swipeDownDetected = false;
-                    swipeUpDetected = false;
                     islandContainer.cancelSideSwipeSettle();
                     swipeArmed = mouse.button === Qt.LeftButton
                         && islandContainer.canShowSideSwipe;
@@ -2828,15 +2824,6 @@ PanelWindow {
 
                     const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
                     const dy = mappedPoint.y - swipeStartY;
-                    const dx = Math.abs(mappedPoint.x - swipeStartX);
-                    if (dy > 30 && dx < 35) {
-                        swipeDownDetected = true;
-                        swipeMoved = true;
-                    } else if (dy < -25 && dx < 35) {
-                        swipeUpDetected = true;
-                        swipeMoved = true;
-                    }
-
                     const deltaX = mappedPoint.x - swipeLastX;
                     const deltaY = Math.abs(dy);
                     const adjustedDeltaX = deltaY < sideSwipeVerticalTolerance ? deltaX : 0;
@@ -2858,34 +2845,6 @@ PanelWindow {
                         preparedOverviewOnPress = false;
                         suppressNextClick = true;
                         swipeSuppressReset.restart();
-                    }
-
-                    if (swipeDownDetected) {
-                        swipeDownDetected = false;
-                        swipeUpDetected = false;
-                        swipeArmed = false;
-                        swipeMoved = false;
-                        sideSwipeInteractive = false;
-                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
-                        if (islandContainer.islandState === "glance")
-                            islandContainer.smartRestoreState();
-                        else
-                            islandContainer.showGlance();
-                        return;
-                    }
-
-                    if (swipeUpDetected) {
-                        swipeDownDetected = false;
-                        swipeUpDetected = false;
-                        swipeArmed = false;
-                        swipeMoved = false;
-                        sideSwipeInteractive = false;
-                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
-                        if (islandContainer.islandState === "glance")
-                            islandContainer.smartRestoreState();
-                        return;
                     }
 
                     let settleResult = {
@@ -2933,8 +2892,6 @@ PanelWindow {
                         root.cancelPreparedOverviewEverywhere();
                     swipeArmed = false;
                     swipeMoved = false;
-                    swipeDownDetected = false;
-                    swipeUpDetected = false;
                     sideSwipeInteractive = false;
                     suppressNextClick = false;
                     preparedOverviewOnPress = false;
@@ -2955,7 +2912,7 @@ PanelWindow {
                         return;
                     }
 
-                    if (islandContainer.islandState === "privacy_hud") {
+                    if (islandContainer.islandState === "privacy_hud" || islandContainer.islandState === "glance") {
                         if (preparedOverviewOnPress)
                             root.cancelPreparedOverviewEverywhere();
                         preparedOverviewOnPress = false;
@@ -3020,8 +2977,6 @@ PanelWindow {
                 property real swipeStartY: 0
                 property real swipeStartProgress: 0
                 property bool swipeMoved: false
-                property bool touchSwipeDown: false
-                property bool touchSwipeUp: false
 
                 onPressed: (touchPoints) => {
                     const centerPoint = islandContainer.mapFromItem(twoFingerTouchArea, 
@@ -3031,8 +2986,6 @@ PanelWindow {
                     swipeStartY = centerPoint.y;
                     swipeStartProgress = islandContainer.swipeTransitionProgress;
                     swipeMoved = false;
-                    touchSwipeDown = false;
-                    touchSwipeUp = false;
                     islandContainer.cancelSideSwipeSettle();
                 }
 
@@ -3042,14 +2995,6 @@ PanelWindow {
                         (touchPoints[0].y + touchPoints[1].y) / 2);
                     
                     const deltaX = centerPoint.x - swipeStartX;
-                    const deltaY = centerPoint.y - swipeStartY;
-                    if (deltaY > 30 && Math.abs(deltaX) < 35) {
-                        touchSwipeDown = true;
-                        swipeMoved = true;
-                    } else if (deltaY < -25 && Math.abs(deltaX) < 35) {
-                        touchSwipeUp = true;
-                        swipeMoved = true;
-                    }
 
                     const nextProgress = islandContainer.advanceSideSwipeProgress(
                         swipeStartProgress,
@@ -3065,30 +3010,6 @@ PanelWindow {
                 }
 
                 onReleased: {
-                    if (touchSwipeDown) {
-                        touchSwipeDown = false;
-                        touchSwipeUp = false;
-                        swipeMoved = false;
-                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
-                        if (islandContainer.islandState === "glance")
-                            islandContainer.smartRestoreState();
-                        else
-                            islandContainer.showGlance();
-                        return;
-                    }
-
-                    if (touchSwipeUp) {
-                        touchSwipeDown = false;
-                        touchSwipeUp = false;
-                        swipeMoved = false;
-                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-                        islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
-                        if (islandContainer.islandState === "glance")
-                            islandContainer.smartRestoreState();
-                        return;
-                    }
-
                     if (swipeMoved) {
                         const settleResult = islandContainer.resolveSideSwipeSettle(
                             swipeStartProgress,
