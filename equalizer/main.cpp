@@ -147,6 +147,7 @@ public:
         pushParams();
 
         if (!openSocket(loop)) return 1;
+        saveTimer_ = pw_loop_add_timer(loop, onSaveTimer, this);
 
         registry_ = pw_core_get_registry(core_, PW_VERSION_REGISTRY, 0);
         pw_registry_add_listener(registry_, &registryListener_, &registryEventsTable(), this);
@@ -196,13 +197,36 @@ private:
         if (f && std::getline(f, line)) sa::applyCommand(params_, line);
     }
 
+    static void onSaveTimer(void* data, uint64_t) {
+        static_cast<Daemon*>(data)->flushState();
+    }
+
+    void scheduleSaveState() {
+        stateDirty_ = true;
+        if (!saveTimer_) return;
+        timespec value{0, 250 * 1000 * 1000};
+        pw_loop_update_timer(pw_main_loop_get_loop(loop_), saveTimer_, &value, nullptr, false);
+    }
+
+    void flushState() {
+        if (!stateDirty_) return;
+        stateDirty_ = false;
+        saveState();
+    }
+
     void saveState() {
         const std::string dir = stateDir();
         makeDirs(dir);
         const std::string tmp = dir + "/equalizer.state.tmp";
         {
             std::ofstream f(tmp, std::ios::trunc);
+            if (!f.is_open()) return;
             f << sa::serialize(params_) << '\n';
+            f.flush();
+            if (!f.good()) {
+                unlink(tmp.c_str());
+                return;
+            }
         }
         rename(tmp.c_str(), (dir + "/equalizer.state").c_str());
     }
@@ -220,8 +244,10 @@ private:
         sockaddr_un addr{};
         addr.sun_family = AF_UNIX;
         std::snprintf(addr.sun_path, sizeof addr.sun_path, "%s", path.c_str());
-        if (listenFd_ < 0 || bind(listenFd_, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 ||
-            listen(listenFd_, 8) != 0) {
+        const mode_t oldUmask = umask(0177);
+        const int bindRes = (listenFd_ >= 0) ? bind(listenFd_, reinterpret_cast<sockaddr*>(&addr), sizeof addr) : -1;
+        umask(oldUmask);
+        if (bindRes != 0 || listen(listenFd_, 8) != 0) {
             std::fprintf(stderr, "tide-equalizer: cannot bind %s\n", path.c_str());
             return false;
         }
@@ -233,11 +259,11 @@ private:
     static void onSocket(void* data, int fd, uint32_t) { static_cast<Daemon*>(data)->serve(fd); }
 
     void serve(int listenFd) {
-        const int fd = accept4(listenFd, nullptr, nullptr, SOCK_CLOEXEC);
+        const int fd = accept4(listenFd, nullptr, nullptr, SOCK_CLOEXEC | SOCK_NONBLOCK);
         if (fd < 0) return;
         pollfd pfd{fd, POLLIN, 0};
         std::string line;
-        if (poll(&pfd, 1, 200) > 0) {
+        if (poll(&pfd, 1, 25) > 0) {
             char buf[512];
             const ssize_t n = read(fd, buf, sizeof buf - 1);
             if (n > 0) line.assign(buf, n);
@@ -278,7 +304,7 @@ private:
         }
         if (!sa::applyCommand(params_, line)) return "error";
         pushParams();
-        saveState();
+        scheduleSaveState();
         return "ok";
     }
 
@@ -673,6 +699,8 @@ private:
         if (metadata_) pw_proxy_destroy(reinterpret_cast<pw_proxy*>(metadata_));
         if (registry_) pw_proxy_destroy(reinterpret_cast<pw_proxy*>(registry_));
         if (socketSource_) pw_loop_destroy_source(pw_main_loop_get_loop(loop_), socketSource_);
+        if (saveTimer_) pw_loop_destroy_source(pw_main_loop_get_loop(loop_), saveTimer_);
+        flushState();
         if (listenFd_ >= 0) close(listenFd_);
         unlink(socketPath().c_str());
         unlink((runtimeDir() + "/audio-target").c_str());
@@ -734,6 +762,8 @@ private:
     spa_hook coreListener_{}, registryListener_{}, metadataListener_{}, sinkListener_{}, outListener_{};
     pw_stream_events sinkEvents_{}, outEvents_{};
     spa_source* socketSource_ = nullptr;
+    spa_source* saveTimer_ = nullptr;
+    bool stateDirty_ = false;
     int listenFd_ = -1;
 
     struct StreamState {
