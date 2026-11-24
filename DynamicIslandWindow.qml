@@ -9,6 +9,7 @@ import "qml/controlcenter"
 import "qml/connectivity"
 import "qml/island"
 import "qml/workspace"
+import "qml/spotlight"
 
 PanelWindow {
     id: root
@@ -346,6 +347,7 @@ PanelWindow {
     exclusiveZone: Math.ceil(root.baseExclusiveZone * root.exclusiveZoneProgress)
     WlrLayershell.layer: islandContainer.wallpaperPickerLayerVisible
         || islandContainer.applicationLauncherLayerVisible
+        || islandContainer.spotlightLayerVisible
         || islandContainer.fileShelfLayerVisible
         || islandContainer.clipboardLayerVisible
         || islandContainer.weatherLayerVisible
@@ -360,6 +362,7 @@ PanelWindow {
                 || islandContainer.notificationCenterLayerVisible
                 || islandContainer.wallpaperPickerLayerVisible
                 || islandContainer.applicationLauncherLayerVisible
+                || islandContainer.spotlightLayerVisible
                 || islandContainer.fileShelfLayerVisible
                 || islandContainer.clipboardLayerVisible
                 || islandContainer.weatherLayerVisible
@@ -942,6 +945,22 @@ PanelWindow {
             islandContainer.showApplicationLauncher();
     }
 
+    function toggleSpotlightWindow() {
+        if (islandContainer.islandState === "spotlight")
+            islandContainer.smartRestoreState();
+        else
+            islandContainer.showSpotlight();
+    }
+
+    function showSpotlightWindow() {
+        islandContainer.showSpotlight();
+    }
+
+    function closeSpotlightWindow() {
+        if (islandContainer.islandState === "spotlight")
+            islandContainer.smartRestoreState();
+    }
+
     function toggleFileShelfWindow() {
         if (islandContainer.islandState === "file_shelf")
             islandContainer.smartRestoreState();
@@ -1134,6 +1153,59 @@ PanelWindow {
             applicationLauncherLoader.item.grabKeyboardFocus();
     }
 
+    function focusSpotlight() {
+        islandContainer.forceActiveFocus();
+        if (spotlightLoader.item && spotlightLoader.item.grabKeyboardFocus)
+            spotlightLoader.item.grabKeyboardFocus();
+    }
+
+    function handleSpotlightAction(key) {
+        switch (key) {
+        case "lock":
+            if (root.shellRootController && root.shellRootController.triggerLock)
+                root.shellRootController.triggerLock();
+            break;
+        case "control_center":
+            islandContainer.showControlCenter();
+            break;
+        case "equalizer":
+            islandContainer.showControlCenter();
+            if (controlCenterLoader.item && controlCenterLoader.item.openEqualizerPanel)
+                controlCenterLoader.item.openEqualizerPanel();
+            break;
+        case "recorder":
+            if (typeof SystemServices !== "undefined" && SystemServices)
+                SystemServices.requestScreenRecordingSnapshot();
+            break;
+        case "replay":
+            if (typeof SystemServices !== "undefined" && SystemServices)
+                SystemServices.requestScreenRecordingSnapshot();
+            break;
+        case "glance":
+            islandContainer.showGlance();
+            break;
+        case "clipboard":
+            islandContainer.showClipboard();
+            break;
+        case "shelf":
+            islandContainer.showFileShelf(true);
+            break;
+        case "calendar":
+            islandContainer.showCalendar();
+            break;
+        case "weather":
+            islandContainer.showWeather();
+            break;
+        case "style":
+            if (root.shellRootController && root.shellRootController.userConfig)
+                root.shellRootController.userConfig.toggleIslandStyle();
+            break;
+        case "power":
+            islandContainer.showPowerMenu();
+            break;
+        }
+    }
+
     function focusFileShelf() {
         islandContainer.forceActiveFocus();
         if (fileShelfLoader.item && fileShelfLoader.item.grabKeyboardFocus)
@@ -1257,6 +1329,7 @@ PanelWindow {
             || notificationCenterLayerVisible
             || wallpaperPickerLayerVisible
             || applicationLauncherLayerVisible
+            || spotlightLayerVisible
             || fileShelfLayerVisible
             || clipboardLayerVisible
             || weatherLayerVisible
@@ -1372,6 +1445,7 @@ PanelWindow {
             || islandState === "notification"
             || islandState === "wallpaper_picker"
             || islandState === "application_launcher"
+            || islandState === "spotlight"
             || islandState === "file_shelf"
             || islandState === "clipboard"
             || islandState === "weather"
@@ -1429,6 +1503,7 @@ PanelWindow {
         readonly property bool notificationCenterLayerVisible: !root.overviewVisible && islandState === "notification_center"
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
+        readonly property bool spotlightLayerVisible: !root.overviewVisible && islandState === "spotlight"
         readonly property bool fileShelfLayerVisible: !root.overviewVisible && islandState === "file_shelf"
         readonly property bool clipboardLayerVisible: !root.overviewVisible && islandState === "clipboard"
         readonly property bool weatherLayerVisible: !root.overviewVisible && islandState === "weather"
@@ -2344,6 +2419,15 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showSpotlight() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "spotlight";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            stopAutoHideTimer();
+        }
+
         function showFileShelf(manuallyOpened) {
             const manual = manuallyOpened === true;
             if (islandState === "file_shelf") {
@@ -2586,6 +2670,8 @@ PanelWindow {
                 case "application_launcher":
                 case "file_shelf":
                     return 1100;
+                case "spotlight":
+                    return 680;
                 case "clipboard":
                     return 520;
                 case "weather":
@@ -2622,6 +2708,8 @@ PanelWindow {
                 case "application_launcher":
                 case "file_shelf":
                     return 260;
+                case "spotlight":
+                    return 460;
                 case "clipboard":
                     return clipboardLoader.item && clipboardLoader.item.imgFullPreview ? 400 : 350;
                 case "weather":
@@ -2651,6 +2739,7 @@ PanelWindow {
                     return 28;
                 case "wallpaper_picker":
                 case "application_launcher":
+                case "spotlight":
                 case "file_shelf":
                 case "clipboard":
                 case "weather":
@@ -3392,6 +3481,27 @@ PanelWindow {
                         textFontFamily: root.textFontFamily
                         showCondition: islandContainer.applicationLauncherLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            Loader {
+                id: spotlightLoader
+                anchors.fill: parent
+                active: islandContainer.spotlightLayerVisible
+                asynchronous: false
+                visible: islandContainer.spotlightLayerVisible
+                onLoaded: root.focusSpotlight()
+
+                sourceComponent: Component {
+                    SpotlightLayer {
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        showCondition: islandContainer.spotlightLayerVisible
+                        onCloseRequested: islandContainer.smartRestoreState()
+                        onActionTriggered: function(key) {
+                            root.handleSpotlightAction(key);
+                        }
                     }
                 }
             }

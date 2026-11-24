@@ -230,6 +230,7 @@ Heartfelt thanks and appreciation to:
 * **[@gozhuimeng](https://github.com/gozhuimeng)** for lyrics backend improvements.
 * **[@LatifKovani](https://github.com/LatifKovani)** for code contributions and refinements.
 * **[@LUCKYS1NGHH](https://github.com/LUCKYS1NGHH)** for reference and inspiration from [ChillPill-Shell](https://github.com/LUCKYS1NGHH/ChillPill-Shell).
+* **[@marcho78](https://github.com/marcho78)** for inspiration and search, math evaluation, and frecency algorithms from [o-spotlight](https://github.com/marcho78/o-spotlight).
 
 ---
 

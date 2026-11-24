@@ -115,6 +115,25 @@ target_link_libraries(application_search_tests PRIVATE
 
 add_test(NAME application_search COMMAND application_search_tests)
 
+add_executable(spotlight_tests
+    tests/spotlight_tests.cpp
+)
+
+target_compile_definitions(spotlight_tests PRIVATE
+    SPOTLIGHT_CALC_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Calc.js"
+    SPOTLIGHT_MATCH_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Match.js"
+    SPOTLIGHT_WEB_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Web.js"
+    SPOTLIGHT_FRECENCY_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Frecency.js"
+)
+
+target_link_libraries(spotlight_tests PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Test
+)
+
+add_test(NAME spotlight COMMAND spotlight_tests)
+
 add_executable(bluetooth_formatting_tests
     tests/bluetooth_formatting_tests.cpp
 )

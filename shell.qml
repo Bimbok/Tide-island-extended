@@ -370,6 +370,18 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
         }
 
+        function toggleSpotlight() {
+            shellRoot.forFocusedWindow((window) => window.toggleSpotlightWindow());
+        }
+
+        function showSpotlight() {
+            shellRoot.forFocusedWindow((window) => window.showSpotlightWindow());
+        }
+
+        function closeSpotlight() {
+            shellRoot.forFocusedWindow((window) => window.closeSpotlightWindow());
+        }
+
         function toggleLauncher() {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
         }
@@ -785,6 +797,26 @@ Scope {
 
         function close() {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "spotlight"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleSpotlightWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showSpotlightWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showSpotlightWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closeSpotlightWindow());
         }
     }
 
