@@ -177,13 +177,13 @@ For detailed guides, compositor setup, architecture documentation, and troublesh
 
 | Guide | Description |
 |---|---|
-| 📦 **[Installation Guide](https://github.com/Bimbok/Tide-island-extended/wiki/Installation-Guide)** | Package installation, manual CMake compilation, multi-distro dependencies, and NixOS modules. |
-| 🪟 **[Compositor Integration](https://github.com/Bimbok/Tide-island-extended/wiki/Compositor-Integration)** | Complete setup, keybindings, layer rules, and `hypridle` configurations for Hyprland and niri. |
-| 🎨 **[Island Modes & Features](https://github.com/Bimbok/Tide-island-extended/wiki/Island-Modes-&-Features)** | Deep dive into Dynamic Island vs Top Notch, Multi-Audio, Screen Recording, Battery Health, and Lockscreen. |
-| 🎛️ **[Audio Equalizer Daemon](https://github.com/Bimbok/Tide-island-extended/wiki/Audio-Equalizer-Daemon)** | Architecture, PipeWire filter-chains, real-time SIMD DSP FrameRing, and socket IPC of `tide-equalizer`. |
-| ⚙️ **[Configuration & Theming](https://github.com/Bimbok/Tide-island-extended/wiki/Configuration-&-Theming)** | Configuration app usage, `config.json` schema, and live hot-reloading Matugen palettes. |
-| ⌨️ **[IPC & CLI Reference](https://github.com/Bimbok/Tide-island-extended/wiki/IPC-&-CLI-Reference)** | Exhaustive list of `quickshell ipc call` commands, desktop binaries, and scripting hooks. |
-| 🩺 **[Troubleshooting & FAQ](https://github.com/Bimbok/Tide-island-extended/wiki/Troubleshooting-&-FAQ)** | Common questions, permissions, audio routing solutions, log inspections, and debugging. |
+| **[Installation Guide](https://github.com/Bimbok/Tide-island-extended/wiki/Installation-Guide)** | Package installation, manual CMake compilation, multi-distro dependencies, and NixOS modules. |
+| **[Compositor Integration](https://github.com/Bimbok/Tide-island-extended/wiki/Compositor-Integration)** | Complete setup, keybindings, layer rules, and `hypridle` configurations for Hyprland and niri. |
+| **[Island Modes & Features](https://github.com/Bimbok/Tide-island-extended/wiki/Island-Modes-&-Features)** | Deep dive into Dynamic Island vs Top Notch, Multi-Audio, Screen Recording, Battery Health, and Lockscreen. |
+| **[Audio Equalizer Daemon](https://github.com/Bimbok/Tide-island-extended/wiki/Audio-Equalizer-Daemon)** | Architecture, PipeWire filter-chains, real-time SIMD DSP FrameRing, and socket IPC of `tide-equalizer`. |
+| **[Configuration & Theming](https://github.com/Bimbok/Tide-island-extended/wiki/Configuration-&-Theming)** | Configuration app usage, `config.json` schema, and live hot-reloading Matugen palettes. |
+| **[IPC & CLI Reference](https://github.com/Bimbok/Tide-island-extended/wiki/IPC-&-CLI-Reference)** | Exhaustive list of `quickshell ipc call` commands, desktop binaries, and scripting hooks. |
+| **[Troubleshooting & FAQ](https://github.com/Bimbok/Tide-island-extended/wiki/Troubleshooting-&-FAQ)** | Common questions, permissions, audio routing solutions, log inspections, and debugging. |
 
 ---
 
