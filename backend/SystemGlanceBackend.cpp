@@ -30,6 +30,44 @@ QString resolveUserConfigPath()
 {
     return resolveUserConfigDir() + QStringLiteral("/userconfig.json");
 }
+
+enum class PkgManager {
+    Pacman,
+    Apt,
+    Dnf,
+    Zypper,
+    Unknown
+};
+
+PkgManager detectPackageManager()
+{
+    if (QFile::exists(QStringLiteral("/usr/bin/checkupdates")) || QFile::exists(QStringLiteral("/usr/bin/pacman")))
+        return PkgManager::Pacman;
+    if (QFile::exists(QStringLiteral("/usr/bin/apt-get")) || QFile::exists(QStringLiteral("/usr/bin/apt")))
+        return PkgManager::Apt;
+    if (QFile::exists(QStringLiteral("/usr/bin/dnf")))
+        return PkgManager::Dnf;
+    if (QFile::exists(QStringLiteral("/usr/bin/zypper")))
+        return PkgManager::Zypper;
+    return PkgManager::Unknown;
+}
+
+bool isPackageDbLocked(PkgManager mgr)
+{
+    switch (mgr) {
+    case PkgManager::Pacman:
+        return QFile::exists(QStringLiteral("/var/lib/pacman/db.lck"));
+    case PkgManager::Apt:
+        return QFile::exists(QStringLiteral("/var/lib/dpkg/lock-frontend")) ||
+               QFile::exists(QStringLiteral("/var/lib/dpkg/lock"));
+    case PkgManager::Dnf:
+        return QFile::exists(QStringLiteral("/var/cache/dnf/metadata_lock.pid"));
+    case PkgManager::Zypper:
+        return QFile::exists(QStringLiteral("/var/run/zypp.pid"));
+    default:
+        return false;
+    }
+}
 }
 
 SystemGlanceBackend *SystemGlanceBackend::s_instance = nullptr;
@@ -67,23 +105,32 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
     connect(&m_configWatcher, &QFileSystemWatcher::fileChanged, this, onConfigChanged);
     connect(&m_configWatcher, &QFileSystemWatcher::directoryChanged, this, onConfigChanged);
 
-    // Watch pacman log and local package database for transaction completions
-    const QString pacmanLog = QStringLiteral("/var/log/pacman.log");
-    if (QFile::exists(pacmanLog)) {
-        m_lastPacmanLogTime = QFileInfo(pacmanLog).lastModified();
-        m_pacmanWatcher.addPath(pacmanLog);
+    // Watch package manager transaction logs and databases for completions
+    const QStringList logCandidates = {
+        QStringLiteral("/var/log/pacman.log"),
+        QStringLiteral("/var/log/dpkg.log"),
+        QStringLiteral("/var/log/dnf.log"),
+        QStringLiteral("/var/log/dnf.rpm.log"),
+        QStringLiteral("/var/log/zypp/history")
+    };
+    for (const QString &logPath : logCandidates) {
+        if (QFile::exists(logPath)) {
+            m_lastLogTimes[logPath] = QFileInfo(logPath).lastModified();
+            m_pacmanWatcher.addPath(logPath);
+        }
     }
     const QString pacmanLocalDir = QStringLiteral("/var/lib/pacman/local");
     if (QDir(pacmanLocalDir).exists()) {
         m_pacmanWatcher.addPath(pacmanLocalDir);
     }
 
-    auto onPacmanTransaction = [this]() {
-        const QString pLog = QStringLiteral("/var/log/pacman.log");
-        if (QFile::exists(pLog)) {
-            m_lastPacmanLogTime = QFileInfo(pLog).lastModified();
-            if (!m_pacmanWatcher.files().contains(pLog)) {
-                m_pacmanWatcher.addPath(pLog);
+    auto onPackageTransaction = [this, logCandidates]() {
+        for (const QString &logPath : logCandidates) {
+            if (QFile::exists(logPath)) {
+                m_lastLogTimes[logPath] = QFileInfo(logPath).lastModified();
+                if (!m_pacmanWatcher.files().contains(logPath)) {
+                    m_pacmanWatcher.addPath(logPath);
+                }
             }
         }
         // Invalidate cooldown so next check gets fresh counts immediately
@@ -92,8 +139,8 @@ SystemGlanceBackend::SystemGlanceBackend(QObject *parent)
             checkUpdatesAsync(true);
         }
     };
-    connect(&m_pacmanWatcher, &QFileSystemWatcher::fileChanged, this, onPacmanTransaction);
-    connect(&m_pacmanWatcher, &QFileSystemWatcher::directoryChanged, this, onPacmanTransaction);
+    connect(&m_pacmanWatcher, &QFileSystemWatcher::fileChanged, this, onPackageTransaction);
+    connect(&m_pacmanWatcher, &QFileSystemWatcher::directoryChanged, this, onPackageTransaction);
 
     initStaticInfo();
     updateBatteryStats();
@@ -130,13 +177,15 @@ void SystemGlanceBackend::setActive(bool active)
     if (m_active) {
         reloadAvatar();
 
-        // Check if pacman transactions occurred while glance was closed
-        const QString pLog = QStringLiteral("/var/log/pacman.log");
-        if (QFile::exists(pLog)) {
-            const QDateTime curMtime = QFileInfo(pLog).lastModified();
-            if (!m_lastPacmanLogTime.isValid() || curMtime > m_lastPacmanLogTime) {
-                m_lastPacmanLogTime = curMtime;
-                m_lastUpdateCheckTime = QElapsedTimer(); // Force fresh check
+        // Check if package transactions occurred while glance was closed
+        for (auto it = m_lastLogTimes.begin(); it != m_lastLogTimes.end(); ++it) {
+            if (QFile::exists(it.key())) {
+                const QDateTime curMtime = QFileInfo(it.key()).lastModified();
+                if (!it.value().isValid() || curMtime > it.value()) {
+                    it.value() = curMtime;
+                    m_lastUpdateCheckTime = QElapsedTimer(); // Force fresh check
+                    break;
+                }
             }
         }
 
@@ -176,14 +225,16 @@ void SystemGlanceBackend::onPollTick()
     if (!m_active)
         return;
 
-    // Detect if pacman finished an update while glance is open (zero-overhead stat)
-    const QString pLog = QStringLiteral("/var/log/pacman.log");
-    if (QFile::exists(pLog)) {
-        const QDateTime curMtime = QFileInfo(pLog).lastModified();
-        if (m_lastPacmanLogTime.isValid() && curMtime > m_lastPacmanLogTime) {
-            m_lastPacmanLogTime = curMtime;
-            m_lastUpdateCheckTime = QElapsedTimer();
-            checkUpdatesAsync(true);
+    // Detect if an update finished while glance is open (zero-overhead stat)
+    for (auto it = m_lastLogTimes.begin(); it != m_lastLogTimes.end(); ++it) {
+        if (QFile::exists(it.key())) {
+            const QDateTime curMtime = QFileInfo(it.key()).lastModified();
+            if (it.value().isValid() && curMtime > it.value()) {
+                it.value() = curMtime;
+                m_lastUpdateCheckTime = QElapsedTimer();
+                checkUpdatesAsync(true);
+                break;
+            }
         }
     }
 
@@ -990,114 +1041,166 @@ void SystemGlanceBackend::checkUpdatesAsync(bool force)
     if (m_checkingUpdates)
         return;
 
-    // Rate limit checks to once every 10 minutes unless explicitly forced or pacman log changed
+    // Rate limit checks to once every 10 minutes unless explicitly forced or transaction log changed
     if (!force && m_lastUpdateCheckTime.isValid() && m_lastUpdateCheckTime.elapsed() < 600000)
         return;
 
-    // If pacman is currently holding the database lock (update in progress), wait until it finishes
-    if (QFile::exists(QStringLiteral("/var/lib/pacman/db.lck")))
-        return;
-
-    m_checkingUpdates = true;
-    emit updatesChanged();
-
-    // Clean any stale lock left by an abruptly terminated checkupdates run
-    const QString lckPath = QStringLiteral("/tmp/checkup-db-") + QString::number(getuid()) + QStringLiteral("/db.lck");
-    QFile::remove(lckPath);
-
-    QProcess *proc = new QProcess(this);
-    m_updateProcess = proc;
-
-    auto runPacmanFallback = [this, proc]() {
-        if (!QFile::exists(QStringLiteral("/usr/bin/pacman"))) {
-            m_checkingUpdates = false;
-            m_lastUpdateCheckTime.restart();
-            m_pendingUpdatesCount = 0;
-            emit updatesChanged();
-            emit statsUpdated();
-            if (m_updateProcess == proc)
-                m_updateProcess = nullptr;
-            proc->deleteLater();
-            return;
-        }
-
-        QProcess *pacProc = new QProcess(this);
-        m_updateProcess = pacProc;
-        connect(pacProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-                [this, pacProc](int pCode, QProcess::ExitStatus pStatus) {
-            m_checkingUpdates = false;
-            m_lastUpdateCheckTime.restart();
-            if (pStatus == QProcess::NormalExit && pCode == 0) {
-                const QString fallbackText = QString::fromUtf8(pacProc->readAllStandardOutput()).trimmed();
-                m_pendingUpdatesCount = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
-            } else {
-                m_pendingUpdatesCount = 0;
-            }
-            emit updatesChanged();
-            emit statsUpdated();
-            if (m_updateProcess == pacProc)
-                m_updateProcess = nullptr;
-            pacProc->deleteLater();
-        });
-        connect(pacProc, &QProcess::errorOccurred, this, [this, pacProc](QProcess::ProcessError) {
-            m_checkingUpdates = false;
-            m_lastUpdateCheckTime.restart();
-            m_pendingUpdatesCount = 0;
-            emit updatesChanged();
-            emit statsUpdated();
-            if (m_updateProcess == pacProc)
-                m_updateProcess = nullptr;
-            pacProc->deleteLater();
-        });
-        pacProc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
-        proc->deleteLater();
-    };
-
-    auto onFinished = [this, proc, runPacmanFallback](int exitCode, QProcess::ExitStatus exitStatus) {
-        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-            m_checkingUpdates = false;
-            m_lastUpdateCheckTime.restart();
-            const QString text = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
-            m_pendingUpdatesCount = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
-            emit updatesChanged();
-            emit statsUpdated();
-            if (m_updateProcess == proc)
-                m_updateProcess = nullptr;
-            proc->deleteLater();
-        } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
-            // checkupdates returns 2 when no updates are available
-            m_checkingUpdates = false;
-            m_lastUpdateCheckTime.restart();
-            m_pendingUpdatesCount = 0;
-            emit updatesChanged();
-            emit statsUpdated();
-            if (m_updateProcess == proc)
-                m_updateProcess = nullptr;
-            proc->deleteLater();
-        } else {
-            // Fallback: check local synced pacman database asynchronously
-            runPacmanFallback();
-        }
-    };
-
-    connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, onFinished);
-
-    connect(proc, &QProcess::errorOccurred, this, [runPacmanFallback](QProcess::ProcessError) {
-        runPacmanFallback();
-    });
-
-    if (QFile::exists(QStringLiteral("/usr/bin/checkupdates"))) {
-        proc->start(QStringLiteral("/usr/bin/checkupdates"), QStringList());
-    } else if (QFile::exists(QStringLiteral("/usr/bin/pacman"))) {
-        proc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
-    } else {
+    const PkgManager mgr = detectPackageManager();
+    if (mgr == PkgManager::Unknown) {
         m_checkingUpdates = false;
         m_lastUpdateCheckTime.restart();
         m_pendingUpdatesCount = 0;
         emit updatesChanged();
         emit statsUpdated();
-        m_updateProcess = nullptr;
-        proc->deleteLater();
+        return;
+    }
+
+    if (isPackageDbLocked(mgr))
+        return;
+
+    m_checkingUpdates = true;
+    emit updatesChanged();
+
+    QProcess *proc = new QProcess(this);
+    m_updateProcess = proc;
+
+    auto finishUpdateCheck = [this](QProcess *p, int count) {
+        m_checkingUpdates = false;
+        m_lastUpdateCheckTime.restart();
+        m_pendingUpdatesCount = std::max(0, count);
+        emit updatesChanged();
+        emit statsUpdated();
+        if (m_updateProcess == p)
+            m_updateProcess = nullptr;
+        if (p)
+            p->deleteLater();
+    };
+
+    if (mgr == PkgManager::Pacman) {
+        // Clean any stale lock left by an abruptly terminated checkupdates run
+        const QString lckPath = QStringLiteral("/tmp/checkup-db-") + QString::number(getuid()) + QStringLiteral("/db.lck");
+        QFile::remove(lckPath);
+
+        auto runPacmanFallback = [this, proc, finishUpdateCheck]() {
+            if (m_updateProcess == proc)
+                m_updateProcess = nullptr;
+            proc->deleteLater();
+
+            if (!QFile::exists(QStringLiteral("/usr/bin/pacman"))) {
+                finishUpdateCheck(nullptr, 0);
+                return;
+            }
+
+            QProcess *pacProc = new QProcess(this);
+            m_updateProcess = pacProc;
+            auto onPacmanFinished = [this, pacProc, finishUpdateCheck](int pCode, QProcess::ExitStatus pStatus) {
+                if (pStatus == QProcess::NormalExit && pCode == 0) {
+                    const QString fallbackText = QString::fromUtf8(pacProc->readAllStandardOutput()).trimmed();
+                    const int cnt = fallbackText.isEmpty() ? 0 : fallbackText.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+                    finishUpdateCheck(pacProc, cnt);
+                } else {
+                    finishUpdateCheck(pacProc, 0);
+                }
+            };
+            connect(pacProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, onPacmanFinished);
+            connect(pacProc, &QProcess::errorOccurred, this, [pacProc, finishUpdateCheck](QProcess::ProcessError) {
+                finishUpdateCheck(pacProc, 0);
+            });
+            pacProc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
+        };
+
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [proc, finishUpdateCheck, runPacmanFallback](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                const QString text = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+                const int cnt = text.isEmpty() ? 0 : text.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size();
+                finishUpdateCheck(proc, cnt);
+            } else if (exitStatus == QProcess::NormalExit && exitCode == 2) {
+                // checkupdates returns 2 when no updates are available
+                finishUpdateCheck(proc, 0);
+            } else {
+                runPacmanFallback();
+            }
+        });
+        connect(proc, &QProcess::errorOccurred, this, [runPacmanFallback](QProcess::ProcessError) {
+            runPacmanFallback();
+        });
+
+        if (QFile::exists(QStringLiteral("/usr/bin/checkupdates"))) {
+            proc->start(QStringLiteral("/usr/bin/checkupdates"), QStringList());
+        } else {
+            proc->start(QStringLiteral("/usr/bin/pacman"), {QStringLiteral("-Qu")});
+        }
+    } else if (mgr == PkgManager::Apt) {
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [proc, finishUpdateCheck](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+                const QString text = QString::fromUtf8(proc->readAllStandardOutput());
+                const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+                int count = 0;
+                for (const QString &line : lines) {
+                    if (line.startsWith(QLatin1String("Inst "))) {
+                        count++;
+                    }
+                }
+                finishUpdateCheck(proc, count);
+            } else {
+                finishUpdateCheck(proc, 0);
+            }
+        });
+        connect(proc, &QProcess::errorOccurred, this, [proc, finishUpdateCheck](QProcess::ProcessError) {
+            finishUpdateCheck(proc, 0);
+        });
+        proc->start(QStringLiteral("/usr/bin/apt-get"),
+                    {QStringLiteral("-s"), QStringLiteral("-o"), QStringLiteral("Debug::NoLocking=true"),
+                     QStringLiteral("-o"), QStringLiteral("APT::Get::Show-Versions=false"), QStringLiteral("upgrade")});
+    } else if (mgr == PkgManager::Dnf) {
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [proc, finishUpdateCheck](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && (exitCode == 0 || exitCode == 100)) {
+                const QString text = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+                const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+                int count = 0;
+                for (const QString &line : lines) {
+                    const QString trimmed = line.trimmed();
+                    if (!trimmed.isEmpty() && !trimmed.startsWith(QLatin1String("Last metadata"))
+                        && !trimmed.startsWith(QLatin1String("Security"))
+                        && !trimmed.startsWith(QLatin1String("Obsoleting"))
+                        && trimmed.split(QRegularExpression(QStringLiteral("\\s+"))).size() >= 2) {
+                        count++;
+                    }
+                }
+                finishUpdateCheck(proc, count);
+            } else {
+                finishUpdateCheck(proc, 0);
+            }
+        });
+        connect(proc, &QProcess::errorOccurred, this, [proc, finishUpdateCheck](QProcess::ProcessError) {
+            finishUpdateCheck(proc, 0);
+        });
+        proc->start(QStringLiteral("/usr/bin/dnf"), {QStringLiteral("check-update"), QStringLiteral("-q")});
+    } else if (mgr == PkgManager::Zypper) {
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [proc, finishUpdateCheck](int exitCode, QProcess::ExitStatus exitStatus) {
+            if (exitStatus == QProcess::NormalExit && (exitCode == 0 || exitCode == 100 || exitCode == 101 || exitCode == 102 || exitCode == 103)) {
+                const QString text = QString::fromUtf8(proc->readAllStandardOutput()).trimmed();
+                const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+                int count = 0;
+                for (const QString &line : lines) {
+                    const QString trimmed = line.trimmed();
+                    if (trimmed.startsWith(QLatin1String("v |")) || trimmed.startsWith(QLatin1String("v|"))) {
+                        count++;
+                    }
+                }
+                finishUpdateCheck(proc, count);
+            } else {
+                finishUpdateCheck(proc, 0);
+            }
+        });
+        connect(proc, &QProcess::errorOccurred, this, [proc, finishUpdateCheck](QProcess::ProcessError) {
+            finishUpdateCheck(proc, 0);
+        });
+        proc->start(QStringLiteral("/usr/bin/zypper"), {QStringLiteral("-q"), QStringLiteral("lu")});
     }
 }
 
@@ -1132,9 +1235,21 @@ void SystemGlanceBackend::launchUpdateTerminal()
     if (term.isEmpty())
         term = QStringLiteral("xterm");
 
-    const QString updateCmd = QFile::exists(QStringLiteral("/usr/bin/yay"))
-        ? QStringLiteral("yay; echo; read -n 1 -s -r -p 'Press any key to close...'")
-        : QStringLiteral("sudo pacman -Syu; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    const PkgManager mgr = detectPackageManager();
+    QString updateCmd;
+    if (mgr == PkgManager::Pacman) {
+        updateCmd = QFile::exists(QStringLiteral("/usr/bin/yay"))
+            ? QStringLiteral("yay; echo; read -n 1 -s -r -p 'Press any key to close...'")
+            : QStringLiteral("sudo pacman -Syu; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    } else if (mgr == PkgManager::Apt) {
+        updateCmd = QStringLiteral("sudo apt update && sudo apt upgrade; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    } else if (mgr == PkgManager::Dnf) {
+        updateCmd = QStringLiteral("sudo dnf upgrade; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    } else if (mgr == PkgManager::Zypper) {
+        updateCmd = QStringLiteral("sudo zypper update; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    } else {
+        updateCmd = QStringLiteral("echo 'No supported package manager found'; echo; read -n 1 -s -r -p 'Press any key to close...'");
+    }
 
     QStringList args;
     const QString binName = QFileInfo(term).fileName().toLower();

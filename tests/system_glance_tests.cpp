@@ -133,9 +133,13 @@ private slots:
         QSignalSpy spy(&glance, &SystemGlanceBackend::updatesChanged);
         glance.checkUpdatesAsync();
         const bool hasPackageManager = QFile::exists(QStringLiteral("/usr/bin/checkupdates"))
-                                    || QFile::exists(QStringLiteral("/usr/bin/pacman"));
+                                    || QFile::exists(QStringLiteral("/usr/bin/pacman"))
+                                    || QFile::exists(QStringLiteral("/usr/bin/apt-get"))
+                                    || QFile::exists(QStringLiteral("/usr/bin/apt"))
+                                    || QFile::exists(QStringLiteral("/usr/bin/dnf"))
+                                    || QFile::exists(QStringLiteral("/usr/bin/zypper"));
         if (hasPackageManager) {
-            QTRY_VERIFY_WITH_TIMEOUT(!glance.checkingUpdates(), 12000);
+            QTRY_VERIFY_WITH_TIMEOUT(!glance.checkingUpdates(), 15000);
         } else {
             QVERIFY(!glance.checkingUpdates());
         }

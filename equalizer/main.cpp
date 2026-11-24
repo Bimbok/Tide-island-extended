@@ -402,6 +402,8 @@ private:
 
     void createOutput(const std::string& target) {
         destroyOutput();
+        // Safe to clear read index from control thread because destroyOutput()
+        // has already detached and stopped the playbackCycle realtime thread.
         ring_.clear();
         primed_ = false;
         pw_properties* props = streamProps(kOutputName, "Tide Equalizer output");

@@ -233,6 +233,7 @@ private:
     bool m_checkingUpdates = false;
     QElapsedTimer m_lastUpdateCheckTime;
     QDateTime m_lastPacmanLogTime;
+    QMap<QString, QDateTime> m_lastLogTimes;
     QFileSystemWatcher m_pacmanWatcher;
     QPointer<QProcess> m_updateProcess;
 

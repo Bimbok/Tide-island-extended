@@ -637,11 +637,16 @@ void SystemServices::processLines(QByteArray &buffer,
                                   const QByteArray &chunk,
                                   const std::function<void(const QString &)> &handler) {
     buffer.append(chunk);
-    while (buffer.contains('\n')) {
-        const int newlineIndex = buffer.indexOf('\n');
-        const QByteArray rawLine = buffer.left(newlineIndex);
-        buffer.remove(0, newlineIndex + 1);
-        handler(QString::fromUtf8(rawLine).trimmed());
+    qsizetype start = 0;
+    while (true) {
+        const qsizetype newlineIndex = buffer.indexOf('\n', start);
+        if (newlineIndex < 0) break;
+        const QByteArrayView rawLine = QByteArrayView(buffer).sliced(start, newlineIndex - start);
+        handler(QString::fromUtf8(rawLine.data(), rawLine.size()).trimmed());
+        start = newlineIndex + 1;
+    }
+    if (start > 0) {
+        buffer.remove(0, start);
     }
 
     if (buffer.size() > kMaximumStreamBufferBytes) {
