@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Tide Island Extended Documentation & Wiki
+    url: https://github.com/Bimbok/Tide-island-extended/wiki
+    about: Please check the Wiki first for setup instructions, compositor bindings, and FAQs.
+  - name: Community Discussions & Showcase
+    url: https://github.com/Bimbok/Tide-island-extended/discussions
+    about: Share your desktop setup, ask questions, or discuss ideas with the community.

@@ -1,14 +1,9 @@
 <p align="center">
-  <img src="docs/preview/tide-island-logo.png" width="128" height="128" alt="Tide Island Extended Logo">
-</p>
-
-<h1 align="center">Tide Island Extended</h1>
-
-<p align="center">
-  <b>An independently maintained, ultra-responsive dynamic island and control center for Hyprland and niri.</b>
+  <img src="docs/preview/banner.jpg" width="100%" alt="Tide Island Extended Banner">
 </p>
 
 <p align="center">
+  <a href="https://github.com/Bimbok/Tide-island-extended/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Bimbok/Tide-island-extended/ci.yml?branch=main&style=flat-square&label=CI&color=8aadf4"></a>
   <a href="https://github.com/Bimbok/Tide-island-extended/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Bimbok/Tide-island-extended?style=flat-square&color=8aadf4"></a>
   <a href="https://github.com/Bimbok/Tide-island-extended/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/Bimbok/Tide-island-extended?style=flat-square&color=8aadf4"></a>
   <a href="https://github.com/enhaoswen/Tide-island"><img alt="Upstream: enhaoswen/Tide-island" src="https://img.shields.io/badge/upstream-enhaoswen%2FTide--island-8aadf4?style=flat-square"></a>

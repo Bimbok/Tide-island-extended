@@ -1,0 +1,34 @@
+name: Feature Request
+description: Propose a new feature, enhancement, or idea for Tide Island Extended
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an enhancement! Please keep each request focused on a single feature.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: Is your feature request related to a problem or missing workflow?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe what feature or behavior you would like to see added.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or workarounds you have considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context or Mockups
+      description: Add any screenshots, mockups, or relevant links that help illustrate the request.
