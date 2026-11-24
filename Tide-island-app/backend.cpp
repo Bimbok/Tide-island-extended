@@ -62,6 +62,7 @@ QVariantList defaultShortcutBindings()
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("N"), QStringLiteral("tide"), QStringLiteral("toggleNotificationCenter")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("W"), QStringLiteral("tide"), QStringLiteral("toggleWallpaperPicker")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("slash"), QStringLiteral("tide"), QStringLiteral("toggleApplicationLauncher")),
+        shortcutMap(QStringLiteral("SUPER"), QStringLiteral("space"), QStringLiteral("spotlight"), QStringLiteral("toggle")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("O"), QStringLiteral("tide"), QStringLiteral("toggleFileShelf")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("V"), QStringLiteral("tide"), QStringLiteral("toggleClipboard")),
         shortcutMap(QStringLiteral("SUPER"), QStringLiteral("E"), QStringLiteral("tide"), QStringLiteral("toggleWeather")),
@@ -774,6 +775,22 @@ bool Backend::toggleApplicationLauncher(){
             QStringLiteral("toggleApplicationLauncher"),
         });
     setErrorString(started ? QString() : QStringLiteral("Could not start the application launcher command."));
+    return started;
+}
+
+bool Backend::toggleSpotlight(){
+    const bool started = QProcess::startDetached(
+        QString::fromLatin1(quickshellPath),
+        {
+            QStringLiteral("ipc"),
+            QStringLiteral("--any-display"),
+            QStringLiteral("-p"),
+            QString::fromLatin1(tideQmlPath),
+            QStringLiteral("call"),
+            QStringLiteral("spotlight"),
+            QStringLiteral("toggle"),
+        });
+    setErrorString(started ? QString() : QStringLiteral("Could not start the spotlight command."));
     return started;
 }
 

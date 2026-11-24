@@ -97,6 +97,13 @@ PagePanel {
                 "method": "toggleApplicationLauncher"
             },
             {
+                "action": "Spotlight search",
+                "mods": "SUPER",
+                "key": "space",
+                "target": "spotlight",
+                "method": "toggle"
+            },
+            {
                 "action": "File shelf",
                 "mods": "SUPER",
                 "key": "O",

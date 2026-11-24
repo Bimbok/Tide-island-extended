@@ -38,7 +38,7 @@
 
 **Tide Island Extended** is a desktop widget and control center for modern Wayland compositors (**Hyprland** and **niri**), styled after the Dynamic Island concept.
 
-When idle, it rests unobtrusively in your status bar or screen corner as a minimalist capsule pill or flush MacBook-style notch. When needed, it smoothly expands into an interactive panel for media playback, real-time synchronized lyrics, multi-audio device routing, a native 10-band DSP equalizer, hardware telemetry, battery conservation thresholds, screen recording, and system glance.
+When idle, it rests unobtrusively in your status bar or screen corner as a minimalist capsule pill or flush MacBook-style notch. When needed, it smoothly expands into an interactive panel for media playback, real-time synchronized lyrics, multi-audio device routing, a native 10-band DSP equalizer, hardware telemetry, battery conservation thresholds, screen recording, system glance, and unified Spotlight search.
 
 Built with **Quickshell**, **QML**, and **C++/Qt 6**, animations are hardware-accelerated and fluid while maintaining an exceptionally light resource footprint.
 
@@ -107,6 +107,7 @@ Built with **Quickshell**, **QML**, and **C++/Qt 6**, animations are hardware-ac
 ## Key Highlights
 
 * **Dynamic Island & MacBook-Style Top Notch**: Toggle between floating pill (`y: 12px`) and flush top notch (`y: 0px`) on the fly via `Super + Alt + N` or the Config App.
+* **Spotlight Search & Math Evaluator**: macOS-style unified Spotlight interface (`Super + Space`) featuring hand-parsed arithmetic evaluation, unit and data conversions without `eval()`, direct URL launching, intelligent frecency tracking with half-life decay, debounced local file lookup via `fd`, and instant triggering for 12 native desktop control services.
 * **Native 10-Band DSP Audio Equalizer**: Dedicated low-latency C++ equalizer daemon (`tide-equalizer`) with SIMD power-of-two DSP FrameRing, 8 curated presets, stereo balance, dynamics modes, and zero-resource on-demand lifecycle (0% CPU / 0 MB RAM when disabled).
 * **Multi-Device Simultaneous Audio Output ("Multi-Audio")**: Play audio across multiple physical outputs (e.g. Speakers + Bluetooth earbuds + USB DAC) at the same time with independent device volume sliders and automated PipeWire combined sinks.
 * **Hardware Screen Recorder & Replay**: Powered by `gpu-screen-recorder` with Linux `pidfd` monitoring, mic audio capture, live Control Center banner elevation, and 10s/30s/60s instant replay buffers.
@@ -202,6 +203,8 @@ journalctl --user -u tide-island.service -f
 ### Quick IPC Calls
 Control panels from terminal scripts or compositor keybindings:
 ```bash
+quickshell ipc call spotlight toggle          # Toggle Spotlight Search & Math Evaluator
+quickshell ipc call tide toggleSpotlight      # Alternative Spotlight trigger
 quickshell ipc call island toggleStyle        # Toggle Dynamic Island / Top Notch
 quickshell ipc call glance toggle             # Toggle System Glance & Dashboard
 quickshell ipc call tide toggleControlCenter  # Toggle Control Center drawer
@@ -211,6 +214,15 @@ quickshell ipc call recorder toggle           # Toggle Screen Recording
 quickshell ipc call recorder saveReplay 30    # Save 30s Instant Replay clip
 ```
 *(See the [IPC & CLI Reference](https://github.com/Bimbok/Tide-island-extended/wiki/IPC-&-CLI-Reference) for the complete list).*
+
+### Spotlight Search Capabilities
+The unified Spotlight layer (`Super + Space` or `quickshell ipc call spotlight toggle`) includes:
+* **Math & Scientific Calculation**: Instant arithmetic (`2 + 2 * 3`), powers, trigonometric functions (`sin`, `cos`, `tan`), roots (`sqrt(144)`), logarithms, and percentage calculations (`25% of 80`) without `eval()`.
+* **Unit & Data Conversions**: Real-time conversions for length (`10 km to mi`), temperature (`72 F to C`), mass (`5 kg to lbs`), digital storage (`16 GB to MB`), speed, time, and angles.
+* **Direct Web & URL Launching**: Paste or type valid domains/URLs (`github.com`, `https://...`) to open directly in the default browser, or press Enter on search queries for instant web search.
+* **Frecency Ranking**: Tracks frequently and recently launched applications with half-life decay, adapting dynamically to personal workflow patterns.
+* **Native Quick Actions**: Direct control shortcuts for `lock`, `control_center`, `equalizer`, `recorder`, `replay`, `glance`, `clipboard`, `shelf`, `calendar`, `weather`, `style`, and `power`.
+* **Local File Lookup**: Debounced background search powered by `/usr/bin/fd`.
 
 ---
 
