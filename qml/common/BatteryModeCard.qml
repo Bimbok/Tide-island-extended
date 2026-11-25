@@ -263,7 +263,8 @@ Rectangle {
     }
 
     Connections {
-        target: typeof SystemServices !== "undefined" ? SystemServices : null
+        target: (root.visible && typeof SystemServices !== "undefined") ? SystemServices : null
+        enabled: root.visible
 
         function onTlpStateReady(available, profile, output, errorString) {
             root.applyBatteryModeState(available, profile, output, errorString);

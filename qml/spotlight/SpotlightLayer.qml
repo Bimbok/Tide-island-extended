@@ -290,19 +290,14 @@ FocusScope {
             }
         }
 
-        // Hero Battery Profile Card (Reusing Control Center component)
-        BatteryModeCard {
-            id: heroBatteryCard
+        // Hero Battery Profile Card (Reusing Control Center component with lazy Loader)
+        Loader {
+            id: heroBatteryLoader
             width: parent.width
-            height: visible ? 80 : 0
-            cardRadius: 20
-            cardBackgroundColor: StyleTokens.cardFillActive
-            cardBorderColor: StyleTokens.surfaceHighlight
-            cardBorderWidth: 1
-            visible: root.showBatteryHero
+            height: active && item && item.visible ? 80 : 0
+            active: root.showBatteryHero
+            visible: active
             clip: true
-            textFontFamily: root.textFontFamily
-            iconFontFamily: root.iconFontFamily
 
             Behavior on height {
                 NumberAnimation {
@@ -310,13 +305,24 @@ FocusScope {
                     easing.type: Easing.OutCubic
                 }
             }
+
+            sourceComponent: BatteryModeCard {
+                width: heroBatteryLoader.width
+                height: 80
+                cardRadius: 20
+                cardBackgroundColor: StyleTokens.cardFillActive
+                cardBorderColor: StyleTokens.surfaceHighlight
+                cardBorderWidth: 1
+                textFontFamily: root.textFontFamily
+                iconFontFamily: root.iconFontFamily
+            }
         }
 
         // Results List
         ListView {
             id: resultsList
             width: parent.width
-            height: parent.height - searchBar.height - (heroCalcBanner.visible ? heroCalcBanner.height + 10 : 0) - (heroBatteryCard.visible ? heroBatteryCard.height + 10 : 0) - 10
+            height: parent.height - searchBar.height - (heroCalcBanner.visible ? heroCalcBanner.height + 10 : 0) - (heroBatteryLoader.height > 0 ? heroBatteryLoader.height + 10 : 0) - 10
             clip: true
             model: engine.allResults
             spacing: 5
