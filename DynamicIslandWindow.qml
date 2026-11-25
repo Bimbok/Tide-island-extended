@@ -952,6 +952,39 @@ PanelWindow {
         }
     }
 
+    function toggleBatteryDrawer() {
+        if (islandContainer.islandState === "control_center"
+                && controlCenterLoader.item
+                && controlCenterLoader.item.batteryDrawerOpen) {
+            islandContainer.smartRestoreState();
+            return;
+        }
+
+        islandContainer.batteryDrawerRequested = true;
+        islandContainer.showControlCenter();
+        if (controlCenterLoader.item) {
+            controlCenterLoader.item.setBatteryDrawerOpen(true);
+            islandContainer.batteryDrawerRequested = false;
+        }
+    }
+
+    function setPowerProfile(mode) {
+        const driver = (root.shellRootController && root.shellRootController.userConfig)
+            ? (root.shellRootController.userConfig.powerProfileDriver || "auto")
+            : "auto";
+        const permMode = (root.shellRootController && root.shellRootController.userConfig)
+            ? String(root.shellRootController.userConfig.tlpPermissionMode).trim()
+            : "";
+        const sudoPass = permMode === "password" && root.shellRootController && root.shellRootController.userConfig
+            ? root.shellRootController.userConfig.tlpSudoPassword
+            : "";
+        const askPass = permMode === "ask";
+
+        if (typeof SystemServices !== "undefined" && SystemServices) {
+            SystemServices.setPowerProfileMode(driver, mode, sudoPass, askPass);
+        }
+    }
+
     function toggleNotificationCenterWindow() {
         if (islandContainer.islandState === "notification_center")
             islandContainer.smartRestoreState();
@@ -1233,6 +1266,21 @@ PanelWindow {
         case "power":
             root.togglePowerMenuWindow();
             break;
+        case "battery_profile":
+            root.toggleBatteryDrawer();
+            break;
+        case "battery_saver":
+            islandContainer.smartRestoreState();
+            root.setPowerProfile("power-saver");
+            break;
+        case "battery_balanced":
+            islandContainer.smartRestoreState();
+            root.setPowerProfile("balanced");
+            break;
+        case "battery_performance":
+            islandContainer.smartRestoreState();
+            root.setPowerProfile("performance");
+            break;
         }
     }
 
@@ -1371,6 +1419,7 @@ PanelWindow {
 
         property bool powerMenuRequested: false
         property bool equalizerRequested: false
+        property bool batteryDrawerRequested: false
         property string islandState: "normal"
         property string splitIcon: root.defaultSplitIcon
         property real osdProgress: -1.0
@@ -3412,6 +3461,10 @@ PanelWindow {
                     if (islandContainer.equalizerRequested && item) {
                         item.setConnectivityPanelOpen("equalizer", true, true);
                         islandContainer.equalizerRequested = false;
+                    }
+                    if (islandContainer.batteryDrawerRequested && item) {
+                        item.setBatteryDrawerOpen(true);
+                        islandContainer.batteryDrawerRequested = false;
                     }
                     if (item)
                         item.forceActiveFocus();

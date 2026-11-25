@@ -15,6 +15,7 @@ fi
 echo "Copying modified QML and JS files to $TARGET_DIR..."
 sudo cp -rv "$ROOT_DIR/qml/spotlight" "$TARGET_DIR/qml/"
 sudo cp -rv "$ROOT_DIR/qml/common" "$TARGET_DIR/qml/"
+sudo cp -rv "$ROOT_DIR/qml/controlcenter" "$TARGET_DIR/qml/"
 sudo cp -v "$ROOT_DIR/qml/island/ApplicationLauncherLayer.qml" "$TARGET_DIR/qml/island/"
 sudo cp -v "$ROOT_DIR/DynamicIslandWindow.qml" "$TARGET_DIR/"
 sudo cp -v "$ROOT_DIR/shell.qml" "$TARGET_DIR/"

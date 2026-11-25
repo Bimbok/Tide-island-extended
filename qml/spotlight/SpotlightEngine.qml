@@ -169,6 +169,42 @@ Item {
             icon: "\uf011",
             category: "System Action",
             keywords: ["power", "powermenu", "power-menu", "menu", "shutdown", "reboot", "restart", "sleep", "suspend", "logout"]
+        },
+        {
+            id: "action:battery_profile",
+            key: "battery_profile",
+            title: "Battery Profile",
+            subtitle: "View and change battery power profile (Power Saver, Balanced, Performance)",
+            icon: "\uf242",
+            category: "System Action",
+            keywords: ["battery", "power", "profile", "batteryprofile", "powerprofile", "mode", "saver", "performance", "balanced", "tlp", "powerprofilesctl"]
+        },
+        {
+            id: "action:battery_saver",
+            key: "battery_saver",
+            title: "Battery: Power Saver",
+            subtitle: "Switch power profile to Power Saver mode",
+            icon: "\uf06c",
+            category: "System Action",
+            keywords: ["battery", "power", "saver", "power-saver", "powersaver", "eco", "save", "profile", "bat"]
+        },
+        {
+            id: "action:battery_balanced",
+            key: "battery_balanced",
+            title: "Battery: Balanced",
+            subtitle: "Switch power profile to Balanced mode",
+            icon: "\uf242",
+            category: "System Action",
+            keywords: ["battery", "power", "balanced", "balance", "default", "normal", "profile"]
+        },
+        {
+            id: "action:battery_performance",
+            key: "battery_performance",
+            title: "Battery: Performance",
+            subtitle: "Switch power profile to High Performance mode",
+            icon: "\uf0e7",
+            category: "System Action",
+            keywords: ["battery", "power", "performance", "perf", "high", "speed", "fast", "ac", "profile", "turbo"]
         }
     ]
 

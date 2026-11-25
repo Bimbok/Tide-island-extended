@@ -259,8 +259,8 @@ Item {
         batteryDrawerSettling = true;
         batteryDrawerProgress = nextOpen ? 1 : 0;
         batteryDrawerSettleTimer.restart();
-        if (nextOpen && tlpControlsEnabled && !batteryTlpChecked)
-            refreshBatteryModeState();
+        if (nextOpen && tlpControlsEnabled)
+            batteryModeCard.refreshBatteryModeState();
     }
 
     function toggleBatteryDrawer() {
@@ -1275,12 +1275,10 @@ Item {
             }
         } else if (controlCenter.batteryDrawerOpen && controlCenter.tlpControlsEnabled) {
             if (event.key === Qt.Key_Left || event.key === Qt.Key_H) {
-                controlCenter.setBatteryModeVisualIndex(controlCenter.batteryModeIndex - 1, true);
-                controlCenter.applyBatteryMode(controlCenter.batteryModeIndex);
+                batteryModeCard.cyclePreviousMode();
                 event.accepted = true;
             } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L) {
-                controlCenter.setBatteryModeVisualIndex(controlCenter.batteryModeIndex + 1, true);
-                controlCenter.applyBatteryMode(controlCenter.batteryModeIndex);
+                batteryModeCard.cycleNextMode();
                 event.accepted = true;
             }
         }
@@ -2233,232 +2231,18 @@ Item {
                 + controlCenter.batteryDrawerProgress * openDistance
             clip: true
 
-            Rectangle {
+            BatteryModeCard {
                 id: batteryModeCard
                 anchors.left: parent.left
                 y: -height + controlCenter.batteryDrawerProgress * height
                 width: batteryDrawer.cardWidth
                 height: controlCenter.batteryModeCardHeight
                 radius: StyleTokens.radiusModule
-                color: StyleTokens.clearBlack
                 visible: controlCenter.tlpControlsEnabled
                 opacity: controlCenter.tlpControlsEnabled ? Math.min(1, controlCenter.batteryDrawerProgress * 1.35) : 0
-                clip: true
-
-                MatteSurface {
-                    anchors.fill: parent
-                    radius: parent.radius
-                    hovered: controlCenter.batteryModeSliderDragging
-                }
-
-                Row {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 14
-                    anchors.top: parent.top
-                    anchors.topMargin: 11
-                    spacing: 6
-
-                    Text {
-                        text: "Battery"
-                        color: textPrimary
-                        font.pixelSize: 13
-                        font.family: textFontFamily
-                        font.weight: Font.DemiBold
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Rectangle {
-                        visible: SystemServices.batteryConservationMode
-                        width: capBadgeText.implicitWidth + 8
-                        height: 15
-                        radius: 7
-                        color: StyleTokens.moduleHover
-                        border.color: cardAccent
-                        border.width: 1
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Text {
-                            id: capBadgeText
-                            anchors.centerIn: parent
-                            text: "80%"
-                            color: cardAccent
-                            font.pixelSize: 9
-                            font.family: textFontFamily
-                            font.weight: Font.DemiBold
-                        }
-                    }
-                }
-
-                Text {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 12
-                    anchors.top: parent.top
-                    anchors.topMargin: 12
-                    width: Math.max(0, batteryModeCard.width - 105)
-                    text: controlCenter.batteryModeError.length > 0
-                        ? controlCenter.batteryModeError
-                        : (controlCenter.batteryModeInfoMessage.length > 0
-                            ? controlCenter.batteryModeInfoMessage
-                            : controlCenter.batteryModeStatusText)
-                    color: controlCenter.batteryModeError.length > 0 ? StyleTokens.error : StyleTokens.textMuted
-                    horizontalAlignment: Text.AlignRight
-                    font.pixelSize: 9
-                    font.family: textFontFamily
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-
-                Item {
-                    id: batteryModeCarousel
-                    anchors.left: parent.left
-                    anchors.leftMargin: 12
-                    anchors.right: parent.right
-                    anchors.rightMargin: 12
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 8
-                    height: 34
-                    clip: true
-
-                    Item {
-                        id: batteryModeItems
-                        width: batteryDrawer.modeSlotWidth * 3
-                        height: parent.height
-                        x: batteryModeCarousel.width / 2
-                            - batteryDrawer.modeSlotWidth / 2
-                            - controlCenter.batteryModeIndex * batteryDrawer.modeSlotWidth
-                            + controlCenter.batteryModeDragOffset
-
-                        Behavior on x {
-                            enabled: !controlCenter.batteryModeSliderDragging
-
-                            NumberAnimation {
-                                duration: 180
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-
-                        Repeater {
-                            model: 3
-
-                            delegate: Item {
-                                x: index * batteryDrawer.modeSlotWidth
-                                width: batteryDrawer.modeSlotWidth
-                                height: batteryModeCarousel.height
-                                opacity: index === controlCenter.batteryModeIndex ? 1 : 0.42
-
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: 140
-                                        easing.type: Easing.OutCubic
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: index === controlCenter.batteryModeIndex ? 32 : 28
-                                    height: index === controlCenter.batteryModeIndex ? 28 : 24
-                                    radius: 12
-                                    color: index === controlCenter.batteryModeIndex ? cardAccent : StyleTokens.track
-
-                                    Behavior on width {
-                                        NumberAnimation {
-                                            duration: 140
-                                            easing.type: Easing.OutCubic
-                                        }
-                                    }
-
-                                    Behavior on height {
-                                        NumberAnimation {
-                                            duration: 140
-                                            easing.type: Easing.OutCubic
-                                        }
-                                    }
-
-                                    Behavior on color {
-                                        ColorAnimation {
-                                            duration: 140
-                                        }
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: controlCenter.batteryModeGlyphs[index]
-                                        color: index === controlCenter.batteryModeIndex ? StyleTokens.textOnAccent : StyleTokens.textDim
-                                        font.pixelSize: index === controlCenter.batteryModeIndex ? 15 : 13
-                                        font.family: iconFontFamily
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.bottom
-                        width: 22
-                        height: 2
-                        radius: 1
-                        color: cardAccent
-                        opacity: 0.75
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        property real startX: 0
-                        property int startIndex: 1
-                        property bool moved: false
-
-                        function clampDrag(delta) {
-                            return Math.max(-batteryDrawer.modeSlotWidth, Math.min(batteryDrawer.modeSlotWidth, delta));
-                        }
-
-                        onPressed: function(mouse) {
-                            startX = mouse.x;
-                            startIndex = controlCenter.batteryModeIndex;
-                            moved = false;
-                            controlCenter.batteryModeInfoMessage = "";
-                            controlCenter.batteryModeError = "";
-                            controlCenter.batteryModeSliderDragging = true;
-                            controlCenter.batteryModeDragOffset = 0;
-                        }
-
-                        onPositionChanged: function(mouse) {
-                            if (!pressed)
-                                return;
-
-                            const delta = mouse.x - startX;
-                            if (!moved && Math.abs(delta) < 4)
-                                return;
-
-                            moved = true;
-                            controlCenter.batteryModeDragOffset = clampDrag(delta);
-                        }
-
-                        onReleased: function(mouse) {
-                            const delta = mouse.x - startX;
-                            let nextIndex = startIndex;
-
-                            if (delta <= -18)
-                                nextIndex = Math.min(2, startIndex + 1);
-                            else if (delta >= 18)
-                                nextIndex = Math.max(0, startIndex - 1);
-                            else if (mouse.x < width / 2 - batteryDrawer.modeSlotWidth / 2)
-                                nextIndex = Math.max(0, startIndex - 1);
-                            else if (mouse.x > width / 2 + batteryDrawer.modeSlotWidth / 2)
-                                nextIndex = Math.min(2, startIndex + 1);
-
-                            controlCenter.batteryModeSliderDragging = false;
-                            controlCenter.batteryModeDragOffset = 0;
-                            controlCenter.selectBatteryMode(nextIndex);
-                        }
-
-                        onCanceled: {
-                            controlCenter.batteryModeSliderDragging = false;
-                            controlCenter.batteryModeDragOffset = 0;
-                            controlCenter.setBatteryModeVisualIndex(controlCenter.batteryModeAppliedIndex, true);
-                        }
-                    }
-                }
+                cardAccent: controlCenter.cardAccent
+                textFontFamily: controlCenter.textFontFamily
+                iconFontFamily: controlCenter.iconFontFamily
             }
 
             Rectangle {

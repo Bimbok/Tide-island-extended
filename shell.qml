@@ -334,6 +334,18 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
         }
 
+        function toggleBattery() {
+            shellRoot.forFocusedWindow((window) => window.toggleBatteryDrawer ? window.toggleBatteryDrawer() : window.toggleControlCenterWindow());
+        }
+
+        function showBattery() {
+            shellRoot.forFocusedWindow((window) => window.toggleBatteryDrawer ? window.toggleBatteryDrawer() : window.toggleControlCenterWindow());
+        }
+
+        function setPowerProfile(mode: string): string {
+            return batteryIpcHandler.setProfile(mode);
+        }
+
         function toggleEqualizer() {
             shellRoot.forFocusedWindow((window) => window.toggleEqualizerWindow());
         }
@@ -745,6 +757,60 @@ Scope {
 
         function close() {
             shellRoot.forFocusedWindow((window) => window.closeEqualizerWindow ? window.closeEqualizerWindow() : window.toggleEqualizerWindow());
+        }
+    }
+
+    IpcHandler {
+        id: batteryIpcHandler
+        target: "battery"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleBatteryDrawer ? window.toggleBatteryDrawer() : window.toggleControlCenterWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.toggleBatteryDrawer ? window.toggleBatteryDrawer() : window.toggleControlCenterWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.toggleBatteryDrawer ? window.toggleBatteryDrawer() : window.toggleControlCenterWindow());
+        }
+
+        function setProfile(mode: string): string {
+            const m = String(mode).trim().toLowerCase();
+            let resolved = "balanced";
+            if (m === "power-saver" || m === "powersaver" || m === "saver" || m === "bat" || m === "eco") {
+                resolved = "power-saver";
+            } else if (m === "performance" || m === "perf" || m === "ac" || m === "high" || m === "turbo") {
+                resolved = "performance";
+            } else if (m === "balanced" || m === "balance" || m === "default" || m === "normal") {
+                resolved = "balanced";
+            } else {
+                return "Unknown mode: " + mode + ". Valid modes: power-saver, balanced, performance";
+            }
+
+            const driver = shellRoot.userConfig ? (shellRoot.userConfig.powerProfileDriver || "auto") : "auto";
+            const permMode = shellRoot.userConfig ? String(shellRoot.userConfig.tlpPermissionMode).trim() : "";
+            const sudoPass = permMode === "password" ? shellRoot.userConfig.tlpSudoPassword : "";
+            const askPass = permMode === "ask";
+
+            if (typeof SystemServices !== "undefined" && SystemServices) {
+                SystemServices.setPowerProfileMode(driver, resolved, sudoPass, askPass);
+                return "Applying power profile: " + resolved;
+            }
+            return "SystemServices not available";
+        }
+
+        function setSaver(): string {
+            return setProfile("power-saver");
+        }
+
+        function setBalanced(): string {
+            return setProfile("balanced");
+        }
+
+        function setPerformance(): string {
+            return setProfile("performance");
         }
     }
 

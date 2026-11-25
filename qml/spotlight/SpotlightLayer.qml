@@ -18,6 +18,17 @@ FocusScope {
     property string iconFontFamily: ""
     property string textFontFamily: ""
 
+    readonly property bool showBatteryHero: {
+        const q = searchInput.text.trim().toLowerCase();
+        if (!q || engine.calcResult !== null) return false;
+        if (q.startsWith("clip ") || q.startsWith("cb ")) return false;
+        return q === "battery" || q === "power" || q === "power profile" || q === "battery profile"
+            || q === "saver" || q === "powersaver" || q === "power-saver"
+            || q === "balanced" || q === "performance" || q === "perf"
+            || q === "tlp" || q === "powerprofilesctl"
+            || (q.length >= 4 && ("battery".startsWith(q) || "power".startsWith(q) || "profile".startsWith(q)));
+    }
+
     focus: showCondition
     activeFocusOnTab: true
     anchors.fill: parent
@@ -279,11 +290,33 @@ FocusScope {
             }
         }
 
+        // Hero Battery Profile Card (Reusing Control Center component)
+        BatteryModeCard {
+            id: heroBatteryCard
+            width: parent.width
+            height: visible ? 80 : 0
+            cardRadius: 20
+            cardBackgroundColor: StyleTokens.cardFillActive
+            cardBorderColor: StyleTokens.surfaceHighlight
+            cardBorderWidth: 1
+            visible: root.showBatteryHero
+            clip: true
+            textFontFamily: root.textFontFamily
+            iconFontFamily: root.iconFontFamily
+
+            Behavior on height {
+                NumberAnimation {
+                    duration: 160
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
         // Results List
         ListView {
             id: resultsList
             width: parent.width
-            height: parent.height - searchBar.height - (heroCalcBanner.visible ? heroCalcBanner.height + 10 : 0) - 10
+            height: parent.height - searchBar.height - (heroCalcBanner.visible ? heroCalcBanner.height + 10 : 0) - (heroBatteryCard.visible ? heroBatteryCard.height + 10 : 0) - 10
             clip: true
             model: engine.allResults
             spacing: 5
