@@ -12,6 +12,9 @@ Item {
     property color customBackgroundColor: StyleTokens.module
     property color customBorderColor: StyleTokens.surfaceBorder
     property real customBorderWidth: 1
+    property alias cardBackgroundColor: root.customBackgroundColor
+    property alias cardBorderColor: root.customBorderColor
+    property alias cardBorderWidth: root.customBorderWidth
 
     property string textFontFamily: UserConfig ? UserConfig.textFontFamily : ""
     property string iconFontFamily: UserConfig ? UserConfig.iconFontFamily : ""

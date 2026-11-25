@@ -310,9 +310,6 @@ FocusScope {
                 width: heroBatteryLoader.width
                 height: 80
                 cardRadius: 20
-                cardBackgroundColor: StyleTokens.cardFillActive
-                cardBorderColor: StyleTokens.surfaceHighlight
-                cardBorderWidth: 1
                 textFontFamily: root.textFontFamily
                 iconFontFamily: root.iconFontFamily
             }
