@@ -90,22 +90,22 @@ FocusScope {
         anchors.rightMargin: 20
         spacing: 10
 
-        // Search Input Bar
+        // Search Input Bar (Smooth Capsule Pill)
         Rectangle {
             id: searchBar
             width: parent.width
-            height: 48
-            radius: StyleTokens.radiusCard
+            height: 50
+            radius: height / 2
             color: StyleTokens.input
             border.width: 1
-            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.inputBorder
+            border.color: searchInput.activeFocus ? StyleTokens.accent : StyleTokens.surfaceBorder
 
             Behavior on border.color { ColorAnimation { duration: 150 } }
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 14
+                anchors.leftMargin: 18
+                anchors.rightMargin: 16
                 spacing: 12
 
                 Text {
@@ -137,11 +137,11 @@ FocusScope {
                     }
                 }
 
-                // Clear button
+                // Clear button (Circular Pill)
                 Rectangle {
-                    width: 22
-                    height: 22
-                    radius: 11
+                    width: 24
+                    height: 24
+                    radius: 12
                     color: StyleTokens.cardFillActive
                     visible: searchInput.text.length > 0
                     Layout.alignment: Qt.AlignVCenter
@@ -164,17 +164,18 @@ FocusScope {
                     }
                 }
 
-                // Esc shortcut badge
+                // Esc shortcut badge (Pill Capsule Badge)
                 Rectangle {
-                    width: 32
-                    height: 20
-                    radius: 6
+                    implicitWidth: escBadgeText.implicitWidth + 16
+                    height: 24
+                    radius: height / 2
                     color: StyleTokens.cardFill
                     border.width: 1
                     border.color: StyleTokens.surfaceBorder
                     Layout.alignment: Qt.AlignVCenter
 
                     Text {
+                        id: escBadgeText
                         anchors.centerIn: parent
                         text: "ESC"
                         font.family: root.textFontFamily
@@ -186,17 +187,17 @@ FocusScope {
             }
         }
 
-        // Hero Calculator / Conversion Banner (when math detected)
+        // Hero Calculator / Conversion Banner (Rounded Card with Soft Glow)
         Rectangle {
             id: heroCalcBanner
             width: parent.width
-            height: visible ? 58 : 0
-            radius: StyleTokens.radiusCard
+            height: visible ? 64 : 0
+            radius: 20
             visible: engine.calcResult !== null
             clip: true
             color: StyleTokens.cardFillActive
             border.width: 1
-            border.color: StyleTokens.accent
+            border.color: StyleTokens.surfaceHighlight
 
             Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
@@ -204,14 +205,23 @@ FocusScope {
                 anchors.fill: parent
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
-                spacing: 12
+                spacing: 14
 
-                Text {
-                    text: "\uf1ec"
-                    font.family: root.iconFontFamily
-                    font.pixelSize: 22
-                    color: StyleTokens.accent
+                // Circular Tinted Calculator Icon
+                Rectangle {
+                    width: 40
+                    height: 40
+                    radius: 20
+                    color: StyleTokens.accentSoft
                     Layout.alignment: Qt.AlignVCenter
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\uf1ec"
+                        font.family: root.iconFontFamily
+                        font.pixelSize: 18
+                        color: StyleTokens.accent
+                    }
                 }
 
                 Column {
@@ -222,9 +232,9 @@ FocusScope {
                     Text {
                         text: engine.calcResult ? engine.calcResult.title : ""
                         font.family: root.textFontFamily
-                        font.pixelSize: 18
+                        font.pixelSize: 19
                         font.weight: Font.Bold
-                        color: StyleTokens.textPrimary
+                        color: StyleTokens.textPrimaryBright
                     }
 
                     Text {
@@ -235,11 +245,14 @@ FocusScope {
                     }
                 }
 
+                // Enter to Copy Pill
                 Rectangle {
-                    radius: StyleTokens.radiusPill
+                    radius: height / 2
                     color: StyleTokens.accentSoft
-                    implicitWidth: copyPillText.implicitWidth + 18
-                    implicitHeight: 26
+                    border.width: 1
+                    border.color: StyleTokens.surfaceHighlight
+                    implicitWidth: copyPillText.implicitWidth + 20
+                    implicitHeight: 28
                     Layout.alignment: Qt.AlignVCenter
 
                     Text {
@@ -248,7 +261,7 @@ FocusScope {
                         text: "Enter to Copy"
                         font.family: root.textFontFamily
                         font.pixelSize: 11
-                        font.weight: Font.Medium
+                        font.weight: Font.DemiBold
                         color: StyleTokens.accent
                     }
                 }
@@ -272,7 +285,36 @@ FocusScope {
             height: parent.height - searchBar.height - (heroCalcBanner.visible ? heroCalcBanner.height + 10 : 0) - 10
             clip: true
             model: engine.allResults
-            spacing: 4
+            spacing: 5
+
+            // Minimalistic Empty State
+            Item {
+                anchors.centerIn: parent
+                visible: engine.totalResultCount === 0 && searchInput.text.trim() !== ""
+                width: parent.width
+                height: 120
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 8
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "\uf002"
+                        font.family: root.iconFontFamily
+                        font.pixelSize: 22
+                        color: StyleTokens.textMuted
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "No matching results"
+                        font.family: root.textFontFamily
+                        font.pixelSize: 13
+                        color: StyleTokens.textMuted
+                    }
+                }
+            }
 
             delegate: Rectangle {
                 id: resultRow
@@ -281,8 +323,8 @@ FocusScope {
 
                 readonly property bool isSelected: engine.selectedIndex === index
                 width: resultsList.width
-                height: 44
-                radius: StyleTokens.radiusModule
+                height: 48
+                radius: 16
                 color: isSelected ? StyleTokens.cardFillActive : (rowHover.hovered ? StyleTokens.cardFillHover : "transparent")
                 border.width: isSelected ? 1 : 0
                 border.color: StyleTokens.surfaceHighlight
@@ -295,38 +337,54 @@ FocusScope {
 
                     // Icon (App icon, File icon, or FontAwesome glyph)
                     Item {
-                        width: 28
-                        height: 28
+                        width: 32
+                        height: 32
                         Layout.alignment: Qt.AlignVCenter
 
                         IconImage {
                             id: rowAppIcon
                             anchors.centerIn: parent
-                            width: 24
-                            height: 24
+                            width: 26
+                            height: 26
                             visible: resultRow.modelData.type === "app" || resultRow.modelData.type === "file"
                             source: visible ? (Quickshell.iconPath(resultRow.modelData.icon || (resultRow.modelData.type === "file" ? "text-x-generic" : "application-x-executable"), true) || "") : ""
                             asynchronous: true
                             mipmap: true
                         }
 
-                        Text {
+                        Rectangle {
                             anchors.centerIn: parent
+                            width: 28
+                            height: 28
+                            radius: 14
+                            color: StyleTokens.accentSoft
                             visible: (resultRow.modelData.type === "app" || resultRow.modelData.type === "file") && (!rowAppIcon.source || rowAppIcon.source.toString() === "")
-                            text: String(resultRow.modelData.title || "?").charAt(0).toLocaleUpperCase()
-                            color: StyleTokens.textPrimary
-                            font.family: root.textFontFamily
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: String(resultRow.modelData.title || "?").charAt(0).toLocaleUpperCase()
+                                color: StyleTokens.accent
+                                font.family: root.textFontFamily
+                                font.pixelSize: 13
+                                font.weight: Font.Bold
+                            }
                         }
 
-                        Text {
+                        Rectangle {
                             anchors.centerIn: parent
+                            width: 28
+                            height: 28
+                            radius: 14
+                            color: resultRow.isSelected ? StyleTokens.accentSoft : StyleTokens.cardFill
                             visible: resultRow.modelData.type !== "app" && resultRow.modelData.type !== "file"
-                            text: resultRow.modelData.icon || "\uf002"
-                            font.family: root.iconFontFamily
-                            font.pixelSize: 16
-                            color: resultRow.isSelected ? StyleTokens.accent : StyleTokens.textSecondary
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: resultRow.modelData.icon || "\uf002"
+                                font.family: root.iconFontFamily
+                                font.pixelSize: 14
+                                color: resultRow.isSelected ? StyleTokens.accent : StyleTokens.textSecondary
+                            }
                         }
                     }
 
@@ -334,7 +392,7 @@ FocusScope {
                     Column {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        spacing: 1
+                        spacing: 2
 
                         Text {
                             width: parent.width
@@ -356,12 +414,12 @@ FocusScope {
                         }
                     }
 
-                    // Category Pill badge
+                    // Category Pill badge (Capsule Shape)
                     Rectangle {
-                        implicitWidth: categoryText.implicitWidth + 14
-                        implicitHeight: 20
-                        radius: 6
-                        color: resultRow.isSelected ? StyleTokens.cardFill : StyleTokens.cardFillHover
+                        implicitWidth: categoryText.implicitWidth + 16
+                        implicitHeight: 22
+                        radius: height / 2
+                        color: resultRow.isSelected ? StyleTokens.accentSoft : StyleTokens.cardFillHover
                         border.width: 1
                         border.color: StyleTokens.surfaceBorder
                         Layout.alignment: Qt.AlignVCenter
