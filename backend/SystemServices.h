@@ -158,6 +158,9 @@ public:
     Q_INVOKABLE double queryDiskUsagePercent(const QString &mountPath = QStringLiteral("/")) const;
     Q_INVOKABLE QString defaultTerminalEmulator() const;
     Q_INVOKABLE QStringList wrapTerminalCommand(const QStringList &command) const;
+    Q_INVOKABLE bool launchApplication(const QStringList &command,
+                                       bool runInTerminal = false,
+                                       const QString &workingDirectory = QString()) const;
 
 signals:
     void notificationReceived(uint id,

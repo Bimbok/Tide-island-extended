@@ -27,6 +27,7 @@ private slots:
         loadScript(QStringLiteral(SPOTLIGHT_MATCH_SOURCE));
         loadScript(QStringLiteral(SPOTLIGHT_WEB_SOURCE));
         loadScript(QStringLiteral(SPOTLIGHT_FRECENCY_SOURCE));
+        loadScript(QStringLiteral(DESKTOP_APP_LAUNCHER_SOURCE));
     }
 
     void testCalcArithmetic()
@@ -113,6 +114,24 @@ private slots:
         store = recordFn.call({store, QStringLiteral("app:firefox"), QStringLiteral("fire"), now});
         const double learnedBoost = boostFn.call({store, QStringLiteral("app:firefox"), QStringLiteral("fire"), now}).toNumber();
         QVERIFY(learnedBoost > 0.0);
+    }
+
+    void testDesktopAppLauncherSanitization()
+    {
+        const QJSValue sanitizeFn = m_engine.globalObject().property(QStringLiteral("sanitizeCommand"));
+        QVERIFY(sanitizeFn.isCallable());
+
+        QJSValue input = m_engine.newArray(4);
+        input.setProperty(0, QStringLiteral("firefox"));
+        input.setProperty(1, QStringLiteral("--private-window"));
+        input.setProperty(2, QStringLiteral("%u"));
+        input.setProperty(3, QStringLiteral("%F"));
+
+        QJSValue sanitized = sanitizeFn.call({input});
+        QVERIFY(sanitized.isArray());
+        QCOMPARE(sanitized.property(QStringLiteral("length")).toInt(), 2);
+        QCOMPARE(sanitized.property(0).toString(), QStringLiteral("firefox"));
+        QCOMPARE(sanitized.property(1).toString(), QStringLiteral("--private-window"));
     }
 };
 

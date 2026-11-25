@@ -3772,6 +3772,57 @@ QStringList SystemServices::wrapTerminalCommand(const QStringList &command) cons
     return QStringList{parts.first(), QStringLiteral("-e")} + command;
 }
 
+bool SystemServices::launchApplication(const QStringList &command,
+                                       bool runInTerminal,
+                                       const QString &workingDirectory) const {
+    if (command.isEmpty())
+        return false;
+
+    QStringList desktopCommand;
+    for (const QString &arg : command) {
+        if (arg.size() == 2 && arg.startsWith(u'%'))
+            continue;
+        desktopCommand.append(arg);
+    }
+    if (desktopCommand.isEmpty())
+        return false;
+
+    if (runInTerminal) {
+        desktopCommand = wrapTerminalCommand(desktopCommand);
+    }
+
+    const QString systemdRun = findExecutable(QStringLiteral("systemd-run"));
+    if (!systemdRun.isEmpty()) {
+        QStringList scopedCommand = {
+            QStringLiteral("--user"),
+            QStringLiteral("--scope"),
+            QStringLiteral("--quiet"),
+            QStringLiteral("--collect"),
+            QStringLiteral("--slice=app.slice"),
+            QStringLiteral("--expand-environment=no")
+        };
+        if (!workingDirectory.trimmed().isEmpty()) {
+            scopedCommand.append(QStringLiteral("--working-directory=") + workingDirectory.trimmed());
+        }
+        scopedCommand.append(QStringLiteral("--"));
+        scopedCommand.append(desktopCommand);
+
+        if (QProcess::startDetached(systemdRun, scopedCommand)) {
+            return true;
+        }
+    }
+
+    if (!workingDirectory.trimmed().isEmpty()) {
+        QProcess process;
+        process.setProgram(desktopCommand.first());
+        process.setArguments(desktopCommand.mid(1));
+        process.setWorkingDirectory(workingDirectory.trimmed());
+        return process.startDetached();
+    }
+
+    return QProcess::startDetached(desktopCommand.first(), desktopCommand.mid(1));
+}
+
 namespace {
 
 const QMap<QString, QVector<double>> s_equalizerPresets = {

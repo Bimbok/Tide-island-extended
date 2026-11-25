@@ -293,16 +293,31 @@ FocusScope {
                     anchors.rightMargin: 12
                     spacing: 12
 
-                    // Icon (App icon or FontAwesome glyph)
+                    // Icon (App icon, File icon, or FontAwesome glyph)
                     Item {
                         width: 28
                         height: 28
                         Layout.alignment: Qt.AlignVCenter
 
                         IconImage {
-                            anchors.fill: parent
+                            id: rowAppIcon
+                            anchors.centerIn: parent
+                            width: 24
+                            height: 24
                             visible: resultRow.modelData.type === "app" || resultRow.modelData.type === "file"
-                            source: resultRow.modelData.icon || "application-x-executable"
+                            source: visible ? (Quickshell.iconPath(resultRow.modelData.icon || (resultRow.modelData.type === "file" ? "text-x-generic" : "application-x-executable"), true) || "") : ""
+                            asynchronous: true
+                            mipmap: true
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: (resultRow.modelData.type === "app" || resultRow.modelData.type === "file") && (!rowAppIcon.source || rowAppIcon.source.toString() === "")
+                            text: String(resultRow.modelData.title || "?").charAt(0).toLocaleUpperCase()
+                            color: StyleTokens.textPrimary
+                            font.family: root.textFontFamily
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
                         }
 
                         Text {
@@ -372,7 +387,11 @@ FocusScope {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         engine.selectedIndex = resultRow.index;
-                        engine.executeItem(resultRow.modelData);
+                        if (engine.allResults && resultRow.index < engine.allResults.length) {
+                            engine.executeItem(engine.allResults[resultRow.index]);
+                        } else {
+                            engine.executeItem(resultRow.modelData);
+                        }
                     }
                 }
             }

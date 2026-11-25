@@ -534,6 +534,13 @@ private slots:
         QCOMPARE(services.equalizerEnabled(), false);
         QCOMPARE(enabledSpy.count(), 2);
     }
+
+    void testLaunchApplicationValidation()
+    {
+        SystemServices services;
+        QVERIFY(!services.launchApplication({}));
+        QVERIFY(!services.launchApplication({QStringLiteral("%u"), QStringLiteral("%F")}));
+    }
 };
 
 QTEST_MAIN(SystemServicesNotificationTests)

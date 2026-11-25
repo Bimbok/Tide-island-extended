@@ -10,6 +10,8 @@ import "Calc.js" as Calc
 import "Match.js" as Match
 import "Frecency.js" as Frecency
 import "Web.js" as Web
+import "../common/ApplicationSearch.js" as ApplicationSearch
+import "../common/DesktopAppLauncher.js" as DesktopAppLauncher
 
 Item {
     id: root
@@ -203,6 +205,16 @@ Item {
         }
     }
 
+    Connections {
+        target: typeof DesktopEntries !== "undefined" ? DesktopEntries : null
+
+        function onApplicationsChanged() {
+            if (root.active) {
+                root.performSearch();
+            }
+        }
+    }
+
     function performSearch() {
         const raw = String(root.query || "").trim();
         const now = Date.now();
@@ -290,7 +302,7 @@ Item {
         root.actionResults = matchedActions.map(x => x.item).slice(0, 4);
 
         // 4. Applications
-        const availableApps = DesktopEntries.applications.values || [];
+        const availableApps = (typeof DesktopEntries !== "undefined" && DesktopEntries.applications && DesktopEntries.applications.values) ? DesktopEntries.applications.values : [];
         const matchedApps = [];
 
         if (raw === "") {
@@ -309,11 +321,12 @@ Item {
                     matchedApps.push({
                         item: {
                             type: "app",
+                            appId: entryId,
                             entry: entry,
                             key: "app:" + entryId,
                             title: entry.name,
                             subtitle: entry.comment || entry.genericName || "Application",
-                            icon: entry.icon || "application-x-executable",
+                            icon: entry.icon ? String(entry.icon) : "application-x-executable",
                             category: "Application"
                         },
                         order: keyMap[entryId]
@@ -325,18 +338,19 @@ Item {
             // If history is small, fill up with top alphabetically
             if (matchedApps.length < 8) {
                 const existingIds = ({});
-                matchedApps.forEach(x => { existingIds[x.item.entry.id] = true; });
+                matchedApps.forEach(x => { existingIds[x.item.appId] = true; });
                 for (let i = 0; i < availableApps.length && matchedApps.length < 8; ++i) {
                     const entry = availableApps[i];
-                    if (!entry || entry.noDisplay || String(entry.name).trim() === "" || existingIds[entry.id]) continue;
+                    if (!entry || entry.noDisplay || String(entry.name).trim() === "" || existingIds[String(entry.id)]) continue;
                     matchedApps.push({
                         item: {
                             type: "app",
+                            appId: String(entry.id),
                             entry: entry,
-                            key: "app:" + entry.id,
+                            key: "app:" + String(entry.id),
                             title: entry.name,
                             subtitle: entry.comment || entry.genericName || "Application",
-                            icon: entry.icon || "application-x-executable",
+                            icon: entry.icon ? String(entry.icon) : "application-x-executable",
                             category: "Application"
                         },
                         order: 999
@@ -344,34 +358,27 @@ Item {
                 }
             }
         } else {
-            // Search apps with Match.js + Frecency
+            // Search apps using ApplicationSearch + Frecency boost
             for (let i = 0; i < availableApps.length; ++i) {
                 const entry = availableApps[i];
                 if (!entry || entry.noDisplay || String(entry.name).trim() === "") continue;
 
-                const nameScore = Match.score(raw, entry.name);
-                const genericScore = entry.genericName ? Match.score(raw, entry.genericName) * 0.8 : 0;
-                const idScore = entry.id ? Match.score(raw, entry.id) * 0.6 : 0;
-                let keywordScore = 0;
-                if (entry.keywords && entry.keywords.length > 0) {
-                    keywordScore = Match.score(raw, entry.keywords.join(" ")) * 0.7;
-                }
+                const baseScore = ApplicationSearch.applicationScore(entry, raw);
+                const boost = Frecency.boost(root.historyStore, "app:" + String(entry.id), raw, now);
 
-                const baseScore = Math.max(nameScore, genericScore, idScore, keywordScore);
-                const boost = Frecency.boost(root.historyStore, "app:" + entry.id, raw, now);
-
-                if (baseScore > 200 || boost > 0) {
+                if (baseScore > 0 || boost > 0) {
                     matchedApps.push({
                         item: {
                             type: "app",
+                            appId: String(entry.id),
                             entry: entry,
-                            key: "app:" + entry.id,
+                            key: "app:" + String(entry.id),
                             title: entry.name,
                             subtitle: entry.comment || entry.genericName || "Application",
-                            icon: entry.icon || "application-x-executable",
+                            icon: entry.icon ? String(entry.icon) : "application-x-executable",
                             category: "Application"
                         },
-                        totalScore: baseScore + boost + 400 // app weight
+                        totalScore: baseScore + boost + 400
                     });
                 }
             }
@@ -504,8 +511,6 @@ Item {
             recordExecution(item.key);
         }
 
-        root.executeRequested(item);
-
         if (item.type === "calc") {
             // Copy calculation result to clipboard
             if (typeof SystemServices !== "undefined" && SystemServices && SystemServices.copyToClipboard) {
@@ -514,50 +519,19 @@ Item {
         } else if (item.type === "action") {
             root.actionTriggered(item.actionKey);
         } else if (item.type === "app") {
-            launchApplication(item.entry);
+            launchApplication(item.entry || item.appId);
         } else if (item.type === "file") {
             Quickshell.execDetached(["xdg-open", item.path]);
         } else if (item.type === "url" || item.type === "web") {
             Quickshell.execDetached(["xdg-open", item.url]);
         }
+
+        // Emit executeRequested at the very end so app/action has already launched
+        root.executeRequested(item);
     }
 
     function launchApplication(entry) {
         if (!entry) return;
-
-        let desktopCommand = [];
-        for (let index = 0; index < entry.command.length; ++index)
-            desktopCommand.push(String(entry.command[index]));
-
-        if (desktopCommand.length === 0) {
-            entry.execute();
-        } else {
-            if (entry.runInTerminal) {
-                if (typeof SystemServices !== "undefined" && SystemServices && SystemServices.wrapTerminalCommand) {
-                    desktopCommand = SystemServices.wrapTerminalCommand(desktopCommand);
-                } else {
-                    const terminal = Quickshell.env("TERMINAL") || "kitty";
-                    desktopCommand = [terminal, "-e"].concat(desktopCommand);
-                }
-            }
-
-            const scopedCommand = [
-                "systemd-run",
-                "--user",
-                "--scope",
-                "--quiet",
-                "--collect",
-                "--slice=app.slice",
-                "--expand-environment=no"
-            ];
-            const workingDirectory = String(entry.workingDirectory || "");
-            if (workingDirectory !== "")
-                scopedCommand.push("--working-directory=" + workingDirectory);
-            scopedCommand.push("--");
-            for (let index = 0; index < desktopCommand.length; ++index)
-                scopedCommand.push(desktopCommand[index]);
-
-            Quickshell.execDetached(scopedCommand);
-        }
+        DesktopAppLauncher.launch(entry, Quickshell, typeof SystemServices !== "undefined" ? SystemServices : null, DesktopEntries);
     }
 }

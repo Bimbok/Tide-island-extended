@@ -124,6 +124,7 @@ target_compile_definitions(spotlight_tests PRIVATE
     SPOTLIGHT_MATCH_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Match.js"
     SPOTLIGHT_WEB_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Web.js"
     SPOTLIGHT_FRECENCY_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/spotlight/Frecency.js"
+    DESKTOP_APP_LAUNCHER_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/common/DesktopAppLauncher.js"
 )
 
 target_link_libraries(spotlight_tests PRIVATE

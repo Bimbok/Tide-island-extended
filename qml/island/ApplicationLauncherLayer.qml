@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Widgets
 import IslandBackend
 import "../common/ApplicationSearch.js" as ApplicationSearch
+import "../common/DesktopAppLauncher.js" as DesktopAppLauncher
 
 FocusScope {
     id: root
@@ -358,42 +359,7 @@ FocusScope {
         if (!entry)
             return;
 
-        let desktopCommand = [];
-        for (let index = 0; index < entry.command.length; ++index)
-            desktopCommand.push(String(entry.command[index]));
-
-        if (desktopCommand.length === 0) {
-            entry.execute();
-        } else {
-            if (entry.runInTerminal) {
-                if (typeof SystemServices !== "undefined" && SystemServices && SystemServices.wrapTerminalCommand) {
-                    desktopCommand = SystemServices.wrapTerminalCommand(desktopCommand);
-                } else {
-                    const terminal = Quickshell.env("TERMINAL") || "kitty";
-                    desktopCommand = [terminal, "-e"].concat(desktopCommand);
-                }
-            }
-
-            const scopedCommand = [
-                "systemd-run",
-                "--user",
-                "--scope",
-                "--quiet",
-                "--collect",
-                "--slice=app.slice",
-                "--expand-environment=no"
-            ];
-            const workingDirectory = String(entry.workingDirectory || "");
-            if (workingDirectory !== "")
-                scopedCommand.push("--working-directory=" + workingDirectory);
-            scopedCommand.push("--");
-            for (let index = 0; index < desktopCommand.length; ++index)
-                scopedCommand.push(desktopCommand[index]);
-
-            // Keep launched applications outside tide-island.service so a
-            // service restart cannot kill their child process trees.
-            Quickshell.execDetached(scopedCommand);
-        }
+        DesktopAppLauncher.launch(entry, Quickshell, typeof SystemServices !== "undefined" ? SystemServices : null, DesktopEntries);
         root.closeRequested();
     }
 
