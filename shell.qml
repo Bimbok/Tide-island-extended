@@ -334,6 +334,14 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
         }
 
+        function toggleEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.toggleEqualizerWindow());
+        }
+
+        function showEqualizer() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow ? window.showEqualizerWindow() : window.toggleEqualizerWindow());
+        }
+
         function togglePowerMenu() {
             shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
         }
@@ -717,6 +725,26 @@ Scope {
 
         function close() {
             shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+    }
+
+    IpcHandler {
+        target: "equalizer"
+
+        function toggle() {
+            shellRoot.forFocusedWindow((window) => window.toggleEqualizerWindow());
+        }
+
+        function show() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow ? window.showEqualizerWindow() : window.toggleEqualizerWindow());
+        }
+
+        function open() {
+            shellRoot.forFocusedWindow((window) => window.showEqualizerWindow ? window.showEqualizerWindow() : window.toggleEqualizerWindow());
+        }
+
+        function close() {
+            shellRoot.forFocusedWindow((window) => window.closeEqualizerWindow ? window.closeEqualizerWindow() : window.toggleEqualizerWindow());
         }
     }
 

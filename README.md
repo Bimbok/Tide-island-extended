@@ -205,6 +205,7 @@ Control panels from terminal scripts or compositor keybindings:
 ```bash
 quickshell ipc call spotlight toggle          # Toggle Spotlight Search & Math Evaluator
 quickshell ipc call tide toggleSpotlight      # Alternative Spotlight trigger
+quickshell ipc call equalizer toggle          # Toggle 10-Band DSP Audio Equalizer flyout
 quickshell ipc call island toggleStyle        # Toggle Dynamic Island / Top Notch
 quickshell ipc call glance toggle             # Toggle System Glance & Dashboard
 quickshell ipc call tide toggleControlCenter  # Toggle Control Center drawer

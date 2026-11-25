@@ -924,6 +924,34 @@ PanelWindow {
         }
     }
 
+    function toggleEqualizerWindow() {
+        if (islandContainer.islandState === "control_center"
+                && root.equalizerConnectivityDetailOpen) {
+            root.setConnectivityDetailVisible("equalizer", false);
+            islandContainer.smartRestoreState();
+            return;
+        }
+
+        showEqualizerWindow();
+    }
+
+    function showEqualizerWindow() {
+        islandContainer.showControlCenter();
+        if (controlCenterLoader.item) {
+            controlCenterLoader.item.setConnectivityPanelOpen("equalizer", true, true);
+        } else {
+            islandContainer.equalizerRequested = true;
+            root.setConnectivityDetailVisible("equalizer", true);
+        }
+    }
+
+    function closeEqualizerWindow() {
+        root.setConnectivityDetailVisible("equalizer", false);
+        if (controlCenterLoader.item) {
+            controlCenterLoader.item.setConnectivityPanelOpen("equalizer", false, true);
+        }
+    }
+
     function toggleNotificationCenterWindow() {
         if (islandContainer.islandState === "notification_center")
             islandContainer.smartRestoreState();
@@ -1170,9 +1198,7 @@ PanelWindow {
             islandContainer.showControlCenter();
             break;
         case "equalizer":
-            islandContainer.showControlCenter();
-            if (controlCenterLoader.item && controlCenterLoader.item.openEqualizerPanel)
-                controlCenterLoader.item.openEqualizerPanel();
+            root.showEqualizerWindow();
             break;
         case "recorder":
             islandContainer.smartRestoreState();
@@ -1344,6 +1370,7 @@ PanelWindow {
             || (root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive))
 
         property bool powerMenuRequested: false
+        property bool equalizerRequested: false
         property string islandState: "normal"
         property string splitIcon: root.defaultSplitIcon
         property real osdProgress: -1.0
@@ -2503,6 +2530,10 @@ PanelWindow {
             root.togglePowerMenuWindow();
         }
 
+        function showEqualizer() {
+            root.showEqualizerWindow();
+        }
+
         function showCustomCapsule() {
             if (!hasCustomLeftItems) {
                 showTimeCapsule();
@@ -3377,6 +3408,10 @@ PanelWindow {
                     if (islandContainer.powerMenuRequested && item) {
                         item.powerViewActive = true;
                         islandContainer.powerMenuRequested = false;
+                    }
+                    if (islandContainer.equalizerRequested && item) {
+                        item.setConnectivityPanelOpen("equalizer", true, true);
+                        islandContainer.equalizerRequested = false;
                     }
                     if (item)
                         item.forceActiveFocus();

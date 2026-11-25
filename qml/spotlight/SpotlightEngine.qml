@@ -521,7 +521,7 @@ Item {
                 const parts = path.split("/");
                 const filename = parts[parts.length - 1];
                 const isDir = !filename.includes(".");
-                
+
                 const existing = root.fileResults.slice();
                 if (existing.length < 8 && !existing.some(x => x.path === path)) {
                     existing.push({
