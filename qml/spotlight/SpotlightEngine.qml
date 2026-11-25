@@ -45,7 +45,7 @@ Item {
             subtitle: "Lock current Wayland session (tide-island-lock)",
             icon: "\uf023",
             category: "System Action",
-            keywords: ["lock", "screen", "session", "sleep", "protect"]
+            keywords: ["lock", "lockscreen", "screen", "session", "sleep", "protect"]
         },
         {
             id: "action:control_center",
@@ -54,7 +54,7 @@ Item {
             subtitle: "Open quick settings, toggles & sliders",
             icon: "\uf013",
             category: "System Action",
-            keywords: ["control", "center", "settings", "wifi", "bluetooth", "brightness", "volume", "tray"]
+            keywords: ["control", "center", "controlcenter", "settings", "wifi", "bluetooth", "brightness", "volume", "tray"]
         },
         {
             id: "action:equalizer",
@@ -63,7 +63,7 @@ Item {
             subtitle: "Open 10-band DSP audio equalizer flyout",
             icon: "\uf001",
             category: "System Action",
-            keywords: ["equalizer", "eq", "audio", "sound", "dsp", "bass", "treble", "music", "pipewire"]
+            keywords: ["equalizer", "eq", "audio", "sound", "dsp", "bass", "treble", "music", "pipewire", "audioequalizer"]
         },
         {
             id: "action:recorder",
@@ -72,7 +72,7 @@ Item {
             subtitle: "Start or stop hardware screen recording",
             icon: "\uf03d",
             category: "System Action",
-            keywords: ["record", "screen", "video", "capture", "recording", "gpu-screen-recorder"]
+            keywords: ["record", "screen", "video", "capture", "recording", "screenrecorder", "gpu-screen-recorder"]
         },
         {
             id: "action:replay",
@@ -108,7 +108,7 @@ Item {
             subtitle: "Open temporary drag-and-drop file shelf",
             icon: "\uf07b",
             category: "System Action",
-            keywords: ["shelf", "file", "drop", "drag", "storage"]
+            keywords: ["shelf", "file", "drop", "drag", "storage", "fileshelf"]
         },
         {
             id: "action:calendar",
@@ -144,7 +144,7 @@ Item {
             subtitle: "Open session power controls (sleep, reboot, poweroff)",
             icon: "\uf011",
             category: "System Action",
-            keywords: ["power", "shutdown", "reboot", "restart", "sleep", "suspend", "logout"]
+            keywords: ["power", "powermenu", "power-menu", "menu", "shutdown", "reboot", "restart", "sleep", "suspend", "logout"]
         }
     ]
 
@@ -275,7 +275,7 @@ Item {
             for (let i = 0; i < root.systemActions.length; ++i) {
                 const action = root.systemActions[i];
                 let score = Match.score(raw, action.title);
-                if (score <= 0 && action.keywords) {
+                if (action.keywords) {
                     for (let k = 0; k < action.keywords.length; ++k) {
                         const kwScore = Match.score(raw, action.keywords[k]);
                         if (kwScore > score) score = kwScore;

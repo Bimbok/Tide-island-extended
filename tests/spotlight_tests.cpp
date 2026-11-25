@@ -84,6 +84,12 @@ private slots:
 
         const double noMatchScore = scoreFn.call({QStringLiteral("xyz"), QStringLiteral("Firefox")}).toNumber();
         QCOMPARE(noMatchScore, 0.0);
+
+        const double powerMenuExact = scoreFn.call({QStringLiteral("powermenu"), QStringLiteral("powermenu")}).toNumber();
+        QCOMPARE(powerMenuExact, 1000.0);
+
+        const double powerMenuFuzzy = scoreFn.call({QStringLiteral("powermenu"), QStringLiteral("Power Menu")}).toNumber();
+        QVERIFY(powerMenuFuzzy >= 600.0);
     }
 
     void testWebAddressDetection()

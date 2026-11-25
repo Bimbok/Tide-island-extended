@@ -37,11 +37,12 @@ FocusScope {
 
         onActionTriggered: function(key) {
             root.actionTriggered(key);
-            root.closeRequested();
         }
 
         onExecuteRequested: function(item) {
-            root.closeRequested();
+            if (!item || item.type !== "action") {
+                root.closeRequested();
+            }
         }
     }
 

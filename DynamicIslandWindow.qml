@@ -1162,6 +1162,7 @@ PanelWindow {
     function handleSpotlightAction(key) {
         switch (key) {
         case "lock":
+            islandContainer.smartRestoreState();
             if (root.shellRootController && root.shellRootController.triggerLock)
                 root.shellRootController.triggerLock();
             break;
@@ -1174,10 +1175,12 @@ PanelWindow {
                 controlCenterLoader.item.openEqualizerPanel();
             break;
         case "recorder":
+            islandContainer.smartRestoreState();
             if (typeof SystemServices !== "undefined" && SystemServices)
                 SystemServices.requestScreenRecordingSnapshot();
             break;
         case "replay":
+            islandContainer.smartRestoreState();
             if (typeof SystemServices !== "undefined" && SystemServices)
                 SystemServices.requestScreenRecordingSnapshot();
             break;
@@ -1197,11 +1200,12 @@ PanelWindow {
             islandContainer.showWeather();
             break;
         case "style":
+            islandContainer.smartRestoreState();
             if (root.shellRootController && root.shellRootController.userConfig)
                 root.shellRootController.userConfig.toggleIslandStyle();
             break;
         case "power":
-            islandContainer.showPowerMenu();
+            root.togglePowerMenuWindow();
             break;
         }
     }
@@ -2493,6 +2497,10 @@ PanelWindow {
             islandState = "glance";
             mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
             stopAutoHideTimer();
+        }
+
+        function showPowerMenu() {
+            root.togglePowerMenuWindow();
         }
 
         function showCustomCapsule() {
