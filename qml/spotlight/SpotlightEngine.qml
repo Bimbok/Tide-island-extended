@@ -40,12 +40,6 @@ Item {
         return "/usr/share/tide-island/scripts/cliphist-helper.sh";
     }
 
-    onActiveChanged: {
-        if (root.active) {
-            loadClipboardHistory();
-        }
-    }
-
     Component.onCompleted: {
         if (root.active) {
             loadClipboardHistory();
@@ -229,6 +223,7 @@ Item {
 
     onActiveChanged: {
         if (active) {
+            loadClipboardHistory();
             root.performSearch();
         } else {
             fileSearchProcess.running = false;
