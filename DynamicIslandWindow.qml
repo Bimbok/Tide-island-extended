@@ -1176,13 +1176,13 @@ PanelWindow {
             break;
         case "recorder":
             islandContainer.smartRestoreState();
-            if (typeof SystemServices !== "undefined" && SystemServices)
-                SystemServices.requestScreenRecordingSnapshot();
+            if (typeof ScreenRecorder !== "undefined" && ScreenRecorder)
+                ScreenRecorder.toggleRecording();
             break;
         case "replay":
             islandContainer.smartRestoreState();
-            if (typeof SystemServices !== "undefined" && SystemServices)
-                SystemServices.requestScreenRecordingSnapshot();
+            if (typeof ScreenRecorder !== "undefined" && ScreenRecorder)
+                ScreenRecorder.saveReplay();
             break;
         case "glance":
             islandContainer.showGlance();
