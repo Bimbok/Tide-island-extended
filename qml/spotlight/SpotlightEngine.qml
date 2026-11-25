@@ -25,8 +25,38 @@ Item {
     property var urlResult: null
     property var actionResults: []
     property var applicationResults: []
+    property var clipboardResults: []
     property var fileResults: []
     property var webResult: null
+
+    // In-memory cached clipboard history items
+    property var cachedClips: []
+
+    readonly property string helperScriptPath: {
+        const candidate = Qt.resolvedUrl("../../scripts/cliphist-helper.sh").toString();
+        if (candidate.startsWith("file://")) {
+            return decodeURIComponent(candidate.substring(7));
+        }
+        return "/usr/share/tide-island/scripts/cliphist-helper.sh";
+    }
+
+    onActiveChanged: {
+        if (root.active) {
+            loadClipboardHistory();
+        }
+    }
+
+    Component.onCompleted: {
+        if (root.active) {
+            loadClipboardHistory();
+        }
+    }
+
+    function loadClipboardHistory() {
+        if (!cliphistProcess.running) {
+            cliphistProcess.running = true;
+        }
+    }
 
     // Combined flat list for easy keyboard navigation
     property var allResults: []
@@ -386,7 +416,70 @@ Item {
         }
         root.applicationResults = matchedApps.map(x => x.item).slice(0, 8);
 
-        // 5. Trigger File Search (debounced)
+        // 5. Clipboard History Search
+        let isClipPrefix = false;
+        let clipQuery = raw;
+        if (/^(clip|cb|paste)\s+/i.test(raw)) {
+            isClipPrefix = true;
+            clipQuery = raw.replace(/^(clip|cb|paste)\s+/i, "").trim();
+        } else if (raw.toLowerCase() === "clip" || raw.toLowerCase() === "cb") {
+            isClipPrefix = true;
+            clipQuery = "";
+        }
+
+        const matchedClips = [];
+        if (root.cachedClips && root.cachedClips.length > 0 && (clipQuery !== "" || isClipPrefix)) {
+            const queryToUse = clipQuery;
+            for (let i = 0; i < root.cachedClips.length; ++i) {
+                const clip = root.cachedClips[i];
+                if (!clip || !clip.text) continue;
+
+                let score = 0;
+                if (queryToUse === "") {
+                    score = Math.max(100, 900 - i * 10);
+                } else {
+                    const clipTextFolded = clip.text.toLowerCase();
+                    const qFolded = queryToUse.toLowerCase();
+
+                    if (clipTextFolded === qFolded) {
+                        score = 1000;
+                    } else if (clipTextFolded.startsWith(qFolded)) {
+                        score = 900;
+                    } else if (clipTextFolded.includes(qFolded)) {
+                        score = 750;
+                    } else {
+                        score = Match.score(queryToUse, clip.text);
+                    }
+                }
+
+                if (score > 150) {
+                    const boost = Frecency.boost(root.historyStore, "clip:" + clip.id, queryToUse, now);
+                    let titleStr = clip.text.replace(/[\r\n\t]+/g, " ").trim();
+                    if (titleStr.length > 70) {
+                        titleStr = titleStr.substring(0, 67) + "...";
+                    }
+                    matchedClips.push({
+                        item: {
+                            type: "clipboard",
+                            clipId: clip.id,
+                            key: "clip:" + clip.id,
+                            title: titleStr,
+                            subtitle: clip.isImage ? "Image snippet · Enter to copy" : "Clipboard snippet · Enter to copy",
+                            copyText: clip.text,
+                            isImage: clip.isImage,
+                            imagePath: clip.imagePath,
+                            icon: clip.isImage ? "\uf03e" : "\uf0ea",
+                            category: "Clipboard"
+                        },
+                        totalScore: score + boost + (isClipPrefix ? 600 : 250)
+                    });
+                }
+            }
+            matchedClips.sort((a, b) => b.totalScore - a.totalScore);
+        }
+        root.clipboardResults = matchedClips.slice(0, 5).map(x => x.item);
+
+        // 6. Trigger File Search (debounced)
         if (raw.length >= 3 && !root.calcResult) {
             fileSearchDebounce.restart();
         } else {
@@ -452,6 +545,49 @@ Item {
         }
     }
 
+    Process {
+        id: cliphistProcess
+        command: ["bash", root.helperScriptPath, "list", "100"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = this.text.split("\n").filter(l => l.length > 0);
+                const parsed = [];
+                for (let i = 0; i < lines.length; ++i) {
+                    const line = lines[i];
+                    const tabIdx = line.indexOf("\t");
+                    if (tabIdx === -1) continue;
+                    const id = line.substring(0, tabIdx).trim();
+                    let rest = line.substring(tabIdx + 1);
+                    let imgPath = "";
+                    let isImg = false;
+                    const nullIdx = rest.indexOf("\x00");
+                    if (nullIdx !== -1) {
+                        const iconPart = rest.substring(nullIdx + 1);
+                        rest = rest.substring(0, nullIdx);
+                        const splitPart = iconPart.split("\x1f");
+                        if (splitPart.length > 1) {
+                            imgPath = splitPart[1];
+                        }
+                        isImg = true;
+                    } else if (rest.includes("[[ binary data")) {
+                        isImg = true;
+                    }
+                    parsed.push({
+                        id: id,
+                        text: rest.trim(),
+                        isImage: isImg,
+                        imagePath: imgPath
+                    });
+                }
+                root.cachedClips = parsed;
+                if (root.query.trim() !== "") {
+                    root.updateSearch(root.query);
+                }
+            }
+        }
+    }
+
     function rebuildAllResults() {
         const list = [];
 
@@ -465,6 +601,13 @@ Item {
             list.push(root.urlResult);
         }
 
+        const isClipPrefix = /^(clip|cb|paste)\b/i.test(String(root.query || "").trim());
+        if (isClipPrefix) {
+            for (let i = 0; i < root.clipboardResults.length; ++i) {
+                list.push(root.clipboardResults[i]);
+            }
+        }
+
         // 3. Actions & Applications
         for (let i = 0; i < root.actionResults.length; ++i) {
             list.push(root.actionResults[i]);
@@ -473,12 +616,19 @@ Item {
             list.push(root.applicationResults[i]);
         }
 
-        // 4. Files
+        // 4. Clipboard matches (when not explicitly prefixed)
+        if (!isClipPrefix) {
+            for (let i = 0; i < root.clipboardResults.length; ++i) {
+                list.push(root.clipboardResults[i]);
+            }
+        }
+
+        // 5. Files
         for (let i = 0; i < root.fileResults.length; ++i) {
             list.push(root.fileResults[i]);
         }
 
-        // 5. Web Search at bottom
+        // 6. Web Search at bottom
         if (root.webResult && !root.calcResult) {
             list.push(root.webResult);
         }
@@ -520,6 +670,12 @@ Item {
             root.actionTriggered(item.actionKey);
         } else if (item.type === "app") {
             launchApplication(item.entry || item.appId);
+        } else if (item.type === "clipboard") {
+            if (item.clipId) {
+                Quickshell.execDetached(["bash", root.helperScriptPath, "copy", String(item.clipId)]);
+            } else if (item.copyText && typeof SystemServices !== "undefined" && SystemServices && SystemServices.copyToClipboard) {
+                SystemServices.copyToClipboard(item.copyText);
+            }
         } else if (item.type === "file") {
             Quickshell.execDetached(["xdg-open", item.path]);
         } else if (item.type === "url" || item.type === "web") {

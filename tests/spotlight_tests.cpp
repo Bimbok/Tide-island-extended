@@ -139,6 +139,19 @@ private slots:
         QCOMPARE(sanitized.property(0).toString(), QStringLiteral("firefox"));
         QCOMPARE(sanitized.property(1).toString(), QStringLiteral("--private-window"));
     }
+
+    void testClipboardMatching()
+    {
+        const QJSValue scoreFn = m_engine.globalObject().property(QStringLiteral("score"));
+        QVERIFY(scoreFn.isCallable());
+
+        const QString clipSnippet = QStringLiteral("sudo cp qml/spotlight/SpotlightLayer.qml /usr/share/tide-island/");
+        const double score = scoreFn.call({QStringLiteral("SpotlightLayer"), clipSnippet}).toNumber();
+        QVERIFY(score > 500.0);
+
+        const double exactScore = scoreFn.call({QStringLiteral("curl"), QStringLiteral("curl")}).toNumber();
+        QCOMPARE(exactScore, 1000.0);
+    }
 };
 
 QTEST_MAIN(SpotlightTests)

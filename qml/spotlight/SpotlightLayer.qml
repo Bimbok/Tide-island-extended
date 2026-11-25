@@ -130,7 +130,7 @@ FocusScope {
 
                     Text {
                         anchors.fill: parent
-                        text: "Spotlight Search, math, files, or actions..."
+                        text: "Spotlight Search, clipboard, math, files..."
                         color: StyleTokens.textMuted
                         font.family: root.textFontFamily
                         font.pixelSize: 15
@@ -377,7 +377,7 @@ FocusScope {
                             height: 28
                             radius: 14
                             color: resultRow.isSelected ? StyleTokens.accentSoft : StyleTokens.cardFill
-                            visible: resultRow.modelData.type !== "app" && resultRow.modelData.type !== "file"
+                            visible: resultRow.modelData.type !== "app" && resultRow.modelData.type !== "file" && (!resultRow.modelData.imagePath || resultRow.modelData.imagePath === "")
 
                             Text {
                                 anchors.centerIn: parent
@@ -386,6 +386,16 @@ FocusScope {
                                 font.pixelSize: 14
                                 color: resultRow.isSelected ? StyleTokens.accent : StyleTokens.textSecondary
                             }
+                        }
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 28
+                            height: 28
+                            fillMode: Image.PreserveAspectCrop
+                            visible: !!resultRow.modelData.imagePath && resultRow.modelData.imagePath !== ""
+                            source: visible ? ("file://" + resultRow.modelData.imagePath) : ""
+                            asynchronous: true
                         }
                     }
 
