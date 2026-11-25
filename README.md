@@ -9,7 +9,7 @@
   <a href="https://github.com/enhaoswen/Tide-island"><img alt="Upstream: enhaoswen/Tide-island" src="https://img.shields.io/badge/upstream-enhaoswen%2FTide--island-8aadf4?style=flat-square"></a>
   <img alt="Hyprland" src="https://img.shields.io/badge/Hyprland-111111?style=flat-square&color=8aadf4">
   <img alt="niri" src="https://img.shields.io/badge/niri-111111?style=flat-square&color=8aadf4">
-  <img alt="C++ + Qt" src="https://img.shields.io/badge/C%2B%2B%20%2B%20Qt-111111?style=flat-square&color=8aadf4">
+  <img alt="C++ + Qt 6" src="https://img.shields.io/badge/C%2B%2B%20%2B%20Qt%206-111111?style=flat-square&color=8aadf4">
 </p>
 
 <p align="center">
@@ -17,17 +17,15 @@
 </p>
 
 <p align="center">
-  <a href="#preview">Preview</a>
+  <a href="#visual-showcase">Showcase</a>
   ·
-  <a href="#key-highlights">Highlights</a>
+  <a href="#highlights">Highlights</a>
   ·
   <a href="#performance">Performance</a>
   ·
   <a href="#quick-start">Quick Start</a>
   ·
-  <a href="#documentation--wiki">Documentation</a>
-  ·
-  <a href="#common-commands">Commands</a>
+  <a href="https://github.com/Bimbok/Tide-island-extended/wiki">Wiki & Docs</a>
   ·
   <a href="#acknowledgments">Credits</a>
 </p>
@@ -36,20 +34,20 @@
 
 ## About
 
-**Tide Island Extended** is a desktop widget and control center for modern Wayland compositors (**Hyprland** and **niri**), styled after the Dynamic Island concept.
+**Tide Island Extended** is a desktop shell widget and control suite for modern Wayland compositors (**Hyprland** and **niri**), inspired by the Dynamic Island concept.
 
-When idle, it rests unobtrusively in your status bar or screen corner as a minimalist capsule pill or flush MacBook-style notch. When needed, it smoothly expands into an interactive panel for media playback, real-time synchronized lyrics, multi-audio device routing, a native 10-band DSP equalizer, hardware telemetry, battery conservation thresholds, screen recording, system glance, and unified Spotlight search.
+When idle, it rests as a minimalist capsule pill or flush MacBook-style notch. When interacted with, it fluidly morphs into a full desktop control suite: unified Spotlight search, multi-device audio routing, 10-band DSP equalizer, hardware screen recording, live lyrics, hardware telemetry, battery health controls, and a native Wayland lockscreen.
 
-Built with **Quickshell**, **QML**, and **C++/Qt 6**, animations are hardware-accelerated and fluid while maintaining an exceptionally light resource footprint.
+Built with **Quickshell**, **QML**, and **C++/Qt 6**, all animations are hardware-accelerated at 60 FPS while maintaining an ultra-light resource footprint.
 
 > [!NOTE]
-> **Tide Island Extended** is an independently maintained fork of [Tide Island](https://github.com/enhaoswen/Tide-island) by [**@enhaoswen**](https://github.com/enhaoswen). While respecting upstream's core architectural foundation, this project maintains its own active development path with extended features, multi-distro packaging, and ongoing performance tuning.
+> **Tide Island Extended** is an independently developed and maintained fork of [Tide Island](https://github.com/enhaoswen/Tide-island) by [**@enhaoswen**](https://github.com/enhaoswen).
 
 ---
 
-## Preview
+## Visual Showcase
 
-### Dynamic Island & Top Notch Capsules
+### Dynamic Island & MacBook Top Notch Capsules
 <p align="center">
   <img src="docs/preview/island_custom_bar.png" width="100%" alt="Dynamic Island Custom Status Bar" />
 </p>
@@ -68,28 +66,33 @@ Built with **Quickshell**, **QML**, and **C++/Qt 6**, animations are hardware-ac
   </tr>
 </table>
 
+### Unified Spotlight Search
+<p align="center">
+  <img src="docs/preview/spotlight.jpg" width="85%" alt="Unified Spotlight Search and Clipboard Manager" />
+</p>
+
 ### Native Dynamic Island Lockscreen
 <p align="center">
   <img src="docs/preview/lockscreen.png" width="95%" alt="Native Dynamic Island Lockscreen" />
 </p>
 
-### Interactive Panels
+### Interactive Panels & Flyouts
 <table>
   <tr>
-    <td width="50%"><img src="docs/preview/music_player.png" width="100%" alt="Music Player" /></td>
+    <td width="50%"><img src="docs/preview/music_player.png" width="100%" alt="Media Player" /></td>
     <td width="50%"><img src="docs/preview/control_center.png" width="100%" alt="Control Center" /></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/preview/audio_panel.png" width="100%" alt="Audio Device Switcher & Application Mixer" /></td>
+    <td width="50%"><img src="docs/preview/audio_panel.png" width="100%" alt="Audio Device Switcher & Multi-Audio" /></td>
     <td width="50%"><img src="docs/preview/equalizer_panel.png" width="100%" alt="Native 10-Band DSP Audio Equalizer" /></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/preview/system_glance.png" width="100%" alt="System Glance & Mini Dashboard" /></td>
+    <td width="50%"><img src="docs/preview/system_glance.png" width="100%" alt="System Glance & Telemetry Dashboard" /></td>
     <td width="50%"><img src="docs/preview/battery_panel.png" width="100%" alt="Battery Health & Conservation Mode" /></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/preview/app_launcher.png" width="100%" alt="Application Launcher" /></td>
-    <td width="50%"><img src="docs/preview/clipboard.png" width="100%" alt="Clipboard History" /></td>
+    <td width="50%"><img src="docs/preview/clipboard.png" width="100%" alt="Clipboard Manager" /></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/preview/weather.png" width="100%" alt="Weather & Forecast" /></td>
@@ -97,45 +100,42 @@ Built with **Quickshell**, **QML**, and **C++/Qt 6**, animations are hardware-ac
   </tr>
 </table>
 
-### Configuration App
+### Settings & Theming App
 <p align="center">
   <img src="docs/preview/config_app.png" width="95%" alt="Tide Island Extended Settings" />
 </p>
 
 ---
 
-## Key Highlights
+## Highlights
 
-* **Dynamic Island & MacBook-Style Top Notch**: Toggle between floating pill (`y: 12px`) and flush top notch (`y: 0px`) on the fly via `Super + Alt + N` or the Config App.
-* **Spotlight Search & Math Evaluator**: macOS-style unified Spotlight interface (`Super + Space`) featuring hand-parsed arithmetic evaluation, unit and data conversions without `eval()`, direct URL launching, intelligent frecency tracking with half-life decay, debounced local file lookup via `fd`, and instant triggering for 12 native desktop control services.
-* **Native 10-Band DSP Audio Equalizer**: Dedicated low-latency C++ equalizer daemon (`tide-equalizer`) with SIMD power-of-two DSP FrameRing, 8 curated presets, stereo balance, dynamics modes, and zero-resource on-demand lifecycle (0% CPU / 0 MB RAM when disabled).
-* **Multi-Device Simultaneous Audio Output ("Multi-Audio")**: Play audio across multiple physical outputs (e.g. Speakers + Bluetooth earbuds + USB DAC) at the same time with independent device volume sliders and automated PipeWire combined sinks.
-* **Hardware Screen Recorder & Replay**: Powered by `gpu-screen-recorder` with Linux `pidfd` monitoring, mic audio capture, live Control Center banner elevation, and 10s/30s/60s instant replay buffers.
-* **Battery Health & Conservation Mode**: Laptop charge capping (Lenovo IdeaPad 80% threshold or generic `charge_control_end_threshold`) without root password prompts.
-* **System Glance & Telemetry Dashboard**: On-demand system dashboard (`Super + G`) displaying live CPU/RAM/GPU usage, active network throughput, kernel/scheduler metrics, and multi-distro update checking (Arch, Debian/Ubuntu, Fedora, openSUSE).
-* **Native Wayland Lockscreen**: Zoom-blur morphing, hero media player with live audio visualizer, secure PAM authentication, bouncy password pearls, and multi-monitor ambient standby.
-* **Per-App Volume Mixer & Privacy HUD**: Granular per-app volume sliders with desktop icons, alongside privacy indicators for active camera/mic streams.
-* **Dynamic Palette Theming**: Live hot-reloads of `colors.json` via Matugen or Pywal without service restarts.
+* **Fluid Dual-Style Morphing**: Seamlessly switch between the floating **Dynamic Island** (capsule pill with customizable top margin) and top-attached **MacBook-Style Notch** (flush with top bezel at `y: 0`, 0px top corners, smooth rounded bottom corners) with `Super + Alt + N` or via settings.
+* **Unified Spotlight Search**: macOS-style Spotlight modal (`Super + Space`) featuring live desktop application search, inline clipboard history search (`clip <query>`), hand-parsed math evaluation and unit conversions without `eval()`, direct web URL launching, dedicated battery profile hero card, and local file lookup.
+* **Native 10-Band DSP Equalizer**: Dedicated low-latency C++ audio daemon (`tide-equalizer`) with 10 peaking biquad filters, 8 curated presets, stereo balance, and zero-resource on-demand lifecycle (0% CPU, 0 MB RAM when disabled).
+* **Multi-Device Simultaneous Output ("Multi-Audio")**: Play audio across multiple physical outputs (e.g. Speakers + Bluetooth earbuds + USB DAC) at the same time with independent device sliders and automatic PipeWire combined-sink orchestration.
+* **Native GPU Screen Recorder & Instant Replay**: Dedicated screen recorder powered by `gpu-screen-recorder` with zero-overhead `pidfd` monitoring, mic capture, and 10s/30s/60s instant replay clipping.
+* **Battery Profile & Conservation Mode**: 3-mode power profile selector (Power Saver, Balanced, Performance) shared across Control Center and Spotlight, alongside laptop battery conservation threshold control (80%).
+* **System Glance & Mini Dashboard**: On-demand system dashboard (`Super + G`) displaying live CPU/RAM/GPU telemetry, disk capacity, network throughput, Linux kernel/scheduler stats, and multi-distro package update checks.
+* **Native Wayland Lockscreen**: Authentic Wayland lockscreen (`tide-island-lock`) with zoom-blur morphing, hero media player, live audio visualizer, PAM security, lockout detection, and multi-monitor ambient standby.
+* **Dynamic Palette Theming**: Live hot-reloading Matugen and Pywal color palettes from `colors.json` without daemon restarts.
 
 ---
 
 ## Performance
 
-Tide Island Extended is engineered for maximum responsiveness with minimal resource consumption:
-
-| Metric | Measured Value | Details |
+| Metric | Measured Value | Architecture Details |
 |---|---|---|
-| **Idle CPU Usage** | **~0.1% – 0.5%** | Measured over 19+ hours daemon uptime; event-driven kernel sleep with zero timer polling |
+| **Idle CPU Usage** | **~0.1% – 0.5%** | Measured over 24+ hours daemon uptime; event-driven kernel sleep with zero timer polling |
 | **Unique Process RAM** | **~50 – 65 MB** | Private anonymous heap/object memory unique to Tide Island |
-| **Total RSS Footprint** | **~135 – 150 MB** | Full RSS including shared Mesa GPU drivers and Qt6 libraries (down from 245 MB+) |
 | **On-Demand Daemons** | **0 MB idle** | Equalizer (`tide-equalizer`) and lyrics daemons terminate completely when inactive |
+| **Lazy Layer Loading** | **0 MB when closed** | Spotlight, Control Center, and flyouts destroy instances when hidden |
 | **Media & Telemetry** | **0 D-Bus polling** | Dead-reckoning MPRIS extrapolation and on-demand `/proc` telemetry sampling |
 
 ---
 
 ## Quick Start
 
-### Arch Linux (Pre-compiled Binary Package)
+### Arch Linux (Binary Package)
 ```bash
 curl -LO https://github.com/Bimbok/Tide-island-extended/releases/latest/download/tide-island-extended-x86_64.pkg.tar.zst
 sudo pacman -U tide-island-extended-x86_64.pkg.tar.zst
@@ -147,20 +147,13 @@ git clone https://github.com/Bimbok/Tide-island-extended.git
 cd Tide-island-extended
 ./install.sh
 ```
-*Supported out of the box on Arch, Fedora, Debian/Ubuntu, openSUSE, and NixOS.*
 
-### Nix & NixOS Flakes
-```bash
-# Run immediately without global installation
-nix run github:Bimbok/Tide-island-extended
-```
-
-### Start Service
+### Start Daemon
 ```bash
 systemctl --user enable --now tide-island.service
 ```
 
-Configure settings anytime with:
+Launch settings anytime with:
 ```bash
 tide-island-config-app
 ```
@@ -169,13 +162,13 @@ tide-island-config-app
 
 ## Documentation & Wiki
 
-For detailed guides, compositor setup, architecture documentation, and troubleshooting, visit the **[GitHub Wiki](https://github.com/Bimbok/Tide-island-extended/wiki)**:
+For detailed guides, compositor keybindings, layer rules, IPC specifications, and troubleshooting, visit the **[GitHub Wiki](https://github.com/Bimbok/Tide-island-extended/wiki)**:
 
 | Guide | Description |
 |---|---|
 | **[Installation Guide](https://github.com/Bimbok/Tide-island-extended/wiki/Installation-Guide)** | Package installation, manual CMake compilation, multi-distro dependencies, and NixOS modules. |
 | **[Compositor Integration](https://github.com/Bimbok/Tide-island-extended/wiki/Compositor-Integration)** | Complete setup, keybindings, layer rules, and `hypridle` configurations for Hyprland and niri. |
-| **[Island Modes & Features](https://github.com/Bimbok/Tide-island-extended/wiki/Island-Modes-&-Features)** | Deep dive into Dynamic Island vs Top Notch, Multi-Audio, Screen Recording, Battery Health, and Lockscreen. |
+| **[Island Modes & Features](https://github.com/Bimbok/Tide-island-extended/wiki/Island-Modes-&-Features)** | Deep dive into Dynamic Island vs Top Notch, Spotlight, Multi-Audio, Screen Recording, and Battery Profiles. |
 | **[Audio Equalizer Daemon](https://github.com/Bimbok/Tide-island-extended/wiki/Audio-Equalizer-Daemon)** | Architecture, PipeWire filter-chains, real-time SIMD DSP FrameRing, and socket IPC of `tide-equalizer`. |
 | **[Configuration & Theming](https://github.com/Bimbok/Tide-island-extended/wiki/Configuration-&-Theming)** | Configuration app usage, `config.json` schema, and live hot-reloading Matugen palettes. |
 | **[IPC & CLI Reference](https://github.com/Bimbok/Tide-island-extended/wiki/IPC-&-CLI-Reference)** | Exhaustive list of `quickshell ipc call` commands, desktop binaries, and scripting hooks. |
@@ -183,62 +176,10 @@ For detailed guides, compositor setup, architecture documentation, and troublesh
 
 ---
 
-## Common Commands
-
-### Everyday Controls
-```bash
-# Lock the screen
-tide-island-lock
-
-# Open Settings UI
-tide-island-config-app
-
-# Restart daemon after edits
-systemctl --user restart tide-island.service
-
-# View live service logs
-journalctl --user -u tide-island.service -f
-```
-
-### Quick IPC Calls
-Control panels from terminal scripts or compositor keybindings:
-```bash
-quickshell ipc call spotlight toggle          # Toggle Spotlight Search & Math Evaluator
-quickshell ipc call tide toggleSpotlight      # Alternative Spotlight trigger
-quickshell ipc call equalizer toggle          # Toggle 10-Band DSP Audio Equalizer flyout
-quickshell ipc call island toggleStyle        # Toggle Dynamic Island / Top Notch
-quickshell ipc call glance toggle             # Toggle System Glance & Dashboard
-quickshell ipc call tide toggleControlCenter  # Toggle Control Center drawer
-quickshell ipc call tide togglePlayer         # Toggle Media Player
-quickshell ipc call tide toggleClipboard      # Toggle Clipboard History
-quickshell ipc call recorder toggle           # Toggle Screen Recording
-quickshell ipc call recorder saveReplay 30    # Save 30s Instant Replay clip
-```
-*(See the [IPC & CLI Reference](https://github.com/Bimbok/Tide-island-extended/wiki/IPC-&-CLI-Reference) for the complete list).*
-
-### Spotlight Search Capabilities
-The unified Spotlight layer (`Super + Space` or `quickshell ipc call spotlight toggle`) includes:
-* **Math & Scientific Calculation**: Instant arithmetic (`2 + 2 * 3`), powers, trigonometric functions (`sin`, `cos`, `tan`), roots (`sqrt(144)`), logarithms, and percentage calculations (`25% of 80`) without `eval()`.
-* **Unit & Data Conversions**: Real-time conversions for length (`10 km to mi`), temperature (`72 F to C`), mass (`5 kg to lbs`), digital storage (`16 GB to MB`), speed, time, and angles.
-* **Direct Web & URL Launching**: Paste or type valid domains/URLs (`github.com`, `https://...`) to open directly in the default browser, or press Enter on search queries for instant web search.
-* **Frecency Ranking**: Tracks frequently and recently launched applications with half-life decay, adapting dynamically to personal workflow patterns.
-* **Native Quick Actions**: Direct control shortcuts for `lock`, `control_center`, `equalizer`, `recorder`, `replay`, `glance`, `clipboard`, `shelf`, `calendar`, `weather`, `style`, and `power`.
-* **Local File Lookup**: Debounced background search powered by `/usr/bin/fd`.
-
----
-
-## Contributing
-
-Contributions, feature suggestions, and bug reports are welcome!
-* Please open an issue to discuss proposed changes before opening large pull requests.
-* Keep pull requests focused on a single topic.
-
----
-
 ## Acknowledgments
 
 Heartfelt thanks and appreciation to:
-* **[@enhaoswen](https://github.com/enhaoswen)**: The original creator and core architect of Tide Island, who built the remarkable foundation, animation engine, and vision for this Wayland dynamic island.
+* **[@enhaoswen](https://github.com/enhaoswen)**: Original creator and core architect of Tide Island, who built the remarkable foundation, animation engine, and vision for this Wayland dynamic island.
 * **[@end-4](https://github.com/end-4)** for workspace overview inspiration.
 * **[@gozhuimeng](https://github.com/gozhuimeng)** for lyrics backend improvements.
 * **[@LatifKovani](https://github.com/LatifKovani)** for code contributions and refinements.
