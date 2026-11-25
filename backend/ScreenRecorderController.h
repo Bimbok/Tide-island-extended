@@ -14,7 +14,6 @@ class ScreenRecorderController final : public QObject {
     QML_SINGLETON
 
     Q_PROPERTY(bool isRecording READ isRecording NOTIFY recordingStateChanged FINAL)
-    Q_PROPERTY(bool isStopping READ isStopping NOTIFY recordingStateChanged FINAL)
     Q_PROPERTY(bool isPaused READ isPaused NOTIFY recordingStateChanged FINAL)
     Q_PROPERTY(bool isReplayActive READ isReplayActive NOTIFY replayStateChanged FINAL)
     Q_PROPERTY(int recordingSeconds READ recordingSeconds NOTIFY recordingSecondsChanged FINAL)
@@ -35,7 +34,6 @@ public:
     static ScreenRecorderController *instance();
 
     bool isRecording() const;
-    bool isStopping() const;
     bool isPaused() const;
     bool isReplayActive() const;
     int recordingSeconds() const;
@@ -105,7 +103,6 @@ private:
     static ScreenRecorderController *s_instance;
 
     bool m_isRecording = false;
-    bool m_isStopping = false;
     bool m_isPaused = false;
     bool m_isReplayActive = false;
     int m_recordingSeconds = 0;
