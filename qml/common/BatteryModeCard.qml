@@ -377,159 +377,91 @@ Item {
             }
         }
 
-        // Bottom Mode Carousel
+        // Bottom Mode Selector (Segmented 3-button control)
         Item {
-            id: batteryModeCarousel
+            id: batteryModeSelector
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 24, root.modeSlotWidth * 4)
+            width: root.modeSlotWidth * 3
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 8
             height: 34
-            clip: true
 
-            Item {
-                id: batteryModeItems
-                width: root.modeSlotWidth * 3
-                height: parent.height
-                x: batteryModeCarousel.width / 2
-                    - root.modeSlotWidth / 2
-                    - root.batteryModeIndex * root.modeSlotWidth
-                    + root.batteryModeDragOffset
+            // Active indicator underline bar
+            Rectangle {
+                x: root.batteryModeIndex * root.modeSlotWidth + (root.modeSlotWidth - width) / 2
+                anchors.bottom: parent.bottom
+                width: 22
+                height: 2
+                radius: 1
+                color: root.cardAccent
+                opacity: 0.85
 
                 Behavior on x {
-                    enabled: !root.batteryModeSliderDragging
-
                     NumberAnimation {
-                        duration: 180
+                        duration: 160
                         easing.type: Easing.OutCubic
                     }
                 }
+            }
 
-                Repeater {
-                    model: 3
+            Repeater {
+                model: 3
 
-                    delegate: Item {
-                        x: index * root.modeSlotWidth
-                        width: root.modeSlotWidth
-                        height: batteryModeCarousel.height
-                        opacity: index === root.batteryModeIndex ? 1 : 0.42
+                delegate: Item {
+                    x: index * root.modeSlotWidth
+                    width: root.modeSlotWidth
+                    height: batteryModeSelector.height
+                    opacity: index === root.batteryModeIndex ? 1 : 0.45
 
-                        Behavior on opacity {
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 140
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: index === root.batteryModeIndex ? 34 : 28
+                        height: index === root.batteryModeIndex ? 28 : 24
+                        radius: 12
+                        color: index === root.batteryModeIndex ? root.cardAccent : StyleTokens.track
+
+                        Behavior on width {
                             NumberAnimation {
                                 duration: 140
                                 easing.type: Easing.OutCubic
                             }
                         }
 
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: index === root.batteryModeIndex ? 32 : 28
-                            height: index === root.batteryModeIndex ? 28 : 24
-                            radius: 12
-                            color: index === root.batteryModeIndex ? root.cardAccent : StyleTokens.track
-
-                            Behavior on width {
-                                NumberAnimation {
-                                    duration: 140
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-
-                            Behavior on height {
-                                NumberAnimation {
-                                    duration: 140
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 140
-                                }
-                            }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: root.batteryModeGlyphs[index]
-                                color: index === root.batteryModeIndex ? StyleTokens.textOnAccent : StyleTokens.textDim
-                                font.pixelSize: index === root.batteryModeIndex ? 15 : 13
-                                font.family: root.iconFontFamily
+                        Behavior on height {
+                            NumberAnimation {
+                                duration: 140
+                                easing.type: Easing.OutCubic
                             }
                         }
-                    }
-                }
-            }
 
-            // Active indicator underline bar
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: 22
-                height: 2
-                radius: 1
-                color: root.cardAccent
-                opacity: 0.75
-            }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 140
+                            }
+                        }
 
-            MouseArea {
-                anchors.fill: parent
-                enabled: root.interactive
-                hoverEnabled: root.interactive
-                cursorShape: Qt.PointingHandCursor
-                property real startX: 0
-                property int startIndex: 1
-                property bool moved: false
-
-                function clampDrag(delta) {
-                    return Math.max(-root.modeSlotWidth, Math.min(root.modeSlotWidth, delta));
-                }
-
-                onPressed: function(mouse) {
-                    startX = mouse.x;
-                    startIndex = root.batteryModeIndex;
-                    moved = false;
-                    root.batteryModeInfoMessage = "";
-                    root.batteryModeError = "";
-                    root.batteryModeSliderDragging = true;
-                    root.batteryModeDragOffset = 0;
-                }
-
-                onPositionChanged: function(mouse) {
-                    if (!pressed)
-                        return;
-
-                    const delta = mouse.x - startX;
-                    if (!moved && Math.abs(delta) < 4)
-                        return;
-
-                    moved = true;
-                    root.batteryModeDragOffset = clampDrag(delta);
-                }
-
-                onReleased: function(mouse) {
-                    const delta = mouse.x - startX;
-                    let nextIndex = startIndex;
-
-                    if (moved && Math.abs(delta) >= 18) {
-                        if (delta <= -18)
-                            nextIndex = Math.min(2, startIndex + 1);
-                        else if (delta >= 18)
-                            nextIndex = Math.max(0, startIndex - 1);
-                    } else {
-                        const offsetFromCenter = mouse.x - width / 2;
-                        const slotDiff = Math.round(offsetFromCenter / root.modeSlotWidth);
-                        nextIndex = Math.max(0, Math.min(2, startIndex + slotDiff));
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.batteryModeGlyphs[index]
+                            color: index === root.batteryModeIndex ? StyleTokens.textOnAccent : StyleTokens.textDim
+                            font.pixelSize: index === root.batteryModeIndex ? 15 : 13
+                            font.family: root.iconFontFamily
+                        }
                     }
 
-                    root.batteryModeSliderDragging = false;
-                    root.batteryModeDragOffset = 0;
-                    root.selectBatteryMode(nextIndex);
-                }
-
-                onCanceled: {
-                    root.batteryModeSliderDragging = false;
-                    root.batteryModeDragOffset = 0;
-                    root.setBatteryModeVisualIndex(root.batteryModeAppliedIndex, true);
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: root.interactive
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.selectBatteryMode(index)
+                    }
                 }
             }
         }
