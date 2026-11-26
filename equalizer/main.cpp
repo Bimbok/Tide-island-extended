@@ -29,7 +29,7 @@
 #include "visualizer_cli.h"
 
 #ifndef TE_VERSION
-#define TE_VERSION "1.3.1"
+#define TE_VERSION "1.4.0"
 #endif
 
 namespace {
